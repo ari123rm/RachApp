@@ -25,3 +25,4 @@ dist-ssr
 /android/*
 /dist/*
 /node_modules/*
+/ios/*
