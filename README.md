@@ -1,4 +1,4 @@
-# 💸 RachaApp
+# 💸 RachApp
 
 > Um aplicativo mobile moderno para gerenciar despesas e dividir o "racha" de viagens, corridas e rolês com os amigos.
 
