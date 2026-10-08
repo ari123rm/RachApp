@@ -1,5 +1,5 @@
 // src/components/BottomNav.tsx
-import { Home, ListOrdered, Users, User } from 'lucide-react';
+import { Home, ListOrdered, Users, User, UsersRound } from 'lucide-react';
 
 interface BottomNavProps {
   activeTab: string;
@@ -12,6 +12,7 @@ export function BottomNav({ activeTab, setActiveTab }: BottomNavProps) {
     { id: 'home', label: 'Home', icon: Home },
     { id: 'viagens', label: 'Rachas', icon: ListOrdered },
     { id: 'amigos', label: 'Amigos', icon: Users },
+    { id: 'grupos', label: 'Grupos', icon: UsersRound }, // 🟢 Nova Aba
     { id: 'perfil', label: 'Perfil', icon: User },
   ];
 
