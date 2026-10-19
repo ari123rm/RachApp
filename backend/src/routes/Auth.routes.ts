@@ -5,16 +5,15 @@ import { authMiddleware } from '../middlewares/Auth.middleware';
 
 const router = Router();
 
-// ==========================
 // Rotas Públicas
-// ==========================
 router.post('/register', AuthController.register);
 router.post('/login', AuthController.login);
+router.post('/verify', AuthController.verify);
+router.post('/reset-password', AuthController.resetPassword);
 
-// ==========================
 // Rotas Privadas (Protegidas)
-// ==========================
-// O authMiddleware é colocado antes do AuthController.update
+router.get('/me', authMiddleware, AuthController.me);
 router.put('/profile', authMiddleware, AuthController.update);
+router.put('/password', authMiddleware, AuthController.updatePassword);
 
 export default router;

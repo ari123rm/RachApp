@@ -10,9 +10,9 @@ datasource db {
 model User {
   id                String   @id @default(uuid())
   name              String
-  phone             String   @unique // 🟢 Agora é obrigatório
-  phone_verified    Boolean  @default(false) // 🟢 Status de verificação
-  verification_code String?  // 🟢 Código OTP de 6 dígitos
+  phone             String   @unique
+  phone_verified    Boolean  @default(false)
+  verification_code String?
   email             String   @unique
   password_hash     String
   pix_key           String?
@@ -23,16 +23,20 @@ model User {
   expensesOwned Expense[]     @relation("ExpenseOwner")
   friends       Friend[]
 }
+
 model Friend {
   id          String   @id @default(uuid())
-  user_id     String   // O utilizador dono deste contacto
+  user_id     String
   name        String
   phone       String?
+  pix_key     String?
   color       String
   is_favorite Boolean  @default(false)
 
-  user        User                 @relation(fields: [user_id], references: [id], onDelete: Cascade)
-  expenses    ExpenseParticipant[]
+  user         User                 @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  expenses     ExpenseParticipant[]
+  groupMembers GroupMember[]
+  expensesPaid Expense[]            @relation("ExpensePayerFriend")
 }
 
 model Group {
@@ -41,40 +45,46 @@ model Group {
   created_by String
   created_at DateTime @default(now())
 
-  owner      User          @relation("GroupOwner", fields: [created_by], references: [id])
+  owner      User          @relation("GroupOwner", fields: [created_by], references: [id], onDelete: Cascade)
   members    GroupMember[]
   expenses   Expense[]
 }
 
 model GroupMember {
-  group_id String
-  user_id  String
+  id        String  @id @default(dbgenerated("gen_random_uuid()"))
+  group_id  String
+  user_id   String?
+  friend_id String?
 
-  group    Group @relation(fields: [group_id], references: [id], onDelete: Cascade)
-  user     User  @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  group     Group   @relation(fields: [group_id], references: [id], onDelete: Cascade)
+  user      User?   @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  friend    Friend? @relation(fields: [friend_id], references: [id], onDelete: Cascade)
 
-  @@id([group_id, user_id])
+  @@unique([group_id, user_id])
+  @@unique([group_id, friend_id])
 }
 
 model Expense {
-  id           String   @id @default(uuid())
-  user_id      String   // Quem criou a despesa (o credor principal)
-  group_id     String?  // 🟢 AGORA É OPCIONAL! Se for null, é um racha avulso
-  title        String
-  tag          String?
-  total_amount Decimal  @db.Decimal(10, 2)
-  expense_date DateTime @default(now())
+  id                String   @id @default(uuid())
+  user_id           String
+  group_id          String?
+  paid_by_friend_id String?
+  title             String
+  tag               String?
+  total_amount      Decimal  @db.Decimal(10, 2)
+  self_amount_owed  Decimal  @default(0.00) @db.Decimal(10, 2)
+  self_amount_paid  Decimal  @default(0.00) @db.Decimal(10, 2)
+  expense_date      DateTime @default(now())
 
-  owner        User                 @relation("ExpenseOwner", fields: [user_id], references: [id])
+  owner        User                 @relation("ExpenseOwner", fields: [user_id], references: [id], onDelete: Cascade)
+  paidByFriend Friend?              @relation("ExpensePayerFriend", fields: [paid_by_friend_id], references: [id], onDelete: SetNull)
   group        Group?               @relation(fields: [group_id], references: [id], onDelete: SetNull)
   participants ExpenseParticipant[]
 }
 
-
-
 model ExpenseParticipant {
   expense_id  String
-  friend_id   String   
+  friend_id   String
   amount_owed Decimal @db.Decimal(10, 2)
   amount_paid Decimal @default(0.00) @db.Decimal(10, 2)
 

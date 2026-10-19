@@ -1,121 +1,195 @@
 // src/components/AddFriendModal.tsx
-import { useState } from 'react';
-import { X, User, Phone } from 'lucide-react';
-import { dbService } from '../services/database'; // 🟢 IMPORTANDO O SERVIÇO
+import { useState, useEffect } from 'react';
+import { X, User, Phone, QrCode } from 'lucide-react';
+import { dbService } from '../services/database';
+import { formatPhoneBR, isValidPhoneBR, stripCountryCode } from '../utils/phoneFormatter';
+import type { Amigo } from '../types';
 
 interface AddFriendModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSuccess?: () => void;
+  onSuccess?: (amigoSalvo?: Amigo) => void;
+  friendToEdit?: Amigo | null;
 }
 
-// 🟢 PALETA DE CORES PRÉ-DEFINIDAS (Nativas do Tailwind que ficam boas no Dark Mode)
 const CORES_PALETA = [
-  "bg-sky-500",    // Azul Claro
-  "bg-pink-500",   // Rosa
-  "bg-amber-500",  // Laranja/Amarelo
-  "bg-green-500",  // Verde
-  "bg-purple-500", // Roxo
-  "bg-indigo-500", // Indigo
-  "bg-teal-500",   // Ciano/Teal
+  'bg-sky-500',
+  'bg-pink-500',
+  'bg-amber-500',
+  'bg-green-500',
+  'bg-purple-500',
+  'bg-indigo-500',
+  'bg-teal-500',
 ];
 
-export function AddFriendModal({ isOpen, onClose, onSuccess }: AddFriendModalProps) {
+export function AddFriendModal({ isOpen, onClose, onSuccess, friendToEdit }: AddFriendModalProps) {
   const [nome, setNome] = useState('');
   const [telefone, setTelefone] = useState('');
-  const [isLoading, setIsLoading] = useState(false); // 🟢 ESTADO DE CARREGANDO
-  // 🟢 NOVO ESTADO: Guarda a cor selecionada (começa com a primeira da paleta)
+  const [pixKey, setPixKey] = useState('');
   const [corSelecionada, setCorSelecionada] = useState(CORES_PALETA[0]);
+  const [erro, setErro] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
 
-  // Se não estiver aberto, não renderiza
+  const isEditing = !!friendToEdit;
+
+  useEffect(() => {
+    if (isOpen) {
+      setErro('');
+      if (friendToEdit) {
+        setNome(friendToEdit.nome || friendToEdit.name || '');
+        setTelefone(formatPhoneBR(friendToEdit.telefone || friendToEdit.phone || ''));
+        setPixKey(friendToEdit.pix_key || friendToEdit.pix || '');
+        setCorSelecionada(friendToEdit.cor || friendToEdit.color || CORES_PALETA[0]);
+      } else {
+        setNome('');
+        setTelefone('');
+        setPixKey('');
+        setCorSelecionada(CORES_PALETA[0]);
+      }
+    }
+  }, [isOpen, friendToEdit]);
+
   if (!isOpen) return null;
 
-  // 🟢 LÓGICA PARA PEGAR A INICIAL (Ex: "João Silva" -> "J")
-  const inicial = nome ? nome.charAt(0).toUpperCase() : "?";
+  const inicial = nome ? nome.trim().charAt(0).toUpperCase() : '?';
 
-  // 🟢 FUNÇÃO PARA SALVAR NO BANCO 🟢
+  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setErro('');
+    setTelefone(formatPhoneBR(e.target.value));
+  };
+
   const handleSalvar = async () => {
-    if (!nome.trim()) return alert("O nome é obrigatório!");
+    setErro('');
+    if (!nome.trim()) {
+      setErro('O nome do amigo é obrigatório!');
+      return;
+    }
+
+    const phoneDigits = stripCountryCode(telefone);
+    if (phoneDigits.length > 0 && !isValidPhoneBR(phoneDigits)) {
+      setErro('Informe um WhatsApp válido com DDD (ex: (85) 99999-8888).');
+      return;
+    }
 
     setIsLoading(true);
     try {
-      await dbService.amigos.create({
-        nome: nome,
-        telefone: telefone,
-        cor: corSelecionada,
-        favorito: false
-      });
-      
-      // Limpa os campos
-      setNome('');
-      setTelefone('');
-      setCorSelecionada(CORES_PALETA[0]);
-      
-      // Avisa quem chamou o modal que salvou e fecha
-      if (onSuccess) onSuccess();
+      let saved: Amigo;
+      if (isEditing && friendToEdit) {
+        saved = await dbService.amigos.update(friendToEdit.id, {
+          nome: nome.trim(),
+          telefone: phoneDigits,
+          pix_key: pixKey.trim(),
+          cor: corSelecionada,
+          favorito: friendToEdit.favorito ?? friendToEdit.is_favorite ?? false,
+        });
+      } else {
+        saved = await dbService.amigos.create({
+          nome: nome.trim(),
+          telefone: phoneDigits,
+          pix_key: pixKey.trim(),
+          cor: corSelecionada,
+          favorito: false,
+        });
+      }
+
+      if (onSuccess) onSuccess(saved);
       onClose();
-    } catch (error) {
-      alert("Erro ao salvar o amigo.");
+    } catch (error: any) {
+      setErro(error?.message || 'Erro ao salvar o amigo.');
     } finally {
       setIsLoading(false);
     }
   };
 
   return (
-    <div className="fixed inset-0 bg-black/70 z-50 flex items-end sm:items-center justify-center transition-opacity">
-      
-      <div className="bg-[#1c1c1e] w-full max-w-md rounded-t-3xl sm:rounded-3xl p-6 animate-slide-up relative overflow-y-auto max-h-[90vh]">
-        
-        <button onClick={onClose} className="absolute top-5 right-5 text-gray-400 hover:text-white">
+    <div className="fixed inset-0 bg-black/75 z-[70] flex items-end sm:items-center justify-center transition-opacity">
+      <div className="bg-[#1c1c1e] w-full max-w-md rounded-t-3xl sm:rounded-3xl p-6 animate-slide-up relative overflow-y-auto max-h-[90vh] border border-white/10">
+        <button
+          onClick={onClose}
+          className="absolute top-5 right-5 text-gray-400 hover:text-white"
+        >
           <X size={24} />
         </button>
 
-        <h2 className="text-xl font-bold text-white mb-6">Adicionar Amigo</h2>
+        <h2 className="text-xl font-bold text-white mb-6">
+          {isEditing ? 'Editar Amigo' : 'Adicionar Amigo'}
+        </h2>
 
-        {/* 🟢 SEÇÃO DE PREVIEW DO AVATAR 🟢 */}
-        <div className="flex flex-col items-center justify-center mb-8 gap-3">
-          <p className="text-gray-500 text-sm">Visual do Amigo</p>
-          <div className={`w-24 h-24 rounded-full ${corSelecionada} flex items-center justify-center shadow-xl border-4 border-white/5 transition-colors duration-300`}>
-            <span className="text-5xl font-black text-white tracking-tighter">
-              {inicial}
-            </span>
+        {erro && (
+          <div className="mb-4 bg-red-500/15 border border-red-500/30 text-red-400 text-xs font-medium p-3 rounded-xl">
+            {erro}
+          </div>
+        )}
+
+        {/* Preview do Avatar */}
+        <div className="flex flex-col items-center justify-center mb-6 gap-2">
+          <p className="text-gray-500 text-xs uppercase font-bold tracking-wider">Visual do Amigo</p>
+          <div
+            className={`w-20 h-20 rounded-full ${corSelecionada} flex items-center justify-center shadow-xl border-4 border-white/10 transition-colors duration-300`}
+          >
+            <span className="text-4xl font-black text-white tracking-tighter">{inicial}</span>
           </div>
         </div>
 
         {/* Campo: Nome */}
-        <div className="mb-5">
-          <label className="block text-gray-400 text-sm mb-2">Nome do Amigo</label>
-          <div className="bg-[#2c2c2e] rounded-xl p-4 flex items-center text-white focus-within:ring-2 focus-within:ring-[#2DD4BF]">
-            <User size={20} className="text-gray-400 mr-3" />
-            <input 
-              type="text" 
-              placeholder="Ex: João Silva"
+        <div className="mb-4">
+          <label className="block text-gray-400 text-xs uppercase font-bold mb-2">Nome do Amigo</label>
+          <div className="bg-[#2c2c2e] rounded-xl p-3.5 flex items-center text-white focus-within:ring-2 focus-within:ring-[#2DD4BF]">
+            <User size={18} className="text-gray-400 mr-3 shrink-0" />
+            <input
+              type="text"
+              placeholder="Ex: Pimenta, Ryan, Bia..."
               value={nome}
-              onChange={(e) => setNome(e.target.value)}
-              maxLength={20} // Limita o tamanho do nome
+              onChange={(e) => {
+                setErro('');
+                setNome(e.target.value);
+              }}
+              maxLength={30}
               className="bg-transparent w-full outline-none text-white placeholder:text-gray-600"
             />
           </div>
         </div>
 
-        {/* Campo: WhatsApp */}
-        <div className="mb-6">
-          <label className="block text-gray-400 text-sm mb-2">WhatsApp (com DDD)</label>
-          <div className="bg-[#2c2c2e] rounded-xl p-4 flex items-center text-white focus-within:ring-2 focus-within:ring-[#2DD4BF]">
-            <Phone size={20} className="text-gray-400 mr-3" />
-            <input 
-              type="tel" 
-              placeholder="11999998888"
+        {/* Campo: WhatsApp formatado */}
+        <div className="mb-4">
+          <div className="flex justify-between items-center mb-2">
+            <label className="text-gray-400 text-xs uppercase font-bold">WhatsApp (com DDD)</label>
+            <span className="text-[10px] text-gray-500">Aceita com ou sem +55</span>
+          </div>
+          <div className="bg-[#2c2c2e] rounded-xl p-3.5 flex items-center text-white focus-within:ring-2 focus-within:ring-[#2DD4BF]">
+            <Phone size={18} className="text-gray-400 mr-3 shrink-0" />
+            <input
+              type="tel"
+              placeholder="(85) 99999-8888"
               value={telefone}
-              onChange={(e) => setTelefone(e.target.value)}
+              onChange={handlePhoneChange}
               className="bg-transparent w-full outline-none text-white placeholder:text-gray-600"
             />
           </div>
         </div>
 
-        {/* 🟢 SEÇÃO DE ESCOLHA DE COR 🟢 */}
-        <div className="mb-8">
-          <label className="block text-gray-400 text-sm mb-3">Escolha uma Cor de Destaque</label>
+        {/* Campo: Chave Pix */}
+        <div className="mb-5">
+          <label className="block text-gray-400 text-xs uppercase font-bold mb-2">
+            Chave Pix do Amigo (Opcional)
+          </label>
+          <div className="bg-[#2c2c2e] rounded-xl p-3.5 flex items-center text-white focus-within:ring-2 focus-within:ring-[#2DD4BF]">
+            <QrCode size={18} className="text-gray-400 mr-3 shrink-0" />
+            <input
+              type="text"
+              placeholder="CPF, E-mail, Telefone ou Chave Aleatória"
+              value={pixKey}
+              onChange={(e) => setPixKey(e.target.value)}
+              className="bg-transparent w-full outline-none text-white placeholder:text-gray-600"
+            />
+          </div>
+        </div>
+
+        {/* Escolha de Cor */}
+        <div className="mb-6">
+          <label className="block text-gray-400 text-xs uppercase font-bold mb-2">
+            Cor de Destaque
+          </label>
           <div className="flex justify-between items-center gap-2 bg-[#2c2c2e] p-3 rounded-2xl border border-white/5">
             {CORES_PALETA.map((cor) => {
               const isActive = cor === corSelecionada;
@@ -124,16 +198,15 @@ export function AddFriendModal({ isOpen, onClose, onSuccess }: AddFriendModalPro
                   key={cor}
                   type="button"
                   onClick={() => setCorSelecionada(cor)}
-                  className={`w-10 h-10 rounded-full ${cor} transition-all duration-200 relative ${
-                    isActive 
-                      ? 'scale-110 ring-4 ring-white/30 shadow-lg' 
+                  className={`w-9 h-9 rounded-full ${cor} transition-all duration-200 relative ${
+                    isActive
+                      ? 'scale-110 ring-4 ring-white/30 shadow-lg'
                       : 'hover:scale-105 opacity-80 hover:opacity-100'
                   }`}
                 >
-                  {/* Ícone de Check se estiver selecionada */}
                   {isActive && (
                     <div className="absolute inset-0 flex items-center justify-center">
-                      <div className="w-3 h-3 bg-white rounded-full"></div>
+                      <div className="w-2.5 h-2.5 bg-white rounded-full"></div>
                     </div>
                   )}
                 </button>
@@ -142,15 +215,13 @@ export function AddFriendModal({ isOpen, onClose, onSuccess }: AddFriendModalPro
           </div>
         </div>
 
-        {/* Botão Salvar */}
-        <button 
+        <button
           onClick={handleSalvar}
           disabled={isLoading}
-          className="w-full bg-[#2DD4BF] hover:bg-[#25b5a3] disabled:opacity-50 text-[#05080f] font-bold py-4 rounded-xl text-lg transition-all active:scale-95"
+          className="w-full bg-[#2DD4BF] hover:bg-[#25b5a3] disabled:opacity-50 text-[#05080f] font-bold py-4 rounded-xl text-base transition-all active:scale-95"
         >
-          {isLoading ? 'Salvando...' : 'Salvar Amigo'}
+          {isLoading ? 'Salvando...' : isEditing ? 'Salvar Alterações' : 'Salvar Amigo'}
         </button>
-
       </div>
     </div>
   );

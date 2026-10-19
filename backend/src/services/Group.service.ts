@@ -1,132 +1,259 @@
-// src/services/GroupService.ts
+// src/services/Group.service.ts
 import { prisma } from '../config/db';
+import { ExpenseService } from './Expense.service';
 
 export class GroupService {
-  // 1. Criar um novo grupo
-  static async createGroup(userId: string, name: string) {
-    // Cria o grupo e já adiciona o criador como membro na mesma transação
+  static async createGroup(
+    userId: string,
+    data: { id?: string; name: string; friendIds?: string[] }
+  ) {
+    const name = data.name?.trim();
+    if (!name) throw new Error('O nome do grupo é obrigatório.');
+
+    const friendIds = Array.from(new Set(data.friendIds || []));
+
+    if (data.id) {
+      const existing = await prisma.group.findUnique({ where: { id: data.id } });
+      if (existing && existing.created_by === userId) {
+        return this.updateGroup(userId, data.id, { name, friendIds });
+      }
+    }
+
     const group = await prisma.group.create({
       data: {
+        ...(data.id ? { id: data.id } : {}),
         name,
         created_by: userId,
         members: {
-          create: {
-            user_id: userId,
-          },
+          create: [
+            { user_id: userId },
+            ...friendIds.map((friendId) => ({ friend_id: friendId })),
+          ],
         },
       },
       include: {
+        owner: { select: { id: true, name: true, pix_key: true, phone: true } },
         members: {
           include: {
-            user: {
-              select: { id: true, name: true, pix_key: true, phone: true }
-            }
-          }
-        }
-      }
+            user: { select: { id: true, name: true, pix_key: true, phone: true } },
+            friend: true,
+          },
+        },
+        _count: {
+          select: { members: true, expenses: true },
+        },
+      },
     });
+
     return group;
   }
 
-  // 2. Listar os grupos do utilizador logado
   static async getUserGroups(userId: string) {
     const groups = await prisma.group.findMany({
       where: {
-        members: {
-          some: {
-            user_id: userId,
-          },
-        },
+        OR: [
+          { created_by: userId },
+          { members: { some: { user_id: userId } } },
+        ],
       },
       include: {
-        // Traz uma contagem rápida para mostrar na interface (ex: "4 participantes")
+        owner: { select: { id: true, name: true, pix_key: true, phone: true } },
+        members: {
+          include: {
+            user: { select: { id: true, name: true, pix_key: true, phone: true } },
+            friend: true,
+          },
+        },
+        expenses: {
+          include: {
+            participants: true,
+          },
+        },
         _count: {
-          select: { members: true, expenses: true }
-        }
+          select: { members: true, expenses: true },
+        },
       },
       orderBy: {
-        created_at: 'desc'
-      }
+        created_at: 'desc',
+      },
     });
+
     return groups;
   }
 
-  // 3. Adicionar um amigo ao grupo
-  static async addMember(groupId: string, identifier: string) {
-    // Busca o amigo no banco pelo email ou telefone
-    const userToAdd = await prisma.user.findFirst({
+  static async updateGroup(
+    userId: string,
+    groupId: string,
+    data: { name?: string; friendIds?: string[] }
+  ) {
+    const group = await prisma.group.findFirst({
       where: {
-        OR: [
-          { email: identifier },
-          { phone: identifier }
-        ]
-      }
+        id: groupId,
+        OR: [{ created_by: userId }, { members: { some: { user_id: userId } } }],
+      },
     });
+    if (!group) throw new Error('Grupo não encontrado.');
 
-    if (!userToAdd) {
-      throw new Error('Usuário não encontrado com este email ou telefone.');
+    if (data.name !== undefined && data.name.trim()) {
+      await prisma.group.update({
+        where: { id: groupId },
+        data: { name: data.name.trim() },
+      });
     }
 
-    // Verifica se a pessoa já está no grupo para evitar duplicidade
-    const existingMember = await prisma.groupMember.findUnique({
-      where: {
-        group_id_user_id: {
+    if (Array.isArray(data.friendIds)) {
+      const uniqueFriendIds = Array.from(new Set(data.friendIds));
+      await prisma.groupMember.deleteMany({
+        where: {
           group_id: groupId,
-          user_id: userToAdd.id,
-        }
+          friend_id: { not: null },
+        },
+      });
+
+      if (uniqueFriendIds.length > 0) {
+        await prisma.groupMember.createMany({
+          data: uniqueFriendIds.map((friendId) => ({
+            group_id: groupId,
+            friend_id: friendId,
+          })),
+          skipDuplicates: true,
+        });
       }
+    }
+
+    return this.getGroupById(groupId, userId);
+  }
+
+  static async deleteGroup(userId: string, groupId: string) {
+    const group = await prisma.group.findFirst({
+      where: { id: groupId, created_by: userId },
+    });
+    if (!group) throw new Error('Grupo não encontrado ou sem permissão.');
+
+    await prisma.group.delete({ where: { id: groupId } });
+  }
+
+  static async addMember(
+    groupId: string,
+    userId: string,
+    payload: { friendId?: string; identifier?: string; name?: string; phone?: string; pix_key?: string; color?: string }
+  ) {
+    const group = await prisma.group.findUnique({ where: { id: groupId } });
+    if (!group) throw new Error('Grupo não encontrado.');
+
+    let friendToAdd = null;
+
+    if (payload.friendId) {
+      friendToAdd = await prisma.friend.findFirst({
+        where: { id: payload.friendId, user_id: userId },
+      });
+    } else if (payload.identifier) {
+      const idClean = payload.identifier.trim();
+      friendToAdd = await prisma.friend.findFirst({
+        where: {
+          user_id: userId,
+          OR: [
+            { name: { equals: idClean, mode: 'insensitive' } },
+            { phone: idClean },
+            { pix_key: idClean },
+          ],
+        },
+      });
+
+      if (!friendToAdd) {
+        // Verifica se existe um User registrado com esse email/telefone para puxar dados
+        const registeredUser = await prisma.user.findFirst({
+          where: {
+            OR: [{ email: idClean.toLowerCase() }, { phone: idClean }],
+          },
+        });
+
+        friendToAdd = await prisma.friend.create({
+          data: {
+            user_id: userId,
+            name: registeredUser ? registeredUser.name : (payload.name || idClean),
+            phone: registeredUser ? registeredUser.phone : (payload.phone || null),
+            pix_key: registeredUser ? registeredUser.pix_key : (payload.pix_key || null),
+            color: payload.color || 'bg-teal-500',
+            is_favorite: false,
+          },
+        });
+      }
+    }
+
+    if (!friendToAdd) {
+      throw new Error('Amigo não encontrado.');
+    }
+
+    const existingMember = await prisma.groupMember.findFirst({
+      where: {
+        group_id: groupId,
+        friend_id: friendToAdd.id,
+      },
     });
 
     if (existingMember) {
-      throw new Error('Este usuário já é membro do grupo.');
+      throw new Error('Este amigo já faz parte do grupo.');
     }
 
-    // Vincula o amigo ao grupo
     const newMember = await prisma.groupMember.create({
       data: {
         group_id: groupId,
-        user_id: userToAdd.id,
+        friend_id: friendToAdd.id,
       },
       include: {
-        user: {
-          select: { id: true, name: true, pix_key: true, phone: true }
-        }
-      }
+        friend: true,
+        user: { select: { id: true, name: true, pix_key: true, phone: true } },
+      },
     });
 
     return newMember;
   }
-  // 4. Obter detalhes completos de um grupo específico
-  static async getGroupById(groupId: string, userId: string) {
-    // Garantir que o utilizador pertence ao grupo para evitar acessos indevidos
-    const isMember = await prisma.groupMember.findUnique({
+
+  static async removeMember(groupId: string, userId: string, memberOrFriendId: string) {
+    await prisma.groupMember.deleteMany({
       where: {
-        group_id_user_id: { group_id: groupId, user_id: userId }
-      }
+        group_id: groupId,
+        OR: [{ id: memberOrFriendId }, { friend_id: memberOrFriendId }],
+      },
     });
+  }
 
-    if (!isMember) {
-      throw new Error('Não tem permissão para aceder a este grupo.');
-    }
-
+  static async getGroupById(groupId: string, userId: string) {
     const group = await prisma.group.findUnique({
       where: { id: groupId },
       include: {
+        owner: { select: { id: true, name: true, pix_key: true, phone: true } },
         members: {
           include: {
-            user: { select: { id: true, name: true, pix_key: true, phone: true } }
-          }
+            user: { select: { id: true, name: true, pix_key: true, phone: true } },
+            friend: true,
+          },
         },
         expenses: {
           orderBy: { expense_date: 'desc' },
           include: {
-            owner: { select: { id: true, name: true } }, // 🟢 CORRIGIDO de "payer" para "owner"
-            participants: { select: { friend_id: true, amount_owed: true, amount_paid: true } } // 🟢 CORRIGIDO de "user_id" para "friend_id"
-          }
-        }
-      }
+            owner: { select: { id: true, name: true, pix_key: true } },
+            paidByFriend: true,
+            participants: {
+              include: {
+                friend: true,
+              },
+            },
+          },
+        },
+      },
     });
 
-    return group;
+    if (!group) {
+      throw new Error('Grupo não encontrado.');
+    }
+
+    const balanceSummary = await ExpenseService.calculateGroupBalances(groupId, userId);
+
+    return {
+      ...group,
+      ...balanceSummary,
+    };
   }
 }

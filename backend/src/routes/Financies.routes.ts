@@ -5,15 +5,21 @@ import { authMiddleware } from '../middlewares/Auth.middleware';
 
 const router = Router();
 
-// Todas as rotas financeiras exigem autenticação
 router.use(authMiddleware);
 
-// POST /api/finances/groups/:groupId/expenses
+// Sincronização completa (pull)
+router.get('/sync', FinanciesController.syncData);
+
+// CRUD de Despesas / Rachas
+router.get('/expenses', FinanciesController.listExpenses);
+router.post('/expenses', FinanciesController.createExpense);
+router.put('/expenses/:id', FinanciesController.updateExpense);
+router.delete('/expenses/:id', FinanciesController.deleteExpense);
+router.post('/expenses/:id/payment', FinanciesController.setParticipantPayment);
+
+// Rotas por grupo e pagamentos
 router.post('/groups/:groupId/expenses', FinanciesController.addExpense);
-
-// GET /api/finances/groups/:groupId/balances
 router.get('/groups/:groupId/balances', FinanciesController.getBalances);
-
 router.post('/payments', FinanciesController.registerPayment);
 router.get('/dashboard', FinanciesController.getDashboard);
 

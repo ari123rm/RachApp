@@ -1,0 +1,120 @@
+name: Build Android APK
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-apk:
+    name: Gerar APK (React + Capacitor)
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - name: Checkout do Repositório
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Configurar Java JDK 21 (exigido pelo Capacitor 8 / AGP 8)
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+          cache: 'gradle'
+
+      - name: Configurar Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Instalar dependências do Frontend
+        run: npm install --legacy-peer-deps
+
+      - name: Compilar Frontend Web (Vite + SQLite WASM)
+        env:
+          VITE_API_URL: ${{ secrets.VITE_API_URL || vars.VITE_API_URL || '' }}
+        run: npm run build
+
+      - name: Inicializar e Sincronizar Plataforma Android (Capacitor)
+        run: |
+          if [ ! -d "android" ]; then
+            npx cap add android
+          fi
+          npx cap sync android
+
+      - name: Habilitar tráfego HTTP/HTTPS (Cleartext Traffic) no AndroidManifest
+        run: |
+          MANIFEST="android/app/src/main/AndroidManifest.xml"
+          if [ -f "$MANIFEST" ] && ! grep -q "usesCleartextTraffic" "$MANIFEST"; then
+            sed -i 's/<application/<application android:usesCleartextTraffic="true"/g' "$MANIFEST"
+          fi
+
+      - name: Compilar APKs (Debug e Release) via Gradle
+        run: |
+          chmod +x android/gradlew
+          cd android
+          ./gradlew assembleDebug assembleRelease --no-daemon
+
+      - name: Assinar APK Release e preparar arquivos finais
+        run: |
+          mkdir -p ../apk-output
+
+          # Copia o APK Debug (já assinado pelo Android SDK e pronto para instalar)
+          cp android/app/build/outputs/apk/debug/app-debug.apk ../apk-output/RachApp-debug.apk
+
+          # Assina o APK Release para permitir instalação direta no celular
+          UNSIGNED_APK="android/app/build/outputs/apk/release/app-release-unsigned.apk"
+          if [ -f "$UNSIGNED_APK" ]; then
+            keytool -genkey -v \
+              -keystore release-key.jks \
+              -keyalg RSA \
+              -keysize 2048 \
+              -validity 10000 \
+              -alias rachapp \
+              -storepass rachapp123 \
+              -keypass rachapp123 \
+              -dname "CN=RachApp, OU=Mobile, O=RachApp, L=Fortaleza, S=CE, C=BR"
+
+            BUILD_TOOLS_DIR=$(ls -d $ANDROID_HOME/build-tools/* | sort -V | tail -n 1)
+            "$BUILD_TOOLS_DIR/zipalign" -v -p 4 "$UNSIGNED_APK" app-release-aligned.apk
+            "$BUILD_TOOLS_DIR/apksigner" sign \
+              --ks release-key.jks \
+              --ks-key-alias rachapp \
+              --ks-pass pass:rachapp123 \
+              --key-pass pass:rachapp123 \
+              --out ../apk-output/RachApp-release.apk \
+              app-release-aligned.apk
+          fi
+
+      - name: Publicar APKs nos Artifacts do GitHub Actions
+        uses: actions/upload-artifact@v4
+        with:
+          name: RachApp-APK-${{ github.sha }}
+          path: apk-output/*.apk
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publicar Release Automática com o APK
+        if: github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: apk-build-${{ github.run_number }}
+          name: "RachApp APK - Build #${{ github.run_number }}"
+          body: |
+            APK gerado automaticamente a partir do commit `${{ github.sha }}` na branch `main`.
+            - **RachApp-release.apk**: Versão otimizada e assinada (recomendada para instalação).
+            - **RachApp-debug.apk**: Versão de depuração.
+          files: apk-output/*.apk
+          prerelease: false

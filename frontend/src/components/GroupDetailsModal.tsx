@@ -1,145 +1,631 @@
 // src/components/GroupDetailsModal.tsx
 import { useState, useEffect } from 'react';
-import { ChevronLeft, UserPlus, LoaderCircle, Users, Receipt } from 'lucide-react';
-import { dbService } from '../services/api';
+import {
+  ChevronLeft,
+  UserPlus,
+  LoaderCircle,
+  Receipt,
+  Plus,
+  QrCode,
+  CheckCircle2,
+  ArrowRight,
+  Pencil,
+  Trash2,
+  DollarSign,
+  Users,
+} from 'lucide-react';
+import { dbService } from '../services/database';
 import moneyConverter from '../utils/moneyConverter';
+import { AddRideModal } from './AddRideModal';
+import { AddGroupModal } from './AddGroupModal';
+import { AddFriendModal } from './AddFriendModal';
+import { PixModal } from './PixModal';
+import { RideDetailsModal } from './RideDetailsModal';
+import { formatPhoneBR } from '../utils/phoneFormatter';
+import type { Amigo, Corrida, Grupo, Transferencia } from '../types';
 
 interface GroupDetailsProps {
   grupoId: string | null;
   isOpen: boolean;
   onClose: () => void;
+  onChanged?: () => void;
 }
 
-export function GroupDetailsModal({ grupoId, isOpen, onClose }: GroupDetailsProps) {
-  const [grupo, setGrupo] = useState<any>(null);
+export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: GroupDetailsProps) {
+  const [grupo, setGrupo] = useState<Grupo | null>(null);
+  const [todosAmigos, setTodosAmigos] = useState<Amigo[]>([]);
+  const [todasCorridas, setTodasCorridas] = useState<Corrida[]>([]);
+  const [myConfig, setMyConfig] = useState<{ nome: string; pix: string }>({ nome: 'Você', pix: '' });
+
   const [isLoading, setIsLoading] = useState(false);
-  const [novoMembro, setNovoMembro] = useState('');
-  const [isAdding, setIsAdding] = useState(false);
+  const [isAddingMemberId, setIsAddingMemberId] = useState<string | null>(null);
+  const [showAddMemberSection, setShowAddMemberSection] = useState(false);
+
+  const [isAddRideOpen, setIsAddRideOpen] = useState(false);
+  const [isEditGroupOpen, setIsEditGroupOpen] = useState(false);
+  const [isCreateFriendOpen, setIsCreateFriendOpen] = useState(false);
+  const [corridaSelecionada, setCorridaSelecionada] = useState<Corrida | null>(null);
+
+  const [pixModalData, setPixModalData] = useState<{
+    isOpen: boolean;
+    pixKey: string;
+    recipientName: string;
+    amount: number;
+    description: string;
+    whatsappPhone?: string;
+    whatsappCustomMessage?: string;
+  }>({
+    isOpen: false,
+    pixKey: '',
+    recipientName: '',
+    amount: 0,
+    description: '',
+  });
 
   const carregarDetalhes = async () => {
     if (!grupoId) return;
     setIsLoading(true);
     try {
-      const dados = await dbService.grupos.getById(grupoId);
-      setGrupo(dados);
+      const [dadosGrupo, amigos, corridas, config] = await Promise.all([
+        dbService.grupos.getById(grupoId),
+        dbService.amigos.getAll(),
+        dbService.corridas.getAll(),
+        dbService.settings.get(),
+      ]);
+      setGrupo(dadosGrupo);
+      setTodosAmigos(amigos);
+      setTodasCorridas(corridas);
+      setMyConfig({
+        nome: config.nome || config.name || 'Você',
+        pix: config.pix_key || config.pix || '',
+      });
     } catch (error) {
-      console.error("Erro ao carregar detalhes do grupo:", error);
+      console.error('Erro ao carregar detalhes do grupo:', error);
     } finally {
       setIsLoading(false);
     }
   };
 
   useEffect(() => {
-    if (isOpen) carregarDetalhes();
-  }, [isOpen, grupoId]);
-
-  const handleAddMembro = async () => {
-    if (!novoMembro.trim()) return alert("Digite o e-mail ou WhatsApp do seu amigo.");
-    setIsAdding(true);
-    try {
-      await dbService.grupos.addMember(grupoId!, novoMembro);
-      setNovoMembro('');
-      alert("Membro adicionado com sucesso!");
-      await carregarDetalhes(); // Recarrega a lista para mostrar o novo amigo
-    } catch (error: any) {
-      alert(error.response?.data?.error || "Erro ao adicionar membro.");
-    } finally {
-      setIsAdding(false);
+    if (isOpen && grupoId) {
+      setShowAddMemberSection(false);
+      carregarDetalhes();
     }
-  };
+  }, [isOpen, grupoId]);
 
   if (!isOpen) return null;
 
+  const handleSelectExistingFriend = async (friendId: string) => {
+    if (!grupoId) return;
+    setIsAddingMemberId(friendId);
+    try {
+      await dbService.grupos.addMember(grupoId, { friendId });
+      await carregarDetalhes();
+      if (onChanged) onChanged();
+    } catch (error: any) {
+      alert(error.response?.data?.error || error.message || 'Erro ao adicionar amigo ao grupo.');
+    } finally {
+      setIsAddingMemberId(null);
+    }
+  };
+
+  const handleDeleteGroup = async () => {
+    if (!grupo) return;
+    if (!window.confirm(`Deseja realmente excluir o grupo "${grupo.name}"?`)) return;
+    try {
+      await dbService.grupos.delete(grupo.id);
+      if (onChanged) onChanged();
+      onClose();
+    } catch (error) {
+      alert('Erro ao excluir grupo.');
+    }
+  };
+
+  const handleQuitarMembroNoGrupo = async (friendId: string, amount: number, friendName: string) => {
+    if (!grupo) return;
+    if (!window.confirm(`Confirmar recebimento de R$ ${moneyConverter(amount)} de ${friendName} neste grupo?`)) {
+      return;
+    }
+    try {
+      await dbService.financeiro.registrarPagamento(friendId, amount, grupo.id);
+      await carregarDetalhes();
+      if (onChanged) onChanged();
+    } catch (err) {
+      alert('Erro ao registrar pagamento.');
+    }
+  };
+
+  const handleCobrarGrupo = async () => {
+    if (!grupo) return;
+    const freshConfig = await dbService.settings.get();
+    const myPix = freshConfig.pix_key || freshConfig.pix || myConfig.pix || '';
+    const myName = freshConfig.nome || freshConfig.name || myConfig.nome || 'Você';
+
+    const userNet = Number(grupo.userNetBalance || 0);
+    const transfers = grupo.transfers || [];
+
+    const linhasTransferencias = transfers
+      .map((t) => `• ${t.fromName} ➔ ${t.toName}: R$ ${moneyConverter(t.amount)}`)
+      .join('\n');
+
+    const msg =
+      `📊 *Resumo do Grupo: ${grupo.name} (RachApp)*\n\n` +
+      (linhasTransferencias
+        ? `*Transferências Otimizadas:*\n${linhasTransferencias}\n\n`
+        : 'Todas as contas estão em dia!\n\n') +
+      (myPix ? `🔑 *Meu Pix (${myName}):* ${myPix}` : '');
+
+    setPixModalData({
+      isOpen: true,
+      pixKey: myPix,
+      recipientName: myName,
+      amount: Math.max(0, userNet),
+      description: `Grupo ${grupo.name}`,
+      whatsappCustomMessage: msg,
+    });
+  };
+
+  const handleOpenTransferPix = async (t: Transferencia) => {
+    const freshConfig = await dbService.settings.get();
+    const myPix = freshConfig.pix_key || freshConfig.pix || myConfig.pix || '';
+    const myName = freshConfig.nome || freshConfig.name || myConfig.nome || 'Você';
+
+    const isToMe = t.toName === 'Você';
+    const pixKey = isToMe ? myPix : t.toPixKey || '';
+    const recipient = isToMe ? myName : t.toName;
+    const msg = `Fala ${t.fromName}! Pelo cálculo otimizado do grupo *${grupo?.name}* no RachApp, o acerto ficou:\n\n• *${t.fromName} ➔ ${t.toName}: R$ ${moneyConverter(t.amount)}*\n${
+      pixKey ? `🔑 Chave Pix: ${pixKey}` : ''
+    }`;
+
+    setPixModalData({
+      isOpen: true,
+      pixKey,
+      recipientName: recipient,
+      amount: t.amount,
+      description: `Grupo ${grupo?.name || 'RachApp'}`,
+      whatsappPhone: t.fromPhone || undefined,
+      whatsappCustomMessage: msg,
+    });
+  };
+
+  const memberBalances = grupo?.memberBalances || [];
+  const memberIdsInGroup = new Set(memberBalances.map((m) => m.friendId));
+  const amigosForaDoGrupo = todosAmigos.filter((a) => !memberIdsInGroup.has(a.id));
+
+  const pendenciasCount = memberBalances.filter((m) => Math.abs(m.netBalance) > 0.01).length;
+  const userNet = Number(grupo?.userNetBalance || 0);
+
   return (
-    <div className="fixed inset-0 bg-[#05080f] z-50 flex flex-col animate-slide-up overflow-y-auto pb-6">
-      <div className="flex items-center justify-between p-4 border-b border-white/5">
-        <button onClick={onClose} className="p-2 text-white hover:bg-gray-800 rounded-full transition-colors">
+    <div className="fixed inset-0 bg-[#05080f] z-50 flex flex-col animate-slide-up overflow-y-auto pb-10">
+      {/* Cabeçalho */}
+      <div className="flex items-center justify-between p-4 border-b border-white/5 sticky top-0 bg-[#05080f]/95 backdrop-blur-md z-10">
+        <button
+          onClick={onClose}
+          className="p-2 text-white hover:bg-gray-800 rounded-full transition-colors"
+        >
           <ChevronLeft size={28} />
         </button>
-        <h2 className="text-lg font-semibold text-white">Detalhes do Grupo</h2>
-        <div className="w-10"></div> {/* Espaçador para centralizar o título */}
+        <h2 className="text-lg font-semibold text-white">Detalhes Do Grupo</h2>
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => setIsEditGroupOpen(true)}
+            className="p-2 text-gray-300 hover:bg-white/10 hover:text-white rounded-full transition-colors"
+            title="Editar Grupo"
+          >
+            <Pencil size={20} />
+          </button>
+          <button
+            onClick={handleDeleteGroup}
+            className="p-2 text-red-500 hover:bg-red-500/20 hover:text-red-400 rounded-full transition-colors"
+            title="Excluir Grupo"
+          >
+            <Trash2 size={22} />
+          </button>
+        </div>
       </div>
 
       {isLoading || !grupo ? (
-        <div className="flex flex-col items-center justify-center flex-1">
+        <div className="flex flex-col items-center justify-center flex-1 py-20">
           <LoaderCircle size={40} className="animate-spin text-[#2DD4BF]" />
         </div>
       ) : (
-        <div className="px-6 flex-1 mt-6">
-          {/* Cabeçalho do Grupo */}
-          <div className="flex flex-col items-center mb-8">
-            <div className="w-20 h-20 rounded-full bg-blue-500/20 text-blue-500 flex items-center justify-center shadow-lg mb-4">
-              <Users size={36} />
-            </div>
-            <h3 className="text-2xl font-bold text-white mb-1">{grupo.name}</h3>
-            <p className="text-gray-500 text-sm">{grupo.members?.length || 0} participantes</p>
-          </div>
+        <div className="px-5 flex-1 mt-4 space-y-6">
+          {/* Card Principal do Grupo */}
+          <div className="bg-[#141923] rounded-3xl p-5 border border-white/10 shadow-xl">
+            <div className="flex justify-between items-center mb-4">
+              <div className="flex items-center">
+                <div className="flex -space-x-2">
+                  <div className="w-8 h-8 rounded-full bg-[#2DD4BF] text-[#05080f] font-black text-xs flex items-center justify-center border-2 border-[#141923]">
+                    V
+                  </div>
+                  {memberBalances.slice(0, 4).map((m) => (
+                    <div
+                      key={m.friendId}
+                      className={`w-8 h-8 rounded-full ${m.color} text-white font-bold text-xs flex items-center justify-center border-2 border-[#141923]`}
+                    >
+                      {m.name[0]?.toUpperCase()}
+                    </div>
+                  ))}
+                </div>
+                <span className="text-xs text-gray-400 ml-2.5 font-medium">
+                  {memberBalances.length + 1} participantes
+                </span>
+              </div>
 
-          {/* Adicionar Novo Membro */}
-          <div className="bg-[#1c1c1e] rounded-3xl p-5 border border-white/5 mb-8">
-            <h4 className="text-white font-semibold mb-3 flex items-center gap-2">
-              <UserPlus size={18} className="text-[#2DD4BF]" />
-              Adicionar Amigo
-            </h4>
-            <div className="flex gap-2">
-              <input 
-                type="text" 
-                placeholder="E-mail ou WhatsApp" 
-                value={novoMembro}
-                onChange={(e) => setNovoMembro(e.target.value)}
-                className="bg-[#2c2c2e] rounded-xl px-4 py-3 flex-1 text-white outline-none focus:ring-1 focus:ring-[#2DD4BF]"
-              />
-              <button 
-                onClick={handleAddMembro}
-                disabled={isAdding}
-                className="bg-[#2DD4BF] text-[#05080f] px-5 font-bold rounded-xl disabled:opacity-50"
+              <span className="text-[10px] font-bold bg-[#2DD4BF]/15 text-[#2DD4BF] px-2.5 py-1 rounded-full">
+                • ATIVO
+              </span>
+            </div>
+
+            <p className="text-xs text-gray-400 mb-1">
+              Seu saldo em <strong className="text-white">{grupo.name}</strong>
+            </p>
+            <div className="flex items-baseline gap-2 mb-5">
+              <span
+                className={`text-3xl font-black ${
+                  userNet >= 0 ? 'text-[#2DD4BF]' : 'text-red-400'
+                }`}
               >
-                {isAdding ? <LoaderCircle className="animate-spin" size={20} /> : 'Add'}
+                R$ {moneyConverter(Math.abs(userNet))}
+              </span>
+              <span className="text-xs text-gray-400 font-semibold">
+                {userNet > 0.01 ? 'a receber' : userNet < -0.01 ? 'a pagar' : 'tudo quitado'}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                onClick={() => setIsAddRideOpen(true)}
+                className="bg-[#2DD4BF] hover:bg-[#25b5a3] text-[#05080f] font-bold py-3 rounded-2xl text-sm flex items-center justify-center gap-1.5 transition-transform active:scale-95"
+              >
+                <Plus size={18} strokeWidth={2.5} /> Novo Racha
+              </button>
+              <button
+                onClick={handleCobrarGrupo}
+                className="bg-[#1c2230] hover:bg-[#252d3f] text-white border border-white/10 font-bold py-3 rounded-2xl text-sm flex items-center justify-center gap-2 transition-transform active:scale-95"
+              >
+                <QrCode size={16} className="text-[#2DD4BF]" /> Cobrar
               </button>
             </div>
           </div>
 
-          {/* Lista de Membros */}
-          <div className="mb-8">
-            <h4 className="text-white font-bold text-lg mb-4">Participantes</h4>
-            <div className="space-y-2">
-              {grupo.members.map((m: any) => (
-                <div key={m.user.id} className="flex items-center gap-3 bg-[#1c1c1e] p-3 rounded-xl border border-white/5">
-                  <div className="w-10 h-10 rounded-full bg-gray-700 flex items-center justify-center font-bold text-white">
-                    {m.user.name[0].toUpperCase()}
-                  </div>
-                  <span className="font-medium text-white">{m.user.name}</span>
+          {/* Membros e Saldos Individuais */}
+          <div>
+            <div className="flex justify-between items-center mb-3">
+              <div className="flex items-center gap-2">
+                <h4 className="text-white font-bold text-base">Membros</h4>
+                <span className="text-[10px] text-gray-400 uppercase font-bold tracking-wider bg-white/5 px-2 py-0.5 rounded-full">
+                  {pendenciasCount} {pendenciasCount === 1 ? 'PENDÊNCIA' : 'PENDÊNCIAS'}
+                </span>
+              </div>
+
+              <button
+                onClick={() => setShowAddMemberSection(!showAddMemberSection)}
+                className="text-xs bg-[#2DD4BF]/15 hover:bg-[#2DD4BF]/25 text-[#2DD4BF] px-3 py-1.5 rounded-full font-bold flex items-center gap-1 transition-colors"
+              >
+                <UserPlus size={14} /> Adicionar Amigo
+              </button>
+            </div>
+
+            {/* Painel de Adição de Amigos (Seleção de amigos cadastrados + Criar Novo Amigo) */}
+            {showAddMemberSection && (
+              <div className="mb-4 bg-[#141923] rounded-2xl p-4 border border-[#2DD4BF]/30 space-y-3 animate-fade-in">
+                <div className="flex justify-between items-center">
+                  <p className="text-xs font-bold text-gray-300 uppercase tracking-wider">
+                    Selecionar dos seus Amigos
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setIsCreateFriendOpen(true)}
+                    className="text-xs text-[#2DD4BF] font-bold flex items-center gap-1 hover:underline"
+                  >
+                    <Plus size={14} /> Criar Novo Amigo
+                  </button>
                 </div>
-              ))}
+
+                {amigosForaDoGrupo.length === 0 ? (
+                  <div className="bg-[#1c1c1e] rounded-xl p-3 text-center">
+                    <p className="text-xs text-gray-400 mb-2">
+                      Todos os seus amigos cadastrados já estão neste grupo!
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setIsCreateFriendOpen(true)}
+                      className="bg-[#2DD4BF] text-[#05080f] px-4 py-2 rounded-xl text-xs font-bold inline-flex items-center gap-1.5"
+                    >
+                      <UserPlus size={14} /> Cadastrar Novo Amigo
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                    {amigosForaDoGrupo.map((amigo) => {
+                      const nomeAmigo = amigo.nome || amigo.name || 'Amigo';
+                      const corAmigo = amigo.cor || amigo.color || 'bg-sky-500';
+                      const tel = formatPhoneBR(amigo.telefone || amigo.phone || '');
+                      const adding = isAddingMemberId === amigo.id;
+                      return (
+                        <div
+                          key={amigo.id}
+                          className="bg-[#1c1c1e] p-2.5 rounded-xl flex items-center justify-between border border-white/5"
+                        >
+                          <div className="flex items-center gap-2.5">
+                            <div
+                              className={`w-8 h-8 rounded-full ${corAmigo} flex items-center justify-center font-bold text-white text-xs`}
+                            >
+                              {nomeAmigo[0]?.toUpperCase()}
+                            </div>
+                            <div>
+                              <p className="text-xs font-bold text-white">{nomeAmigo}</p>
+                              {tel && <p className="text-[10px] text-gray-500">{tel}</p>}
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => handleSelectExistingFriend(amigo.id)}
+                            disabled={adding}
+                            className="bg-[#2DD4BF]/20 hover:bg-[#2DD4BF] text-[#2DD4BF] hover:text-[#05080f] px-3 py-1.5 rounded-lg text-xs font-bold transition-colors flex items-center gap-1"
+                          >
+                            {adding ? (
+                              <LoaderCircle size={13} className="animate-spin" />
+                            ) : (
+                              <>
+                                <Plus size={13} /> Incluir
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div className="space-y-2.5">
+              {memberBalances.length === 0 ? (
+                <div className="bg-[#1c1c1e] p-5 rounded-2xl border border-white/5 text-center">
+                  <Users size={24} className="text-gray-600 mx-auto mb-2" />
+                  <p className="text-gray-400 text-xs mb-3">
+                    Nenhum amigo adicionado a este grupo ainda.
+                  </p>
+                  <button
+                    onClick={() => setShowAddMemberSection(true)}
+                    className="text-xs text-[#2DD4BF] font-bold hover:underline"
+                  >
+                    + Selecionar ou cadastrar amigos
+                  </button>
+                </div>
+              ) : (
+                memberBalances.map((m) => {
+                  const deveVoce = m.owesYou > 0.01;
+                  const voceDeve = m.owesYou < -0.01;
+                  return (
+                    <div
+                      key={m.friendId}
+                      className="bg-[#1c1c1e] p-3.5 rounded-2xl border border-white/5 flex items-center justify-between"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div
+                          className={`w-10 h-10 rounded-full ${m.color} flex items-center justify-center font-bold text-white text-sm`}
+                        >
+                          {m.name[0]?.toUpperCase()}
+                        </div>
+                        <div>
+                          <p className="font-semibold text-white text-sm">{m.name}</p>
+                          <p className="text-[11px] text-gray-500">
+                            {m.pendingCount > 0
+                              ? 'Dividindo despesas do grupo'
+                              : 'Sem pendências abertas'}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="text-right flex items-center gap-2">
+                        <div>
+                          {deveVoce ? (
+                            <>
+                              <p className="text-xs font-bold text-[#2DD4BF]">
+                                Deve R$ {moneyConverter(m.owesYou)}
+                              </p>
+                              <p className="text-[10px] text-gray-500">
+                                {m.pendingCount}{' '}
+                                {m.pendingCount === 1 ? 'conta pendente' : 'contas pendentes'}
+                              </p>
+                            </>
+                          ) : voceDeve ? (
+                            <>
+                              <p className="text-xs font-bold text-red-400">
+                                Você deve R$ {moneyConverter(Math.abs(m.owesYou))}
+                              </p>
+                            </>
+                          ) : (
+                            <span className="text-xs text-[#2DD4BF] flex items-center gap-1 font-medium">
+                              <CheckCircle2 size={13} /> Tudo pago
+                            </span>
+                          )}
+                        </div>
+
+                        {deveVoce && (
+                          <button
+                            onClick={() => handleQuitarMembroNoGrupo(m.friendId, m.owesYou, m.name)}
+                            className="p-2 bg-[#2DD4BF]/15 text-[#2DD4BF] hover:bg-[#2DD4BF]/25 rounded-xl transition-colors"
+                            title="Registrar pagamento deste membro"
+                          >
+                            <DollarSign size={15} />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })
+              )}
             </div>
           </div>
 
-          {/* Histórico de Rachas */}
-          <div>
-            <h4 className="text-white font-bold text-lg mb-4">Histórico de Rachas</h4>
-            {grupo.expenses.length === 0 ? (
-              <p className="text-gray-500 text-sm text-center italic py-4">Nenhuma despesa registada neste grupo.</p>
-            ) : (
-              <div className="space-y-3">
-                {grupo.expenses.map((expense: any) => (
-                  <div key={expense.id} className="bg-[#1c1c1e] p-4 rounded-xl border border-white/5 flex justify-between items-center">
-                    <div>
-                      <p className="text-xs text-gray-400 mb-1">{new Date(expense.expense_date).toLocaleDateString()}</p>
-                      <h5 className="text-white font-medium flex items-center gap-2">
-                        <Receipt size={16} className="text-gray-500" /> {expense.title}
-                      </h5>
-                      <p className="text-[10px] text-gray-500 mt-1">Pago por: {expense.owner?.name}</p>
+          {/* Algoritmo de Minimização de Transferências Cruzadas */}
+          {grupo.transfers && grupo.transfers.length > 0 && (
+            <div className="bg-[#141923] rounded-2xl p-4 border border-[#2DD4BF]/20">
+              <div className="flex justify-between items-center mb-3">
+                <h4 className="text-white font-bold text-sm flex items-center gap-2">
+                  <QrCode size={16} className="text-[#2DD4BF]" />
+                  Transferências Otimizadas (Pix)
+                </h4>
+                <span className="text-[10px] bg-[#2DD4BF]/15 text-[#2DD4BF] px-2 py-0.5 rounded-full font-bold">
+                  {grupo.transfers.length} {grupo.transfers.length === 1 ? 'repasse' : 'repasses'}
+                </span>
+              </div>
+              <div className="space-y-2">
+                {grupo.transfers.map((t, idx) => (
+                  <div
+                    key={idx}
+                    className="bg-[#1c1c1e] p-3 rounded-xl flex items-center justify-between border border-white/5"
+                  >
+                    <div className="flex items-center gap-2 text-xs text-white font-medium">
+                      <span className="font-bold text-red-400">{t.fromName}</span>
+                      <ArrowRight size={14} className="text-gray-500" />
+                      <span className="font-bold text-[#2DD4BF]">{t.toName}</span>
                     </div>
-                    <div className="text-right">
-                      <p className="text-sm font-bold text-[#2DD4BF]">R$ {moneyConverter(Number(expense.total_amount))}</p>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-bold text-white">
+                        R$ {moneyConverter(t.amount)}
+                      </span>
+                      <button
+                        onClick={() => handleOpenTransferPix(t)}
+                        className="bg-[#2DD4BF]/20 text-[#2DD4BF] hover:bg-[#2DD4BF]/30 px-2.5 py-1 rounded-lg text-[11px] font-bold"
+                      >
+                        Pix
+                      </button>
                     </div>
                   </div>
                 ))}
+              </div>
+            </div>
+          )}
+
+          {/* Rachas Recentes no Grupo */}
+          <div>
+            <div className="flex justify-between items-center mb-3">
+              <h4 className="text-white font-bold text-base">Rachas Recentes</h4>
+              <span className="text-xs text-[#2DD4BF] font-medium">
+                {grupo.expenses?.length || 0} rachas
+              </span>
+            </div>
+
+            {!grupo.expenses || grupo.expenses.length === 0 ? (
+              <div className="bg-[#1c1c1e] p-6 rounded-2xl border border-white/5 text-center">
+                <p className="text-gray-500 text-sm italic">
+                  Nenhuma despesa registrada neste grupo. Clique em "+ Novo Racha" acima!
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-2.5">
+                {grupo.expenses.map((expense: any) => {
+                  const totalParts = (expense.participants?.length || 0) + 1;
+                  const suaParte =
+                    Number(expense.self_amount_owed) > 0
+                      ? Number(expense.self_amount_owed)
+                      : Number(expense.total_amount || 0) / totalParts;
+                  const corridaCompleta = todasCorridas.find((c) => c.id === expense.id);
+
+                  return (
+                    <div
+                      key={expense.id}
+                      onClick={() => {
+                        if (corridaCompleta) setCorridaSelecionada(corridaCompleta);
+                      }}
+                      className="bg-[#1c1c1e] hover:bg-[#2c2c2e] p-4 rounded-2xl border border-white/5 flex justify-between items-center cursor-pointer transition-colors"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center text-[#2DD4BF]">
+                          <Receipt size={18} />
+                        </div>
+                        <div>
+                          <h5 className="text-white font-semibold text-sm">{expense.title}</h5>
+                          <p className="text-xs text-gray-500 mt-0.5">
+                            {expense.expense_date?.split('T')[0]} • Dividido por {totalParts}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm font-bold text-white">
+                          R$ {moneyConverter(suaParte)}
+                        </p>
+                        <p className="text-[10px] text-gray-500">sua parte</p>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>
         </div>
       )}
+
+      {/* Modal Adicionar Racha dentro do Grupo */}
+      <AddRideModal
+        isOpen={isAddRideOpen}
+        defaultGroupId={grupoId}
+        onClose={() => setIsAddRideOpen(false)}
+        onSuccess={() => {
+          carregarDetalhes();
+          if (onChanged) onChanged();
+        }}
+      />
+
+      {/* Modal Editar Grupo */}
+      <AddGroupModal
+        isOpen={isEditGroupOpen}
+        groupToEdit={grupo}
+        onClose={() => setIsEditGroupOpen(false)}
+        onSuccess={() => {
+          carregarDetalhes();
+          if (onChanged) onChanged();
+        }}
+      />
+
+      {/* Modal Cadastrar Novo Amigo e já adicionar ao Grupo */}
+      <AddFriendModal
+        isOpen={isCreateFriendOpen}
+        onClose={() => setIsCreateFriendOpen(false)}
+        onSuccess={async (novoAmigo) => {
+          if (novoAmigo?.id && grupoId) {
+            await dbService.grupos.addMember(grupoId, { friendId: novoAmigo.id });
+          }
+          await carregarDetalhes();
+          if (onChanged) onChanged();
+        }}
+      />
+
+      {/* Modal Detalhes/Edição de Racha do Grupo */}
+      <RideDetailsModal
+        isOpen={!!corridaSelecionada}
+        ride={corridaSelecionada || undefined}
+        participantes={todosAmigos.filter((a) =>
+          corridaSelecionada?.participantesIds.includes(a.id)
+        )}
+        onClose={() => setCorridaSelecionada(null)}
+        onDelete={async (id) => {
+          await dbService.corridas.delete(id);
+          setCorridaSelecionada(null);
+          await carregarDetalhes();
+          if (onChanged) onChanged();
+        }}
+        onUpdated={async () => {
+          await carregarDetalhes();
+          if (onChanged) onChanged();
+        }}
+      />
+
+      {/* Modal Pix do Grupo */}
+      <PixModal
+        isOpen={pixModalData.isOpen}
+        onClose={() => setPixModalData((prev) => ({ ...prev, isOpen: false }))}
+        pixKey={pixModalData.pixKey}
+        recipientName={pixModalData.recipientName}
+        amount={pixModalData.amount}
+        description={pixModalData.description}
+        whatsappPhone={pixModalData.whatsappPhone}
+        whatsappCustomMessage={pixModalData.whatsappCustomMessage}
+      />
     </div>
   );
 }
