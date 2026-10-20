@@ -7,11 +7,43 @@ export class FriendService {
    * Sincroniza vínculos reversos pelo número de telefone:
    * Se outro usuário (User B) cadastrou o usuário atual (User A) como amigo usando o telefone de User A,
    * encontra todos os registros Friend que apontam para User A (reverseFriendIds) e garante que User B
-   * também exista na lista de amigos de User A.
+   * também exista na lista de amigos de User A, APENAS SE A AMIZADE FOI ACEITA.
    */
   static async syncReverseLinks(userId: string) {
     const currentUser = await prisma.user.findUnique({ where: { id: userId } });
     let myFriends = await prisma.friend.findMany({ where: { user_id: userId } });
+
+    // Deduplica amigos locais que tenham o mesmo telefone para evitar listas duplicadas
+    const seenPhones = new Map<string, string>();
+    const toDeleteIds: string[] = [];
+    for (const f of myFriends) {
+      const norm = normalizePhoneBackend(f.phone);
+      if (norm) {
+        if (seenPhones.has(norm)) {
+          const keepId = seenPhones.get(norm)!;
+          await prisma.expenseParticipant.updateMany({
+            where: { friend_id: f.id },
+            data: { friend_id: keepId },
+          });
+          await prisma.expense.updateMany({
+            where: { paid_by_friend_id: f.id },
+            data: { paid_by_friend_id: keepId },
+          });
+          await prisma.groupMember.deleteMany({
+            where: { friend_id: f.id },
+          });
+          toDeleteIds.push(f.id);
+        } else {
+          seenPhones.set(norm, f.id);
+        }
+      }
+    }
+    if (toDeleteIds.length > 0) {
+      await prisma.friend.deleteMany({
+        where: { id: { in: toDeleteIds } },
+      });
+      myFriends = myFriends.filter((f) => !toDeleteIds.includes(f.id));
+    }
 
     const allUsers = await prisma.user.findMany({
       select: { id: true, name: true, phone: true, pix_key: true },
@@ -77,51 +109,6 @@ export class FriendService {
       return created;
     };
 
-    const ensureLocalFriendForForeign = async (foreignFriend: {
-      id: string;
-      name: string;
-      phone?: string | null;
-      pix_key?: string | null;
-      color?: string | null;
-    }) => {
-      const normPhone = normalizePhoneBackend(foreignFriend.phone);
-      const cleanForeignPix = foreignFriend.pix_key?.trim() || null;
-      let existing = myFriends.find(
-        (f) =>
-          (normPhone && phonesMatch(f.phone, normPhone)) ||
-          f.name.trim().toLowerCase() === foreignFriend.name.trim().toLowerCase()
-      );
-
-      if (existing) {
-        const needsPhone = !existing.phone && normPhone;
-        const needsPix = cleanForeignPix && existing.pix_key !== cleanForeignPix;
-        if (needsPhone || needsPix) {
-          existing = await prisma.friend.update({
-            where: { id: existing.id },
-            data: {
-              ...(needsPhone ? { phone: normPhone } : {}),
-              ...(cleanForeignPix && needsPix ? { pix_key: cleanForeignPix } : {}),
-            },
-          });
-          myFriends = myFriends.map((f) => (f.id === existing!.id ? existing! : f));
-        }
-        return existing;
-      }
-
-      const created = await prisma.friend.create({
-        data: {
-          user_id: userId,
-          name: foreignFriend.name.trim() || 'Amigo',
-          phone: normPhone || null,
-          pix_key: cleanForeignPix,
-          color: foreignFriend.color || 'bg-sky-500',
-          is_favorite: false,
-        },
-      });
-      myFriends.push(created);
-      return created;
-    };
-
     if (!currentUser || !currentUser.phone) {
       return {
         currentUser,
@@ -129,8 +116,20 @@ export class FriendService {
         reverseFriends: [],
         reverseFriendIds: [] as string[],
         ensureLocalFriendForOwner,
-        ensureLocalFriendForForeign,
       };
+    }
+
+    // Busca solicitações de amizade já aceitas
+    const acceptedRequests = await prisma.friendshipRequest.findMany({
+      where: {
+        status: 'ACCEPTED',
+        OR: [{ sender_id: userId }, { receiver_id: userId }],
+      },
+    });
+
+    const acceptedUserIds = new Set<string>();
+    for (const req of acceptedRequests) {
+      acceptedUserIds.add(req.sender_id === userId ? req.receiver_id : req.sender_id);
     }
 
     const otherFriendsWithPhone = await prisma.friend.findMany({
@@ -145,12 +144,39 @@ export class FriendService {
       },
     });
 
-    const reverseFriends = otherFriendsWithPhone.filter((f) =>
-      phonesMatch(f.phone, currentUser.phone)
+    // Compatibilidade reversa: se ambos os usuários já se adicionaram mutuamente no passado, considera aceito
+    for (const of of otherFriendsWithPhone) {
+      if (phonesMatch(of.phone, currentUser.phone) && !acceptedUserIds.has(of.user_id)) {
+        const iAlreadyAddedThem = myFriends.some(
+          (mf) => mf.phone && phonesMatch(mf.phone, of.user.phone)
+        );
+        if (iAlreadyAddedThem) {
+          acceptedUserIds.add(of.user_id);
+          await prisma.friendshipRequest.upsert({
+            where: {
+              sender_id_receiver_id: {
+                sender_id: of.user_id,
+                receiver_id: userId,
+              },
+            },
+            update: { status: 'ACCEPTED' },
+            create: {
+              sender_id: of.user_id,
+              receiver_id: userId,
+              status: 'ACCEPTED',
+            },
+          });
+        }
+      }
+    }
+
+    // Apenas amigos com amizade ACEITA entram nos vínculos reversos e nos rachas compartilhados!
+    const reverseFriends = otherFriendsWithPhone.filter(
+      (f) => phonesMatch(f.phone, currentUser.phone) && acceptedUserIds.has(f.user_id)
     );
     const reverseFriendIds = reverseFriends.map((f) => f.id);
 
-    // Garante que todo usuário que me adicionou pelo meu número também esteja na minha lista de amigos
+    // Garante que todo usuário que é meu amigo aceito também esteja na minha lista de amigos
     for (const rf of reverseFriends) {
       if (rf.user && rf.user.id !== userId) {
         await ensureLocalFriendForOwner(rf.user);
@@ -163,7 +189,6 @@ export class FriendService {
       reverseFriends,
       reverseFriendIds,
       ensureLocalFriendForOwner,
-      ensureLocalFriendForForeign,
     };
   }
 
@@ -198,14 +223,50 @@ export class FriendService {
     const is_favorite = data.is_favorite ?? data.favorito ?? false;
 
     // Se o telefone pertencer a um usuário já cadastrado, prioriza a chave Pix que ele cadastrou para si
+    let registeredUser: any = null;
     if (phone) {
       const allUsers = await prisma.user.findMany({
         select: { id: true, phone: true, pix_key: true },
       });
-      const registered = allUsers.find((u) => phonesMatch(u.phone, phone));
-      const registeredPix = registered?.pix_key?.trim();
+      registeredUser = allUsers.find((u) => phonesMatch(u.phone, phone));
+      const registeredPix = registeredUser?.pix_key?.trim();
       if (registeredPix) {
         pix_key = registeredPix;
+      }
+    }
+
+    // Se o amigo adicionado for um usuário cadastrado no RachApp (e não eu mesmo):
+    if (registeredUser && registeredUser.id !== userId) {
+      const existingReq = await prisma.friendshipRequest.findFirst({
+        where: {
+          OR: [
+            { sender_id: userId, receiver_id: registeredUser.id },
+            { sender_id: registeredUser.id, receiver_id: userId },
+          ],
+        },
+      });
+
+      if (existingReq) {
+        if (existingReq.sender_id === registeredUser.id && existingReq.status === 'PENDING') {
+          // O outro usuário já havia enviado solicitação pendente; ao adicioná-lo de volta, aceita automaticamente!
+          await prisma.friendshipRequest.update({
+            where: { id: existingReq.id },
+            data: { status: 'ACCEPTED' },
+          });
+        } else if (existingReq.status === 'REJECTED') {
+          await prisma.friendshipRequest.update({
+            where: { id: existingReq.id },
+            data: { sender_id: userId, receiver_id: registeredUser.id, status: 'PENDING' },
+          });
+        }
+      } else {
+        await prisma.friendshipRequest.create({
+          data: {
+            sender_id: userId,
+            receiver_id: registeredUser.id,
+            status: 'PENDING',
+          },
+        });
       }
     }
 
@@ -247,6 +308,118 @@ export class FriendService {
         is_favorite,
       },
     });
+  }
+
+  static async listPendingRequests(userId: string) {
+    const requests = await prisma.friendshipRequest.findMany({
+      where: {
+        receiver_id: userId,
+        status: 'PENDING',
+      },
+      include: {
+        sender: {
+          select: { id: true, name: true, phone: true, pix_key: true },
+        },
+      },
+      orderBy: { created_at: 'desc' },
+    });
+
+    return requests.map((r) => ({
+      id: r.id,
+      sender_id: r.sender_id,
+      receiver_id: r.receiver_id,
+      status: r.status,
+      created_at: r.created_at,
+      sender: {
+        id: r.sender.id,
+        name: r.sender.name,
+        phone: r.sender.phone,
+        pix_key: r.sender.pix_key,
+        color: 'bg-teal-500',
+      },
+    }));
+  }
+
+  static async acceptRequest(userId: string, requestId: string) {
+    const request = await prisma.friendshipRequest.findFirst({
+      where: {
+        id: requestId,
+        receiver_id: userId,
+      },
+      include: {
+        sender: { select: { id: true, name: true, phone: true, pix_key: true } },
+        receiver: { select: { id: true, name: true, phone: true, pix_key: true } },
+      },
+    });
+
+    if (!request) {
+      throw new Error('Solicitação de amizade não encontrada.');
+    }
+
+    await prisma.friendshipRequest.update({
+      where: { id: requestId },
+      data: { status: 'ACCEPTED' },
+    });
+
+    // Garante que o receptor (userId) tenha o remetente na sua lista de amigos
+    const myFriends = await prisma.friend.findMany({ where: { user_id: userId } });
+    const hasSender = myFriends.some(
+      (f) => f.phone && phonesMatch(f.phone, request.sender.phone)
+    );
+
+    if (!hasSender) {
+      await prisma.friend.create({
+        data: {
+          user_id: userId,
+          name: request.sender.name,
+          phone: normalizePhoneBackend(request.sender.phone) || null,
+          pix_key: request.sender.pix_key || null,
+          color: 'bg-emerald-500',
+          is_favorite: false,
+        },
+      });
+    }
+
+    // Garante que o remetente também tenha o receptor na lista de amigos dele
+    const senderFriends = await prisma.friend.findMany({ where: { user_id: request.sender_id } });
+    const hasReceiver = senderFriends.some(
+      (f) => f.phone && phonesMatch(f.phone, request.receiver.phone)
+    );
+
+    if (!hasReceiver) {
+      await prisma.friend.create({
+        data: {
+          user_id: request.sender_id,
+          name: request.receiver.name,
+          phone: normalizePhoneBackend(request.receiver.phone) || null,
+          pix_key: request.receiver.pix_key || null,
+          color: 'bg-teal-500',
+          is_favorite: false,
+        },
+      });
+    }
+
+    return { message: 'Amizade confirmada com sucesso!' };
+  }
+
+  static async rejectRequest(userId: string, requestId: string) {
+    const request = await prisma.friendshipRequest.findFirst({
+      where: {
+        id: requestId,
+        receiver_id: userId,
+      },
+    });
+
+    if (!request) {
+      throw new Error('Solicitação de amizade não encontrada.');
+    }
+
+    await prisma.friendshipRequest.update({
+      where: { id: requestId },
+      data: { status: 'REJECTED' },
+    });
+
+    return { message: 'Solicitação recusada com sucesso.' };
   }
 
   static async getAll(userId: string) {
@@ -298,15 +471,21 @@ export class FriendService {
         }
       }
 
-      // Prioriza a chave Pix que o próprio amigo cadastrou na conta dele
+      // Prioriza a chave Pix que o próprio amigo cadastrou na conta dele e detecta se possui conta no RachApp
       let effectivePixKey = (friend.pix_key || '').trim();
+      let hasAccount = false;
+      let registeredUserId: string | null = null;
       if (friend.phone) {
         const regUser = allUsers.find(
-          (u) => u.id !== userId && phonesMatch(u.phone, friend.phone) && u.pix_key?.trim()
+          (u) => u.id !== userId && phonesMatch(u.phone, friend.phone)
         );
-        const regPix = regUser?.pix_key?.trim();
-        if (regPix) {
-          effectivePixKey = regPix;
+        if (regUser) {
+          hasAccount = true;
+          registeredUserId = regUser.id;
+          const regPix = regUser.pix_key?.trim();
+          if (regPix) {
+            effectivePixKey = regPix;
+          }
         }
       }
 
@@ -315,6 +494,9 @@ export class FriendService {
         ...friendData,
         pix_key: effectivePixKey,
         registered_pix_key: effectivePixKey,
+        has_account: hasAccount,
+        is_registered: hasAccount,
+        registered_user_id: registeredUserId,
         divida: Number(divida.toFixed(2)),
         voceDeve: Number(voceDeve.toFixed(2)),
       };

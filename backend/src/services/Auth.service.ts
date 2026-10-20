@@ -68,6 +68,55 @@ export class AuthService {
       },
     });
 
+    // Se outros usuários já haviam adicionado este telefone anteriormente, gera solicitações pendentes para aprovação
+    try {
+      const otherFriends = await prisma.friend.findMany({
+        where: {
+          user_id: { not: user.id },
+          phone: { not: null },
+        },
+      });
+      for (const of of otherFriends) {
+        if (of.phone && phonesMatch(of.phone, cleanPhone)) {
+          await prisma.friendshipRequest.upsert({
+            where: {
+              sender_id_receiver_id: {
+                sender_id: of.user_id,
+                receiver_id: user.id,
+              },
+            },
+            update: {},
+            create: {
+              sender_id: of.user_id,
+              receiver_id: user.id,
+              status: 'PENDING',
+            },
+          });
+        }
+      }
+
+      const groupMembersWithPhone = await prisma.groupMember.findMany({
+        where: {
+          user_id: null,
+          friend: { phone: { not: null } },
+        },
+        include: { friend: true },
+      });
+      for (const gm of groupMembersWithPhone) {
+        if (gm.friend?.phone && phonesMatch(gm.friend.phone, cleanPhone)) {
+          await prisma.groupMember.update({
+            where: { id: gm.id },
+            data: {
+              user_id: user.id,
+              status: 'PENDING',
+            },
+          });
+        }
+      }
+    } catch (err) {
+      console.error('Erro ao vincular solicitações no registro:', err);
+    }
+
     console.log(`📱 SMS SIMULADO PARA ${cleanPhone}: Seu código RachApp é ${verificationCode}`);
 
     const token = jwt.sign(

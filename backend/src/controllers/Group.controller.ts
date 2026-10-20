@@ -30,6 +30,42 @@ export class GroupController {
     }
   }
 
+  static async listPendingInvitations(req: Request, res: Response) {
+    try {
+      const userId = req.user?.userId;
+      if (!userId) return res.status(401).json({ error: 'Não autorizado.' });
+
+      const invitations = await GroupService.listPendingInvitations(userId);
+      res.status(200).json(invitations);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  }
+
+  static async acceptInvitation(req: Request, res: Response) {
+    try {
+      const userId = req.user?.userId;
+      if (!userId) return res.status(401).json({ error: 'Não autorizado.' });
+
+      const result = await GroupService.acceptInvitation(userId, req.params.id);
+      res.status(200).json(result);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  }
+
+  static async rejectInvitation(req: Request, res: Response) {
+    try {
+      const userId = req.user?.userId;
+      if (!userId) return res.status(401).json({ error: 'Não autorizado.' });
+
+      const result = await GroupService.rejectInvitation(userId, req.params.id);
+      res.status(200).json(result);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  }
+
   static async getById(req: Request, res: Response) {
     try {
       const { id } = req.params;

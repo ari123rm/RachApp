@@ -15,6 +15,7 @@ import {
   UsersRound,
   FileCheck2,
   Upload,
+  BadgeCheck,
 } from 'lucide-react';
 import { dbService } from '../services/database';
 import moneyConverter from '../utils/moneyConverter';
@@ -541,7 +542,17 @@ export function FriendDetailsModal({
             >
               {nome[0]?.toUpperCase()}
             </div>
-            <h3 className="text-xl font-bold text-white">{nome}</h3>
+            <div className="flex items-center gap-1.5">
+              <h3 className="text-xl font-bold text-white">{nome}</h3>
+              {(amigoAtual?.has_account || amigoAtual?.is_registered) && (
+                <BadgeCheck size={20} className="text-[#2DD4BF] fill-[#2DD4BF]/20 shrink-0" />
+              )}
+            </div>
+            {(amigoAtual?.has_account || amigoAtual?.is_registered) && (
+              <span className="text-[11px] font-semibold text-[#2DD4BF] bg-[#2DD4BF]/10 px-2.5 py-0.5 rounded-full flex items-center gap-1 mt-1 mb-0.5">
+                <BadgeCheck size={12} /> Conta RachApp Ativa
+              </span>
+            )}
 
             <div className="flex flex-wrap items-center justify-center gap-2 mt-1.5">
               {telefone && (
@@ -558,7 +569,7 @@ export function FriendDetailsModal({
 
             <div
               className={`text-4xl font-black mt-4 mb-1 ${
-                voceDeveNoSaldo ? 'text-amber-400' : 'text-[#2DD4BF]'
+                voceDeveNoSaldo ? 'text-red-400' : eleDeveNoSaldo ? 'text-amber-400' : 'text-[#2DD4BF]'
               }`}
             >
               R$ {moneyConverter(valorDestaque)}
@@ -647,7 +658,7 @@ export function FriendDetailsModal({
             <div className="bg-[#1c1c1e] p-6 rounded-2xl border border-white/5 text-center mb-4">
               {voceDeveNoSaldo ? (
                 <>
-                  <p className="text-amber-300 font-bold text-sm mb-1">
+                  <p className="text-red-400 font-bold text-sm mb-1">
                     Você possui uma pendência de R$ {moneyConverter(valorDestaque)} com {nome.split(' ')[0]}.
                   </p>
                   <p className="text-gray-400 text-xs">
@@ -783,7 +794,7 @@ export function FriendDetailsModal({
                         {!isQuitada && (
                           <div
                             className={`font-bold text-xs mt-0.5 ${
-                              corrida.amigoFoiPagador ? 'text-amber-400' : 'text-red-400'
+                              corrida.amigoFoiPagador ? 'text-red-400' : 'text-amber-400'
                             }`}
                           >
                             {corrida.amigoFoiPagador

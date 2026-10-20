@@ -9,6 +9,12 @@ router.use(authMiddleware);
 
 router.post('/', GroupController.create);
 router.get('/', GroupController.list);
+
+// Convites de grupo (devem vir antes de /:id)
+router.get('/invitations', GroupController.listPendingInvitations);
+router.post('/invitations/:id/accept', GroupController.acceptInvitation);
+router.post('/invitations/:id/reject', GroupController.rejectInvitation);
+
 router.get('/:id', GroupController.getById);
 router.put('/:id', GroupController.update);
 router.delete('/:id', GroupController.delete);

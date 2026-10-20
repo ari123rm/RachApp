@@ -10,8 +10,7 @@ export class GroupService {
     userId: string,
     reverseContext: Awaited<ReturnType<typeof FriendService.syncReverseLinks>>
   ) {
-    const { currentUser, reverseFriendIds, ensureLocalFriendForOwner, ensureLocalFriendForForeign } =
-      reverseContext;
+    const { currentUser, reverseFriendIds, ensureLocalFriendForOwner, myFriends } = reverseContext;
     const reverseSet = new Set(reverseFriendIds);
 
     let transformedMembers = group.members || [];
@@ -19,7 +18,7 @@ export class GroupService {
     if (group.created_by !== userId) {
       const ownerLocalFriend = group.owner
         ? await ensureLocalFriendForOwner(group.owner)
-        : await ensureLocalFriendForForeign({ id: group.created_by, name: 'Amigo' });
+        : { id: group.created_by, name: 'Amigo', phone: null, pix_key: null, color: 'bg-emerald-500' };
 
       const newMembers: any[] = [
         {
@@ -36,6 +35,7 @@ export class GroupService {
               }
             : null,
           friend: null,
+          status: 'ACCEPTED',
         },
         {
           id: `${group.id}_${ownerLocalFriend.id}`,
@@ -44,6 +44,7 @@ export class GroupService {
           friend_id: ownerLocalFriend.id,
           user: null,
           friend: ownerLocalFriend,
+          status: 'ACCEPTED',
         },
       ];
 
@@ -51,16 +52,25 @@ export class GroupService {
 
       for (const m of group.members || []) {
         if (m.friend_id && !reverseSet.has(m.friend_id) && m.friend) {
-          const localF = await ensureLocalFriendForForeign(m.friend);
-          if (!seenFriendIds.has(localF.id)) {
-            seenFriendIds.add(localF.id);
+          const localMatch = m.friend.phone
+            ? myFriends.find((mf) => mf.phone && phonesMatch(mf.phone, m.friend.phone))
+            : null;
+          const memberFriend = localMatch || {
+            id: m.friend.id,
+            name: m.friend.name,
+            phone: m.friend.phone,
+            color: m.friend.color || 'bg-sky-500',
+          };
+          if (!seenFriendIds.has(memberFriend.id)) {
+            seenFriendIds.add(memberFriend.id);
             newMembers.push({
-              id: m.id || `${group.id}_${localF.id}`,
+              id: m.id || `${group.id}_${memberFriend.id}`,
               group_id: group.id,
-              user_id: null,
-              friend_id: localF.id,
-              user: null,
-              friend: localF,
+              user_id: m.user_id || null,
+              friend_id: memberFriend.id,
+              user: m.user || null,
+              friend: memberFriend,
+              status: m.status || 'ACCEPTED',
             });
           }
         }
@@ -103,16 +113,44 @@ export class GroupService {
       }
     }
 
+    const allUsers = await prisma.user.findMany({
+      select: { id: true, name: true, phone: true, pix_key: true },
+    });
+    const friends = await prisma.friend.findMany({
+      where: { id: { in: friendIds }, user_id: userId },
+    });
+
+    const memberCreates: any[] = [{ user_id: userId, status: 'ACCEPTED' }];
+
+    for (const friendId of friendIds) {
+      const f = friends.find((x) => x.id === friendId);
+      const regUser = f?.phone
+        ? allUsers.find((u) => u.id !== userId && phonesMatch(u.phone, f.phone))
+        : null;
+
+      if (regUser) {
+        // Amigo é usuário do RachApp: recebe convite pendente
+        memberCreates.push({
+          user_id: regUser.id,
+          friend_id: friendId,
+          status: 'PENDING',
+        });
+      } else {
+        // Amigo offline: aceito diretamente
+        memberCreates.push({
+          friend_id: friendId,
+          status: 'ACCEPTED',
+        });
+      }
+    }
+
     const group = await prisma.group.create({
       data: {
         ...(data.id ? { id: data.id } : {}),
         name,
         created_by: userId,
         members: {
-          create: [
-            { user_id: userId },
-            ...friendIds.map((friendId) => ({ friend_id: friendId })),
-          ],
+          create: memberCreates,
         },
       },
       include: {
@@ -134,23 +172,12 @@ export class GroupService {
 
   static async getUserGroups(userId: string) {
     const reverseContext = await FriendService.syncReverseLinks(userId);
-    const { reverseFriendIds } = reverseContext;
 
     const groups = await prisma.group.findMany({
       where: {
         OR: [
           { created_by: userId },
-          { members: { some: { user_id: userId } } },
-          ...(reverseFriendIds.length > 0
-            ? [
-                { members: { some: { friend_id: { in: reverseFriendIds } } } },
-                {
-                  expenses: {
-                    some: { participants: { some: { friend_id: { in: reverseFriendIds } } } },
-                  },
-                },
-              ]
-            : []),
+          { members: { some: { user_id: userId, status: 'ACCEPTED' } } },
         ],
       },
       include: {
@@ -185,21 +212,87 @@ export class GroupService {
     return transformed;
   }
 
+  static async listPendingInvitations(userId: string) {
+    const invitations = await prisma.groupMember.findMany({
+      where: {
+        user_id: userId,
+        status: 'PENDING',
+      },
+      include: {
+        group: {
+          include: {
+            owner: { select: { id: true, name: true, phone: true } },
+            _count: { select: { members: true, expenses: true } },
+          },
+        },
+      },
+      orderBy: { id: 'desc' },
+    });
+
+    return invitations.map((inv) => ({
+      id: inv.id,
+      group_id: inv.group_id,
+      status: inv.status,
+      group: {
+        id: inv.group.id,
+        name: inv.group.name,
+        creator_name: inv.group.owner?.name || 'Amigo',
+        members_count: inv.group._count.members,
+        expenses_count: inv.group._count.expenses,
+      },
+    }));
+  }
+
+  static async acceptInvitation(userId: string, invitationId: string) {
+    const member = await prisma.groupMember.findFirst({
+      where: {
+        id: invitationId,
+        user_id: userId,
+      },
+    });
+
+    if (!member) {
+      throw new Error('Convite de grupo não encontrado.');
+    }
+
+    await prisma.groupMember.update({
+      where: { id: invitationId },
+      data: { status: 'ACCEPTED' },
+    });
+
+    return { message: 'Convite aceito com sucesso!' };
+  }
+
+  static async rejectInvitation(userId: string, invitationId: string) {
+    const member = await prisma.groupMember.findFirst({
+      where: {
+        id: invitationId,
+        user_id: userId,
+      },
+    });
+
+    if (!member) {
+      throw new Error('Convite de grupo não encontrado.');
+    }
+
+    await prisma.groupMember.delete({
+      where: { id: invitationId },
+    });
+
+    return { message: 'Convite recusado com sucesso.' };
+  }
+
   static async updateGroup(
     userId: string,
     groupId: string,
     data: { name?: string; friendIds?: string[] }
   ) {
-    const { reverseFriendIds } = await FriendService.syncReverseLinks(userId);
     const group = await prisma.group.findFirst({
       where: {
         id: groupId,
         OR: [
           { created_by: userId },
-          { members: { some: { user_id: userId } } },
-          ...(reverseFriendIds.length > 0
-            ? [{ members: { some: { friend_id: { in: reverseFriendIds } } } }]
-            : []),
+          { members: { some: { user_id: userId, status: 'ACCEPTED' } } },
         ],
       },
     });
@@ -222,11 +315,29 @@ export class GroupService {
       });
 
       if (uniqueFriendIds.length > 0) {
-        await prisma.groupMember.createMany({
-          data: uniqueFriendIds.map((friendId) => ({
+        const allUsers = await prisma.user.findMany({
+          select: { id: true, name: true, phone: true, pix_key: true },
+        });
+        const friends = await prisma.friend.findMany({
+          where: { id: { in: uniqueFriendIds }, user_id: userId },
+        });
+
+        const newMembersData = uniqueFriendIds.map((friendId) => {
+          const f = friends.find((x) => x.id === friendId);
+          const regUser = f?.phone
+            ? allUsers.find((u) => u.id !== userId && phonesMatch(u.phone, f.phone))
+            : null;
+
+          return {
             group_id: groupId,
             friend_id: friendId,
-          })),
+            user_id: regUser ? regUser.id : null,
+            status: regUser ? 'PENDING' : 'ACCEPTED',
+          };
+        });
+
+        await prisma.groupMember.createMany({
+          data: newMembersData,
           skipDuplicates: true,
         });
       }
@@ -309,10 +420,19 @@ export class GroupService {
       throw new Error('Este amigo já faz parte do grupo.');
     }
 
+    const allUsers = await prisma.user.findMany({
+      select: { id: true, name: true, phone: true, pix_key: true },
+    });
+    const regUser = friendToAdd.phone
+      ? allUsers.find((u) => u.id !== userId && phonesMatch(u.phone, friendToAdd.phone))
+      : null;
+
     const newMember = await prisma.groupMember.create({
       data: {
         group_id: groupId,
         friend_id: friendToAdd.id,
+        user_id: regUser ? regUser.id : null,
+        status: regUser ? 'PENDING' : 'ACCEPTED',
       },
       include: {
         friend: true,

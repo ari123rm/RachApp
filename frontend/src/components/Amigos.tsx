@@ -1,6 +1,6 @@
 // src/components/Amigos.tsx
 import { useState, useEffect } from 'react';
-import { Search, Star, LoaderCircle, UserPlus, ChevronRight } from 'lucide-react';
+import { Search, Star, LoaderCircle, UserPlus, ChevronRight, Check, UserCheck, Users, BadgeCheck } from 'lucide-react';
 import { FriendCard } from './FriendCard';
 import { FriendDetailsModal } from './FriendDetailsModal';
 import { AddFriendModal } from './AddFriendModal';
@@ -18,6 +18,9 @@ export function Amigos({ onDataChange }: { onDataChange?: () => void }) {
 
   const [amigos, setAmigos] = useState<any[]>([]);
   const [grupos, setGrupos] = useState<Grupo[]>([]);
+  const [solicitacoesAmizade, setSolicitacoesAmizade] = useState<any[]>([]);
+  const [convitesGrupo, setConvitesGrupo] = useState<any[]>([]);
+  const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
 
   const [isAddFriendOpen, setIsAddFriendOpen] = useState(false);
   const [isAddGroupOpen, setIsAddGroupOpen] = useState(false);
@@ -26,9 +29,11 @@ export function Amigos({ onDataChange }: { onDataChange?: () => void }) {
   const carregarDados = async () => {
     setIsLoading(true);
     try {
-      const [dadosAmigos, dadosGrupos] = await Promise.all([
+      const [dadosAmigos, dadosGrupos, dadosSolicitacoes, dadosConvites] = await Promise.all([
         dbService.amigos.getAll(),
         dbService.grupos.getAll(),
+        dbService.amigos.getPendingRequests(),
+        dbService.grupos.getPendingInvitations(),
       ]);
 
       const amigosComValores = await Promise.all(
@@ -53,6 +58,8 @@ export function Amigos({ onDataChange }: { onDataChange?: () => void }) {
 
       setAmigos(amigosComValores);
       setGrupos(dadosGrupos);
+      setSolicitacoesAmizade(dadosSolicitacoes);
+      setConvitesGrupo(dadosConvites);
     } catch (error) {
       console.error('Erro ao buscar amigos e grupos:', error);
     } finally {
@@ -94,6 +101,62 @@ export function Amigos({ onDataChange }: { onDataChange?: () => void }) {
     }
   };
 
+  const handleAceitarAmizade = async (reqId: string) => {
+    setActionLoadingId(reqId);
+    try {
+      await dbService.amigos.acceptRequest(reqId);
+      setSolicitacoesAmizade((prev) => prev.filter((r) => r.id !== reqId));
+      await carregarDados();
+      if (onDataChange) onDataChange();
+    } catch (err: any) {
+      alert(err.response?.data?.error || 'Erro ao aceitar solicitação de amizade.');
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
+  const handleRecusarAmizade = async (reqId: string) => {
+    setActionLoadingId(reqId);
+    try {
+      await dbService.amigos.rejectRequest(reqId);
+      setSolicitacoesAmizade((prev) => prev.filter((r) => r.id !== reqId));
+      await carregarDados();
+      if (onDataChange) onDataChange();
+    } catch (err: any) {
+      alert(err.response?.data?.error || 'Erro ao recusar solicitação de amizade.');
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
+  const handleAceitarGrupo = async (invId: string) => {
+    setActionLoadingId(invId);
+    try {
+      await dbService.grupos.acceptInvitation(invId);
+      setConvitesGrupo((prev) => prev.filter((i) => i.id !== invId));
+      await carregarDados();
+      if (onDataChange) onDataChange();
+    } catch (err: any) {
+      alert(err.response?.data?.error || 'Erro ao aceitar convite do grupo.');
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
+  const handleRecusarGrupo = async (invId: string) => {
+    setActionLoadingId(invId);
+    try {
+      await dbService.grupos.rejectInvitation(invId);
+      setConvitesGrupo((prev) => prev.filter((i) => i.id !== invId));
+      await carregarDados();
+      if (onDataChange) onDataChange();
+    } catch (err: any) {
+      alert(err.response?.data?.error || 'Erro ao recusar convite do grupo.');
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
   const amigosFiltrados = amigos.filter((a) =>
     (a.nome || a.name || '').toLowerCase().includes(busca.toLowerCase())
   );
@@ -115,28 +178,38 @@ export function Amigos({ onDataChange }: { onDataChange?: () => void }) {
           <h1 className="text-3xl font-bold text-white">Amigos</h1>
         </div>
 
-        {/* Barra de alternância Amigos / Grupos + Botão Novo (Figura 3 do Artigo) */}
+        {/* Barra de alternância Amigos / Grupos + Botão Novo */}
         <div className="flex items-center justify-between gap-2">
           <div className="bg-[#1c1c1e] p-1 rounded-full flex items-center border border-white/5 flex-1">
             <button
               onClick={() => setSubTab('amigos')}
-              className={`flex-1 py-2 rounded-full text-xs font-bold transition-colors ${
+              className={`flex-1 py-2 rounded-full text-xs font-bold transition-colors flex items-center justify-center gap-1.5 ${
                 subTab === 'amigos'
                   ? 'bg-[#2DD4BF] text-[#05080f]'
                   : 'text-gray-400 hover:text-white'
               }`}
             >
-              Amigos
+              <span>Amigos</span>
+              {solicitacoesAmizade.length > 0 && (
+                <span className="w-5 h-5 rounded-full bg-red-500 text-white text-[10px] flex items-center justify-center font-bold">
+                  {solicitacoesAmizade.length}
+                </span>
+              )}
             </button>
             <button
               onClick={() => setSubTab('grupos')}
-              className={`flex-1 py-2 rounded-full text-xs font-bold transition-colors ${
+              className={`flex-1 py-2 rounded-full text-xs font-bold transition-colors flex items-center justify-center gap-1.5 ${
                 subTab === 'grupos'
                   ? 'bg-[#2DD4BF] text-[#05080f]'
                   : 'text-gray-400 hover:text-white'
               }`}
             >
-              Grupos
+              <span>Grupos</span>
+              {convitesGrupo.length > 0 && (
+                <span className="w-5 h-5 rounded-full bg-red-500 text-white text-[10px] flex items-center justify-center font-bold">
+                  {convitesGrupo.length}
+                </span>
+              )}
             </button>
           </div>
 
@@ -166,6 +239,74 @@ export function Amigos({ onDataChange }: { onDataChange?: () => void }) {
 
       {subTab === 'amigos' ? (
         <>
+          {/* SOLICITAÇÕES DE AMIZADE PENDENTES */}
+          {solicitacoesAmizade.length > 0 && (
+            <section className="bg-gradient-to-r from-[#1c1c1e] to-[#252528] rounded-2xl p-4 border border-[#2DD4BF]/30 shadow-lg space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <UserCheck className="text-[#2DD4BF]" size={18} />
+                  <h2 className="text-sm font-bold text-white uppercase tracking-wider">
+                    Solicitações de Amizade ({solicitacoesAmizade.length})
+                  </h2>
+                </div>
+                <span className="text-[11px] text-[#2DD4BF] font-semibold bg-[#2DD4BF]/10 px-2.5 py-0.5 rounded-full">
+                  Pendente
+                </span>
+              </div>
+              <p className="text-xs text-gray-400">
+                Confirme as amizades para visualizar os rachas compartilhados.
+              </p>
+
+              <div className="space-y-2.5 pt-1">
+                {solicitacoesAmizade.map((req) => {
+                  const isProcessing = actionLoadingId === req.id;
+                  return (
+                    <div
+                      key={req.id}
+                      className="bg-[#121214] p-3 rounded-xl border border-white/5 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div
+                          className={`w-10 h-10 rounded-2xl ${
+                            req.sender?.color || 'bg-teal-500'
+                          } text-white font-bold text-sm flex items-center justify-center shadow`}
+                        >
+                          {(req.sender?.name || 'A')[0].toUpperCase()}
+                        </div>
+                        <div>
+                          <p className="text-sm font-bold text-white">
+                            {req.sender?.name || 'Usuário'}
+                          </p>
+                          <p className="text-xs text-gray-400">
+                            {req.sender?.phone || 'Telefone não informado'}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 self-end sm:self-auto">
+                        <button
+                          disabled={isProcessing}
+                          onClick={() => handleRecusarAmizade(req.id)}
+                          className="px-3 py-1.5 rounded-xl text-xs font-bold text-gray-400 hover:text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-50"
+                        >
+                          Recusar
+                        </button>
+                        <button
+                          disabled={isProcessing}
+                          onClick={() => handleAceitarAmizade(req.id)}
+                          className="px-4 py-1.5 rounded-xl text-xs font-bold bg-[#2DD4BF] text-[#05080f] hover:brightness-110 active:scale-95 transition-all shadow-md flex items-center gap-1 disabled:opacity-50"
+                        >
+                          <Check size={14} />
+                          Confirmar
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+          )}
+
           {/* FAVORITOS */}
           {busca === '' && favoritos.length > 0 && (
             <section>
@@ -191,8 +332,11 @@ export function Amigos({ onDataChange }: { onDataChange?: () => void }) {
                         <Star size={16} className="text-yellow-500 fill-yellow-500" />
                       </div>
                     </div>
-                    <span className="text-sm font-medium text-gray-300 truncate w-full text-center">
-                      {amigo.nome.split(' ')[0]}
+                    <span className="text-sm font-medium text-gray-300 truncate w-full text-center flex items-center justify-center gap-1">
+                      <span className="truncate">{amigo.nome.split(' ')[0]}</span>
+                      {(amigo.has_account || amigo.is_registered) && (
+                        <BadgeCheck size={13} className="text-[#2DD4BF] fill-[#2DD4BF]/20 shrink-0" />
+                      )}
                     </span>
                   </div>
                 ))}
@@ -223,8 +367,70 @@ export function Amigos({ onDataChange }: { onDataChange?: () => void }) {
           </section>
         </>
       ) : (
-        /* ABA GRUPOS (Figura 3) */
-        <section className="pb-10 space-y-3">
+        /* ABA GRUPOS */
+        <section className="pb-10 space-y-4">
+          {/* CONVITES DE GRUPO PENDENTES */}
+          {convitesGrupo.length > 0 && (
+            <div className="bg-gradient-to-r from-[#1c1c1e] to-[#252528] rounded-2xl p-4 border border-[#2DD4BF]/30 shadow-lg space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Users className="text-[#2DD4BF]" size={18} />
+                  <h2 className="text-sm font-bold text-white uppercase tracking-wider">
+                    Convites de Grupo ({convitesGrupo.length})
+                  </h2>
+                </div>
+                <span className="text-[11px] text-[#2DD4BF] font-semibold bg-[#2DD4BF]/10 px-2.5 py-0.5 rounded-full">
+                  Pendente
+                </span>
+              </div>
+              <p className="text-xs text-gray-400">
+                Aceite os convites para acessar as despesas dos grupos.
+              </p>
+
+              <div className="space-y-2.5 pt-1">
+                {convitesGrupo.map((inv) => {
+                  const isProcessing = actionLoadingId === inv.id;
+                  return (
+                    <div
+                      key={inv.id}
+                      className="bg-[#121214] p-3 rounded-xl border border-white/5 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-2xl bg-indigo-500 text-white font-bold text-sm flex items-center justify-center shadow">
+                          {(inv.group?.name || 'G')[0].toUpperCase()}
+                        </div>
+                        <div>
+                          <p className="text-sm font-bold text-white">{inv.group?.name}</p>
+                          <p className="text-xs text-gray-400">
+                            Criado por <span className="text-gray-200">{inv.group?.creator_name}</span> • {inv.group?.members_count || 1} membros
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 self-end sm:self-auto">
+                        <button
+                          disabled={isProcessing}
+                          onClick={() => handleRecusarGrupo(inv.id)}
+                          className="px-3 py-1.5 rounded-xl text-xs font-bold text-gray-400 hover:text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-50"
+                        >
+                          Recusar
+                        </button>
+                        <button
+                          disabled={isProcessing}
+                          onClick={() => handleAceitarGrupo(inv.id)}
+                          className="px-4 py-1.5 rounded-xl text-xs font-bold bg-[#2DD4BF] text-[#05080f] hover:brightness-110 active:scale-95 transition-all shadow-md flex items-center gap-1 disabled:opacity-50"
+                        >
+                          <Check size={14} />
+                          Aceitar
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           {grupos.length === 0 ? (
             <div className="bg-[#1c1c1e] p-8 rounded-3xl text-center border border-white/5">
               <p className="text-gray-400 mb-3">Você ainda não faz parte de nenhum grupo.</p>

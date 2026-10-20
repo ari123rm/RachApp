@@ -1,6 +1,6 @@
 // src/components/Home.tsx
 import { useState, useEffect } from 'react';
-import { ArrowUpRight, LoaderCircle, TrendingUp, TrendingDown, RefreshCw } from 'lucide-react';
+import { ArrowUpRight, LoaderCircle, TrendingUp, TrendingDown, RefreshCw, BadgeCheck } from 'lucide-react';
 import { dbService } from '../services/database';
 import { FriendDetailsModal } from './FriendDetailsModal';
 import moneyConverter from '../utils/moneyConverter';
@@ -147,14 +147,14 @@ export function Home({ onDataChange }: { onDataChange?: () => void }) {
             }`}
           >
             <div className="bg-white/10 backdrop-blur-md rounded-2xl p-3 flex items-center gap-2.5 border border-white/10">
-              <div className="w-8 h-8 bg-[#2DD4BF] rounded-full flex items-center justify-center text-[#05080f] shrink-0">
+              <div className="w-8 h-8 bg-amber-400 rounded-full flex items-center justify-center text-[#05080f] shrink-0">
                 <TrendingUp size={17} />
               </div>
               <div className="min-w-0">
                 <p className="text-[10px] text-gray-400 uppercase font-bold tracking-wider truncate">
                   A receber
                 </p>
-                <p className="text-white font-bold text-sm truncate">
+                <p className="text-amber-300 font-bold text-sm truncate">
                   R$ {moneyConverter(Number(dashboard.totalAReceber || 0))}
                 </p>
               </div>
@@ -162,14 +162,14 @@ export function Home({ onDataChange }: { onDataChange?: () => void }) {
 
             {dashboard.totalAPagar > 0.01 && (
               <div className="bg-white/10 backdrop-blur-md rounded-2xl p-3 flex items-center gap-2.5 border border-white/10">
-                <div className="w-8 h-8 bg-amber-400 rounded-full flex items-center justify-center text-[#05080f] shrink-0">
+                <div className="w-8 h-8 bg-red-500 rounded-full flex items-center justify-center text-white shrink-0">
                   <TrendingDown size={17} />
                 </div>
                 <div className="min-w-0">
                   <p className="text-[10px] text-gray-400 uppercase font-bold tracking-wider truncate">
                     A pagar
                   </p>
-                  <p className="text-amber-300 font-bold text-sm truncate">
+                  <p className="text-red-400 font-bold text-sm truncate">
                     R$ {moneyConverter(Number(dashboard.totalAPagar || 0))}
                   </p>
                 </div>
@@ -196,7 +196,7 @@ export function Home({ onDataChange }: { onDataChange?: () => void }) {
             <p className="text-gray-500 text-sm italic">Nenhuma dívida pendente. ✌️</p>
           </div>
         ) : (
-          <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide">
+          <div className="flex gap-4 overflow-x-auto pt-2.5 pb-4 px-1 scrollbar-hide -mt-2">
             {dashboard.amigosDevedores.map((amigo) => {
               const nome = amigo.nome || amigo.name || 'Amigo';
               const cor = amigo.cor || amigo.color || 'bg-sky-500';
@@ -233,19 +233,22 @@ export function Home({ onDataChange }: { onDataChange?: () => void }) {
                     </div>
                     <div
                       className={`absolute -top-1 -right-1 w-5 h-5 ${
-                        isVoceDeve ? 'bg-amber-500' : 'bg-red-500'
-                      } rounded-full border-2 border-[#05080f] flex items-center justify-center`}
+                        isVoceDeve ? 'bg-red-500' : 'bg-amber-500'
+                      } rounded-full border-2 border-[#05080f] flex items-center justify-center shadow-sm select-none`}
                     >
-                      <span className="text-[10px] font-bold text-white">!</span>
+                      <span className="text-[11px] font-black text-white leading-none select-none block">!</span>
                     </div>
                   </div>
-                  <div className="text-center">
-                    <p className="text-xs font-semibold text-white truncate w-20">
-                      {nome.split(' ')[0]}
+                  <div className="text-center w-full">
+                    <p className="text-xs font-semibold text-white truncate max-w-[85px] flex items-center justify-center gap-1 mx-auto">
+                      <span className="truncate">{nome.split(' ')[0]}</span>
+                      {(amigo.has_account || amigo.is_registered) && (
+                        <BadgeCheck size={13} className="text-[#2DD4BF] fill-[#2DD4BF]/20 shrink-0" />
+                      )}
                     </p>
                     <p
                       className={`text-[11px] font-bold ${
-                        isVoceDeve ? 'text-amber-400' : 'text-red-400'
+                        isVoceDeve ? 'text-red-400' : 'text-amber-400'
                       }`}
                     >
                       R$ {moneyConverter(valorExibido)}

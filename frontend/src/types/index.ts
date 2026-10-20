@@ -28,6 +28,8 @@ export interface Amigo {
   voceDeve?: string | number;
   voceDeveNumerico?: number;
   pendingExpensesCount?: number;
+  has_account?: boolean;
+  is_registered?: boolean;
 }
 
 export interface Corrida {
@@ -53,6 +55,9 @@ export interface Corrida {
   valoresDevidos?: Record<string, number>; // { amigoId: valorDevido }
   selfReceiptUrl?: string | null;
   comprovantes?: Record<string, string>; // { amigoId: base64ReceiptUrl }
+  isCreator?: boolean;
+  created_by_user_id?: string | null;
+  original_owner_id?: string | null;
 }
 
 export interface Transferencia {
@@ -77,6 +82,8 @@ export interface MembroSaldo {
   netBalance: number;
   owesYou: number;
   pendingCount: number;
+  has_account?: boolean;
+  is_registered?: boolean;
 }
 
 export interface Grupo {

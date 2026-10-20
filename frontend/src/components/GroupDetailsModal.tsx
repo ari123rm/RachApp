@@ -14,6 +14,7 @@ import {
   DollarSign,
   Users,
   Upload,
+  BadgeCheck,
 } from 'lucide-react';
 import { dbService } from '../services/database';
 import moneyConverter from '../utils/moneyConverter';
@@ -406,7 +407,12 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
                                 {nomeAmigo[0]?.toUpperCase()}
                               </div>
                               <div>
-                                <p className="text-xs font-bold text-white">{nomeAmigo}</p>
+                                <div className="flex items-center gap-1">
+                                  <p className="text-xs font-bold text-white">{nomeAmigo}</p>
+                                  {(amigo.has_account || amigo.is_registered) && (
+                                    <BadgeCheck size={12} className="text-[#2DD4BF] fill-[#2DD4BF]/20 shrink-0" />
+                                  )}
+                                </div>
                                 {tel && <p className="text-[10px] text-gray-500">{tel}</p>}
                               </div>
                             </div>
@@ -461,7 +467,12 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
                             {m.name[0]?.toUpperCase()}
                           </div>
                           <div>
-                            <p className="font-semibold text-white text-sm">{m.name}</p>
+                            <div className="flex items-center gap-1.5">
+                              <p className="font-semibold text-white text-sm">{m.name}</p>
+                              {Boolean((m as any).has_account || (m as any).is_registered || todosAmigos.find(a => a.id === m.friendId)?.has_account) && (
+                                <BadgeCheck size={14} className="text-[#2DD4BF] fill-[#2DD4BF]/20 shrink-0" />
+                              )}
+                            </div>
                             <p className="text-[11px] text-gray-500">
                               {m.pendingCount > 0
                                 ? 'Dividindo despesas do grupo'
@@ -483,7 +494,7 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
                                 </p>
                               </>
                             ) : voceDeve ? (
-                              <p className="text-xs font-bold text-amber-400">
+                              <p className="text-xs font-bold text-red-400">
                                 Você deve R$ {moneyConverter(Math.abs(m.owesYou))}
                               </p>
                             ) : (
@@ -514,7 +525,7 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
                                   amount: Math.abs(m.owesYou),
                                 })
                               }
-                              className="px-2.5 py-1.5 bg-amber-500/20 text-amber-300 hover:bg-amber-500/30 rounded-xl text-[11px] font-bold flex items-center gap-1 transition-colors"
+                              className="px-2.5 py-1.5 bg-red-500/20 text-red-300 hover:bg-red-500/30 rounded-xl text-[11px] font-bold flex items-center gap-1 transition-colors"
                               title="Pagar mediante comprovante"
                             >
                               <Upload size={12} /> Pagar

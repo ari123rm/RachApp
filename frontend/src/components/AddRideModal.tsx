@@ -1,6 +1,6 @@
 // src/components/AddRideModal.tsx
 import { useState, useEffect } from 'react';
-import { X, LoaderCircle, UsersRound, Wallet, Percent, DollarSign, Equal } from 'lucide-react';
+import { X, LoaderCircle, UsersRound, Wallet, Percent, DollarSign, Equal, BadgeCheck } from 'lucide-react';
 import { dbService } from '../services/database';
 import type { Amigo, Corrida, Grupo } from '../types';
 import moneyConverter from '../utils/moneyConverter';
@@ -613,6 +613,9 @@ export function AddRideModal({
                         {nomeAmigo[0]?.toUpperCase()}
                       </div>
                       <span className="text-sm">{nomeAmigo}</span>
+                      {(amigo.has_account || amigo.is_registered) && (
+                        <BadgeCheck size={14} className="text-[#2DD4BF] fill-[#2DD4BF]/20 shrink-0" />
+                      )}
                     </button>
                   );
                 })
@@ -824,7 +827,12 @@ export function AddRideModal({
                           : 'bg-[#2c2c2e] text-gray-300 border-white/10'
                       }`}
                     >
-                      {nomeAmigo}
+                      <span className="flex items-center gap-1">
+                        <span>{nomeAmigo}</span>
+                        {(amigo.has_account || amigo.is_registered) && (
+                          <BadgeCheck size={12} className={isPayer ? "text-[#05080f] shrink-0" : "text-[#2DD4BF] shrink-0"} />
+                        )}
+                      </span>
                     </button>
                   );
                 })}

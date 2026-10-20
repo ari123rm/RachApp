@@ -95,6 +95,7 @@ function createSchema(db: Database) {
       pix_key TEXT,
       color TEXT NOT NULL,
       is_favorite INTEGER DEFAULT 0,
+      has_account INTEGER DEFAULT 0,
       synced INTEGER DEFAULT 0,
       updated_at TEXT
     );
@@ -118,6 +119,7 @@ function createSchema(db: Database) {
     CREATE TABLE IF NOT EXISTS expenses (
       id TEXT PRIMARY KEY,
       user_id TEXT,
+      created_by_user_id TEXT,
       group_id TEXT,
       paid_by_friend_id TEXT,
       title TEXT NOT NULL,
@@ -150,6 +152,12 @@ function createSchema(db: Database) {
   `);
 
   // Migrações incrementais para bancos SQLite locais já existentes
+    try {
+    db.run('ALTER TABLE expenses ADD COLUMN created_by_user_id TEXT');
+  } catch {
+    // Coluna já existe
+  }
+
   try {
     db.run('ALTER TABLE expenses ADD COLUMN self_receipt_url TEXT');
   } catch {
@@ -158,6 +166,12 @@ function createSchema(db: Database) {
 
   try {
     db.run('ALTER TABLE expense_participants ADD COLUMN receipt_url TEXT');
+  } catch {
+    // Coluna já existe
+  }
+
+  try {
+    db.run('ALTER TABLE friends ADD COLUMN has_account INTEGER DEFAULT 0');
   } catch {
     // Coluna já existe
   }

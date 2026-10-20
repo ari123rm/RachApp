@@ -9,6 +9,12 @@ router.use(authMiddleware);
 
 router.get('/', FriendController.list);
 router.post('/', FriendController.create);
+
+// Solicitações de amizade (devem vir antes de /:id)
+router.get('/requests', FriendController.listPendingRequests);
+router.post('/requests/:id/accept', FriendController.acceptRequest);
+router.post('/requests/:id/reject', FriendController.rejectRequest);
+
 router.put('/:id', FriendController.update);
 router.patch('/:id/favorite', FriendController.toggleFavorite);
 router.delete('/:id', FriendController.delete);

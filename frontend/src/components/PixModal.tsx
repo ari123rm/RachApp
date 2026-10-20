@@ -185,7 +185,7 @@ export function PixModal({
                     className="bg-[#2DD4BF] text-[#05080f] hover:bg-[#25b5a3] px-3 py-2 rounded-lg text-xs font-bold flex items-center gap-1.5 shrink-0"
                   >
                     {copiedCode ? <Check size={14} /> : <Copy size={14} />}
-                    {copiedCode ? 'Copiado!' : 'Copia e Cola'}
+                    {copiedCode ? 'Copiado!' : 'Copiar'}
                   </button>
                 </div>
               )}

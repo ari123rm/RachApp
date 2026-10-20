@@ -11,6 +11,7 @@ import {
   UsersRound,
   Upload,
   FileCheck2,
+  BadgeCheck,
 } from 'lucide-react';
 import type { Corrida } from '../types';
 import moneyConverter from '../utils/moneyConverter';
@@ -135,25 +136,35 @@ export function RideDetailsModal({
 
           <h2 className="text-base font-semibold text-white">Detalhes do Racha</h2>
 
-          <div className="flex items-center gap-1">
-            <button
-              onClick={() => setIsEditOpen(true)}
-              className="p-2 text-gray-300 hover:bg-white/10 hover:text-white rounded-full transition-colors"
-              title="Editar Racha"
-            >
-              <Pencil size={18} />
-            </button>
-            <button
-              onClick={() => {
-                onDelete(ride.id);
-                onClose();
-              }}
-              className="p-2 text-red-500 hover:bg-red-500/20 hover:text-red-400 rounded-full transition-colors"
-              title="Excluir Racha"
-            >
-              <Trash2 size={20} />
-            </button>
-          </div>
+          {ride.isCreator !== false ? (
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setIsEditOpen(true)}
+                className="p-2 text-gray-300 hover:bg-white/10 hover:text-white rounded-full transition-colors"
+                title="Editar Racha"
+              >
+                <Pencil size={18} />
+              </button>
+              <button
+                onClick={() => {
+                  if (ride.isCreator === false) {
+                    alert('Apenas o criador do racha pode excluí-lo.');
+                    return;
+                  }
+                  onDelete(ride.id);
+                  onClose();
+                }}
+                className="p-2 text-red-500 hover:bg-red-500/20 hover:text-red-400 rounded-full transition-colors"
+                title="Excluir Racha"
+              >
+                <Trash2 size={20} />
+              </button>
+            </div>
+          ) : (
+            <span className="text-[11px] text-gray-400 bg-white/5 border border-white/10 px-2.5 py-1 rounded-full font-medium">
+              Criado por amigo
+            </span>
+          )}
         </div>
 
         <div className="p-5 space-y-5 overflow-y-auto flex-1">
@@ -225,8 +236,11 @@ export function RideDetailsModal({
                         {nome[0]?.toUpperCase()}
                       </div>
                       <div>
-                        <div className="flex items-center gap-2 flex-wrap">
+                        <div className="flex items-center gap-1.5 flex-wrap">
                           <span className="font-medium text-white text-sm">{nome}</span>
+                          {(p.has_account || p.is_registered) && (
+                            <BadgeCheck size={14} className="text-[#2DD4BF] fill-[#2DD4BF]/20 shrink-0" />
+                          )}
                           {isFriendPayer && (
                             <span className="text-[10px] bg-[#2DD4BF]/20 text-[#2DD4BF] px-2 py-0.5 rounded-md font-bold">
                               Pagador

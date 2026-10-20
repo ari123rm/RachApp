@@ -160,8 +160,8 @@ async function saveRemoteSnapshotToSQLite(data: {
       for (const f of data.friends) {
         if (pendingIds.has(f.id)) continue;
         db.run(
-          `INSERT OR REPLACE INTO friends (id, user_id, name, phone, pix_key, color, is_favorite, synced, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?)`,
+          `INSERT OR REPLACE INTO friends (id, user_id, name, phone, pix_key, color, is_favorite, has_account, synced, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?)`,
           [
             f.id,
             f.user_id || data.user?.id || '',
@@ -170,6 +170,7 @@ async function saveRemoteSnapshotToSQLite(data: {
             f.pix_key || f.pix || '',
             f.color || f.cor || 'bg-sky-500',
             f.is_favorite || f.favorito ? 1 : 0,
+            f.has_account || f.is_registered ? 1 : 0,
             new Date().toISOString(),
           ]
         );
@@ -220,11 +221,12 @@ async function saveRemoteSnapshotToSQLite(data: {
         if (pendingIds.has(e.id)) continue;
         db.run(
           `INSERT OR REPLACE INTO expenses (
-            id, user_id, group_id, paid_by_friend_id, title, tag, total_amount, self_amount_owed, self_amount_paid, self_receipt_url, expense_date, synced
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
+            id, user_id, created_by_user_id, group_id, paid_by_friend_id, title, tag, total_amount, self_amount_owed, self_amount_paid, self_receipt_url, expense_date, synced
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
           [
             e.id,
             e.user_id || data.user?.id || '',
+            e.created_by_user_id || e.original_owner_id || (e.is_creator ? data.user?.id : '') || (e.user_id === data.user?.id ? data.user?.id : '') || '',
             e.group_id || null,
             e.paid_by_friend_id || null,
             e.title || '',
@@ -696,6 +698,8 @@ export const dbService = {
           color: r.color || 'bg-sky-500',
           favorito: !!r.is_favorite,
           is_favorite: !!r.is_favorite,
+          has_account: !!r.has_account,
+          is_registered: !!r.has_account,
           dividaNumerica: Number(dividaNum.toFixed(2)),
           voceDeveNumerico: Number(voceDeveNum.toFixed(2)),
           pendingExpensesCount: pendingCount,
@@ -840,6 +844,28 @@ export const dbService = {
       await enqueueSync('friend', 'delete', id);
       syncWithBackend(false).catch(() => {});
     },
+
+    getPendingRequests: async (): Promise<any[]> => {
+      try {
+        const { data } = await api.get('/friends/requests');
+        return Array.isArray(data) ? data : [];
+      } catch (err) {
+        console.error('Erro ao buscar solicitações de amizade:', err);
+        return [];
+      }
+    },
+
+    acceptRequest: async (requestId: string): Promise<any> => {
+      const { data } = await api.post(`/friends/requests/${requestId}/accept`);
+      await syncWithBackend(true);
+      return data;
+    },
+
+    rejectRequest: async (requestId: string): Promise<any> => {
+      const { data } = await api.post(`/friends/requests/${requestId}/reject`);
+      await syncWithBackend(true);
+      return data;
+    },
   },
 
   // ==========================================
@@ -847,6 +873,8 @@ export const dbService = {
   // ==========================================
   corridas: {
     getAll: async (): Promise<Corrida[]> => {
+      const session = await queryOne<any>('SELECT user_id FROM auth_session WHERE id = 1');
+      const currentUserId = session?.user_id || '';
       const expRows = await queryAll<any>(
         `SELECT e.*, g.name as group_name, f.name as payer_friend_name, f.phone as payer_friend_phone, f.pix_key as payer_friend_pix
          FROM expenses e
@@ -890,8 +918,19 @@ export const dbService = {
           allPaid = false;
         }
 
+        const creatorId = e.created_by_user_id || '';
+        const isCreator = Boolean(
+          !creatorId ||
+          !currentUserId ||
+          creatorId === currentUserId ||
+          creatorId === 'me'
+        );
+
         corridas.push({
           id: e.id,
+          isCreator,
+          created_by_user_id: creatorId,
+          original_owner_id: creatorId,
           titulo: e.title,
           title: e.title,
           valorTotal: Number(e.total_amount),
@@ -945,11 +984,12 @@ export const dbService = {
 
       await runSQL(
         `INSERT INTO expenses (
-          id, user_id, group_id, paid_by_friend_id, title, tag, total_amount, self_amount_owed, self_amount_paid, expense_date, synced
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)`,
+          id, user_id, created_by_user_id, group_id, paid_by_friend_id, title, tag, total_amount, self_amount_owed, self_amount_paid, expense_date, synced
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)`,
         [
           id,
           session?.user_id || '',
+          session?.user_id || 'me',
           novaCorrida.groupId || null,
           paidByFriendId,
           novaCorrida.titulo.trim(),
@@ -1039,6 +1079,13 @@ export const dbService = {
     ): Promise<Corrida> => {
       const existing = await queryOne<any>('SELECT * FROM expenses WHERE id = ?', [id]);
       if (!existing) throw new Error('Racha não encontrado.');
+
+      const session = await queryOne<any>('SELECT user_id FROM auth_session WHERE id = 1');
+      const currentUserId = session?.user_id || '';
+      const creatorId = existing.created_by_user_id || '';
+      if (creatorId && currentUserId && creatorId !== currentUserId && creatorId !== 'me') {
+        throw new Error('Apenas o criador do racha pode editá-lo.');
+      }
 
       const existingParts = await queryAll<{
         friend_id: string;
@@ -1165,6 +1212,15 @@ export const dbService = {
     },
 
     delete: async (id: string): Promise<void> => {
+      const existing = await queryOne<any>('SELECT * FROM expenses WHERE id = ?', [id]);
+      const session = await queryOne<any>('SELECT user_id FROM auth_session WHERE id = 1');
+      const currentUserId = session?.user_id || '';
+      if (existing) {
+        const creatorId = existing.created_by_user_id || '';
+        if (creatorId && currentUserId && creatorId !== currentUserId && creatorId !== 'me') {
+          throw new Error('Apenas o criador do racha pode excluí-lo.');
+        }
+      }
       await runSQL('DELETE FROM expense_participants WHERE expense_id = ?', [id], false);
       await runSQL('DELETE FROM expenses WHERE id = ?', [id], true);
 
@@ -1560,6 +1616,28 @@ export const dbService = {
         transfers,
       };
     },
+
+    getPendingInvitations: async (): Promise<any[]> => {
+      try {
+        const { data } = await api.get('/groups/invitations');
+        return Array.isArray(data) ? data : [];
+      } catch (err) {
+        console.error('Erro ao buscar convites de grupo:', err);
+        return [];
+      }
+    },
+
+    acceptInvitation: async (invitationId: string): Promise<any> => {
+      const { data } = await api.post(`/groups/invitations/${invitationId}/accept`);
+      await syncWithBackend(true);
+      return data;
+    },
+
+    rejectInvitation: async (invitationId: string): Promise<any> => {
+      const { data } = await api.post(`/groups/invitations/${invitationId}/reject`);
+      await syncWithBackend(true);
+      return data;
+    },
   },
 
   // ==========================================
@@ -1584,17 +1662,22 @@ export const dbService = {
       for (const amigo of amigos) {
         const divida = Number(amigo.dividaNumerica || 0);
         const voceDeve = Number(amigo.voceDeveNumerico || 0);
-        if (divida > 0.01) {
-          totalAReceber += divida;
+        const saldoLiquido = Number((divida - voceDeve).toFixed(2));
+
+        if (saldoLiquido > 0.01) {
+          totalAReceber += saldoLiquido;
+        } else if (saldoLiquido < -0.01) {
+          totalAPagar += Math.abs(saldoLiquido);
         }
-        if (voceDeve > 0.01) {
-          totalAPagar += voceDeve;
-        }
-        if (divida > 0.01 || voceDeve > 0.01) {
+
+        if (Math.abs(saldoLiquido) > 0.01) {
           amigosDevedores.push({
             ...amigo,
-            divida: Number(divida.toFixed(2)),
-            voceDeve: Number(voceDeve.toFixed(2)),
+            divida: saldoLiquido > 0.01 ? saldoLiquido : 0,
+            dividaNumerica: saldoLiquido > 0.01 ? saldoLiquido : 0,
+            voceDeve: saldoLiquido < -0.01 ? Math.abs(saldoLiquido) : 0,
+            voceDeveNumerico: saldoLiquido < -0.01 ? Math.abs(saldoLiquido) : 0,
+            saldoLiquido,
           });
         }
       }

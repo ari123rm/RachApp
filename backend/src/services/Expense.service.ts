@@ -27,10 +27,15 @@ export class ExpenseService {
     reverseContext: Awaited<ReturnType<typeof FriendService.syncReverseLinks>>
   ) {
     if (exp.user_id === userId) {
-      return exp;
+      return {
+        ...exp,
+        is_creator: true,
+        created_by_user_id: exp.user_id,
+        original_owner_id: exp.user_id,
+      };
     }
 
-    const { reverseFriendIds, ensureLocalFriendForOwner, ensureLocalFriendForForeign } = reverseContext;
+    const { reverseFriendIds, ensureLocalFriendForOwner, myFriends } = reverseContext;
     const reverseSet = new Set(reverseFriendIds);
 
     const myPart = (exp.participants || []).find((p: any) => reverseSet.has(p.friend_id));
@@ -40,7 +45,7 @@ export class ExpenseService {
     const ownerUser = exp.owner || (await prisma.user.findUnique({ where: { id: exp.user_id } }));
     const ownerLocalFriend = ownerUser
       ? await ensureLocalFriendForOwner(ownerUser)
-      : await ensureLocalFriendForForeign({ id: exp.user_id, name: 'Amigo' });
+      : { id: exp.user_id, name: 'Amigo', color: 'bg-emerald-500', phone: null, pix_key: null };
 
     const iAmPayer = Boolean(exp.paid_by_friend_id && reverseSet.has(exp.paid_by_friend_id));
 
@@ -59,8 +64,17 @@ export class ExpenseService {
       transformedPaidByFriend = null;
       transformedPaidByFriendId = null;
     } else if (exp.paidByFriend) {
-      // Um terceiro amigo pagou
-      const thirdLocal = await ensureLocalFriendForForeign(exp.paidByFriend);
+      // Um terceiro amigo pagou (sem duplicar no banco de dados)
+      const localMatch = exp.paidByFriend.phone
+        ? myFriends.find((mf) => mf.phone && phonesMatch(mf.phone, exp.paidByFriend.phone))
+        : null;
+      const thirdLocal = localMatch || {
+        id: exp.paidByFriend.id,
+        name: exp.paidByFriend.name,
+        phone: exp.paidByFriend.phone,
+        pix_key: exp.paidByFriend.pix_key,
+        color: exp.paidByFriend.color || 'bg-sky-500',
+      };
       transformedPaidByFriend = thirdLocal;
       transformedPaidByFriendId = thirdLocal.id;
     }
@@ -83,15 +97,24 @@ export class ExpenseService {
     for (const p of exp.participants || []) {
       if (reverseSet.has(p.friend_id)) continue;
       if (p.friend) {
-        const localF = await ensureLocalFriendForForeign(p.friend);
-        if (localF.id !== ownerLocalFriend.id) {
+        const localMatch = p.friend.phone
+          ? myFriends.find((mf) => mf.phone && phonesMatch(mf.phone, p.friend.phone))
+          : null;
+        const participantFriend = localMatch || {
+          id: p.friend.id,
+          name: p.friend.name,
+          phone: p.friend.phone,
+          pix_key: p.friend.pix_key,
+          color: p.friend.color || 'bg-sky-500',
+        };
+        if (participantFriend.id !== ownerLocalFriend.id) {
           transformedParticipants.push({
             expense_id: exp.id,
-            friend_id: localF.id,
+            friend_id: participantFriend.id,
             amount_owed: Number(p.amount_owed),
             amount_paid: Number(p.amount_paid),
             receipt_url: p.receipt_url || null,
-            friend: localF,
+            friend: participantFriend,
           });
         }
       }
@@ -101,6 +124,8 @@ export class ExpenseService {
       ...exp,
       user_id: userId,
       original_owner_id: exp.user_id,
+      created_by_user_id: exp.user_id,
+      is_creator: false,
       paid_by_friend_id: transformedPaidByFriendId,
       paidByFriend: transformedPaidByFriend,
       self_amount_owed: myOwed,
@@ -288,6 +313,10 @@ export class ExpenseService {
       throw new Error('Racha não encontrado.');
     }
 
+    if (existing.user_id !== userId) {
+      throw new Error('Apenas o criador do racha pode editá-lo.');
+    }
+
     // Se a despesa pertence a outro usuário e está sendo editada por um participante, atualiza campos básicos e valores correspondentes
     if (existing.user_id !== userId) {
       const totalAmount =
@@ -423,6 +452,10 @@ export class ExpenseService {
       },
     });
     if (!existing) throw new Error('Racha não encontrado.');
+
+    if (existing.user_id !== userId) {
+      throw new Error('Apenas o criador do racha pode excluí-lo.');
+    }
 
     await prisma.expense.delete({ where: { id: expenseId } });
   }
@@ -669,18 +702,21 @@ export class ExpenseService {
 
     const reverseSet = new Set(reverseContext.reverseFriendIds);
 
-    for (const m of group.members) {
-      if (m.friend && !reverseSet.has(m.friend.id)) {
-        const localF =
+        for (const m of group.members) {
+      const friendObj = m.friend;
+      if (friendObj && !reverseSet.has(friendObj.id)) {
+        const localMatch =
           group.created_by === effectiveUserId
-            ? m.friend
-            : await reverseContext.ensureLocalFriendForForeign(m.friend);
-        entityMeta[localF.id] = {
-          id: localF.id,
-          name: localF.name,
-          phone: localF.phone,
-          pix_key: localF.pix_key,
-          color: localF.color || 'bg-sky-500',
+            ? friendObj
+            : (friendObj.phone
+                ? reverseContext.myFriends.find((mf) => mf.phone && phonesMatch(mf.phone, friendObj.phone))
+                : null) || friendObj;
+        entityMeta[localMatch.id] = {
+          id: localMatch.id,
+          name: localMatch.name,
+          phone: localMatch.phone,
+          pix_key: localMatch.pix_key,
+          color: localMatch.color || 'bg-sky-500',
         };
       }
     }
@@ -927,19 +963,20 @@ export class ExpenseService {
     friends.forEach((friend: any) => {
       const divida = Number(friend.divida || 0);
       const voceDeve = Number(friend.voceDeve || 0);
+      const saldoLiquido = Number((divida - voceDeve).toFixed(2));
 
-      if (divida > 0.01) {
-        totalAReceber += divida;
-      }
-      if (voceDeve > 0.01) {
-        totalAPagar += voceDeve;
+      if (saldoLiquido > 0.01) {
+        totalAReceber += saldoLiquido;
+      } else if (saldoLiquido < -0.01) {
+        totalAPagar += Math.abs(saldoLiquido);
       }
 
-      if (divida > 0.01 || voceDeve > 0.01) {
+      if (Math.abs(saldoLiquido) > 0.01) {
         amigosDevedores.push({
           ...friend,
-          divida: Number(divida.toFixed(2)),
-          voceDeve: Number(voceDeve.toFixed(2)),
+          divida: saldoLiquido > 0.01 ? saldoLiquido : 0,
+          voceDeve: saldoLiquido < -0.01 ? Math.abs(saldoLiquido) : 0,
+          saldoLiquido,
         });
       }
     });

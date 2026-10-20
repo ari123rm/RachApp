@@ -1,6 +1,6 @@
 // src/components/AddGroupModal.tsx
 import { useState, useEffect } from 'react';
-import { X, Users, LoaderCircle, Search, Check, ArrowRight, UserPlus } from 'lucide-react';
+import { X, Users, LoaderCircle, Search, Check, ArrowRight, UserPlus, BadgeCheck } from 'lucide-react';
 import { dbService } from '../services/database';
 import { AddFriendModal } from './AddFriendModal';
 import { formatPhoneBR } from '../utils/phoneFormatter';
@@ -187,7 +187,12 @@ export function AddGroupModal({ isOpen, onClose, onSuccess, groupToEdit }: AddGr
                     >
                       {nomeAmigo[0]?.toUpperCase()}
                     </div>
-                    <span className="text-xs text-white font-medium">{nomeAmigo.split(' ')[0]}</span>
+                    <span className="text-xs text-white font-medium flex items-center gap-1">
+                      <span>{nomeAmigo.split(' ')[0]}</span>
+                      {(amigo.has_account || amigo.is_registered) && (
+                        <BadgeCheck size={11} className="text-[#2DD4BF] fill-[#2DD4BF]/20 shrink-0" />
+                      )}
+                    </span>
                     <X size={12} className="text-gray-400" />
                   </button>
                 );
@@ -230,7 +235,12 @@ export function AddGroupModal({ isOpen, onClose, onSuccess, groupToEdit }: AddGr
                         {nomeAmigo[0]?.toUpperCase()}
                       </div>
                       <div>
-                        <span className="text-white font-medium text-sm block">{nomeAmigo}</span>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-white font-medium text-sm block">{nomeAmigo}</span>
+                          {(amigo.has_account || amigo.is_registered) && (
+                            <BadgeCheck size={15} className="text-[#2DD4BF] fill-[#2DD4BF]/20 shrink-0" />
+                          )}
+                        </div>
                         {telFormatado && (
                           <span className="text-[11px] text-gray-500">{telFormatado}</span>
                         )}
