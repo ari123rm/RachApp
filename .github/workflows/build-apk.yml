@@ -60,10 +60,23 @@ jobs:
 
       - name: Inicializar e Sincronizar Plataforma Android (Capacitor)
         run: |
-          if [ ! -d "android" ]; then
+          if [ ! -f "android/app/build.gradle" ]; then
+            echo "🔧 Projeto Android não encontrado ou incompleto. Gerando com 'npx cap add android'..."
+            rm -rf android
             npx cap add android
           fi
           npx cap sync android
+
+          # Aplica sobrescritas nativas customizadas (Share Target Intent & MainActivity Bridge)
+          if [ -f "capacitor-overrides/android/AndroidManifest.xml" ]; then
+            cp -f capacitor-overrides/android/AndroidManifest.xml android/app/src/main/AndroidManifest.xml
+            echo "✅ AndroidManifest.xml customizado aplicado"
+          fi
+          if [ -f "capacitor-overrides/android/MainActivity.java" ]; then
+            mkdir -p android/app/src/main/java/com/ariel/rachapp
+            cp -f capacitor-overrides/android/MainActivity.java android/app/src/main/java/com/ariel/rachapp/MainActivity.java
+            echo "✅ MainActivity.java customizada aplicada"
+          fi
 
       - name: Aplicar ícone (src/assets/icon.png) e Splash Screen no APK
         run: |

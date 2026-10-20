@@ -13,11 +13,8 @@ dist-ssr/
 !.env.example
 
 # Capacitor Native Directories (generated via Capacitor CLI)
-android/
-!android/app/src/main/AndroidManifest.xml
-!android/app/src/main/java/
-!android/app/src/main/java/**
-ios/
+/android/
+/ios/
 
 # Mobile build artifacts
 *.apk
