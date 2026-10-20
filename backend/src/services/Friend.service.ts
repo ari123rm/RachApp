@@ -22,10 +22,11 @@ export class FriendService {
       const mf = myFriends[i];
       if (mf.phone) {
         const regUser = allUsers.find((u) => u.id !== userId && phonesMatch(u.phone, mf.phone));
-        if (regUser?.pix_key?.trim() && regUser.pix_key.trim() !== mf.pix_key) {
+        const regPix = regUser?.pix_key?.trim();
+        if (regPix && regPix !== mf.pix_key) {
           const updated = await prisma.friend.update({
             where: { id: mf.id },
-            data: { pix_key: regUser.pix_key.trim() },
+            data: { pix_key: regPix },
           });
           myFriends[i] = updated;
         }
@@ -39,6 +40,7 @@ export class FriendService {
       pix_key?: string | null;
     }) => {
       const normOwnerPhone = normalizePhoneBackend(ownerUser.phone);
+      const cleanOwnerPix = ownerUser.pix_key?.trim() || null;
       let existing = myFriends.find(
         (f) =>
           (normOwnerPhone && phonesMatch(f.phone, normOwnerPhone)) ||
@@ -47,13 +49,13 @@ export class FriendService {
 
       if (existing) {
         const needsPhone = !existing.phone && normOwnerPhone;
-        const needsPix = ownerUser.pix_key?.trim() && existing.pix_key !== ownerUser.pix_key.trim();
+        const needsPix = cleanOwnerPix && existing.pix_key !== cleanOwnerPix;
         if (needsPhone || needsPix) {
           existing = await prisma.friend.update({
             where: { id: existing.id },
             data: {
               ...(needsPhone ? { phone: normOwnerPhone } : {}),
-              ...(needsPix ? { pix_key: ownerUser.pix_key.trim() } : {}),
+              ...(cleanOwnerPix && needsPix ? { pix_key: cleanOwnerPix } : {}),
             },
           });
           myFriends = myFriends.map((f) => (f.id === existing!.id ? existing! : f));
@@ -66,7 +68,7 @@ export class FriendService {
           user_id: userId,
           name: ownerUser.name.trim() || 'Amigo',
           phone: normOwnerPhone || null,
-          pix_key: ownerUser.pix_key || null,
+          pix_key: cleanOwnerPix,
           color: 'bg-teal-500',
           is_favorite: false,
         },
@@ -83,6 +85,7 @@ export class FriendService {
       color?: string | null;
     }) => {
       const normPhone = normalizePhoneBackend(foreignFriend.phone);
+      const cleanForeignPix = foreignFriend.pix_key?.trim() || null;
       let existing = myFriends.find(
         (f) =>
           (normPhone && phonesMatch(f.phone, normPhone)) ||
@@ -91,13 +94,13 @@ export class FriendService {
 
       if (existing) {
         const needsPhone = !existing.phone && normPhone;
-        const needsPix = foreignFriend.pix_key?.trim() && existing.pix_key !== foreignFriend.pix_key.trim();
+        const needsPix = cleanForeignPix && existing.pix_key !== cleanForeignPix;
         if (needsPhone || needsPix) {
           existing = await prisma.friend.update({
             where: { id: existing.id },
             data: {
               ...(needsPhone ? { phone: normPhone } : {}),
-              ...(needsPix ? { pix_key: foreignFriend.pix_key.trim() } : {}),
+              ...(cleanForeignPix && needsPix ? { pix_key: cleanForeignPix } : {}),
             },
           });
           myFriends = myFriends.map((f) => (f.id === existing!.id ? existing! : f));
@@ -110,7 +113,7 @@ export class FriendService {
           user_id: userId,
           name: foreignFriend.name.trim() || 'Amigo',
           phone: normPhone || null,
-          pix_key: foreignFriend.pix_key || null,
+          pix_key: cleanForeignPix,
           color: foreignFriend.color || 'bg-sky-500',
           is_favorite: false,
         },
@@ -200,8 +203,9 @@ export class FriendService {
         select: { id: true, phone: true, pix_key: true },
       });
       const registered = allUsers.find((u) => phonesMatch(u.phone, phone));
-      if (registered?.pix_key?.trim()) {
-        pix_key = registered.pix_key.trim();
+      const registeredPix = registered?.pix_key?.trim();
+      if (registeredPix) {
+        pix_key = registeredPix;
       }
     }
 
@@ -300,8 +304,9 @@ export class FriendService {
         const regUser = allUsers.find(
           (u) => u.id !== userId && phonesMatch(u.phone, friend.phone) && u.pix_key?.trim()
         );
-        if (regUser?.pix_key?.trim()) {
-          effectivePixKey = regUser.pix_key.trim();
+        const regPix = regUser?.pix_key?.trim();
+        if (regPix) {
+          effectivePixKey = regPix;
         }
       }
 
@@ -364,8 +369,9 @@ export class FriendService {
         select: { id: true, phone: true, pix_key: true },
       });
       const registered = allUsers.find((u) => u.id !== userId && phonesMatch(u.phone, targetPhone));
-      if (registered?.pix_key?.trim()) {
-        pix_key = registered.pix_key.trim();
+      const regPix = registered?.pix_key?.trim();
+      if (regPix) {
+        pix_key = regPix;
       }
     }
 
