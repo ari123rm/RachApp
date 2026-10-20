@@ -454,6 +454,24 @@ export const dbService = {
       return { isAuthenticated: false, user: null };
     },
 
+    getSessionUser: async (): Promise<UserProfile | null> => {
+      await getSQLiteDB();
+      const row = await queryOne<any>('SELECT * FROM auth_session WHERE id = 1');
+      if (row && row.token) {
+        return {
+          id: row.user_id,
+          name: row.name,
+          nome: row.name,
+          email: row.email,
+          phone: row.phone,
+          pix_key: row.pix_key || '',
+          pix: row.pix_key || '',
+          phone_verified: !!row.phone_verified,
+        };
+      }
+      return null;
+    },
+
     login: async (email: string, password_plain: string) => {
       const { data } = await api.post('/auth/login', { email, password: password_plain });
       memoryToken = data.token;
@@ -1240,7 +1258,7 @@ export const dbService = {
       const result: Grupo[] = [];
       for (const g of groupRows) {
         const memberRows = await queryAll<any>(
-          `SELECT gm.*, f.name as friend_name, f.phone as friend_phone, f.pix_key as friend_pix, f.color as friend_color
+          `SELECT gm.*, f.name as friend_name, f.phone as friend_phone, f.pix_key as friend_pix, f.color as friend_color, f.has_account as friend_has_account
            FROM group_members gm
            LEFT JOIN friends f ON f.id = gm.friend_id
            WHERE gm.group_id = ?`,
@@ -1269,6 +1287,7 @@ export const dbService = {
                 phone: m.friend_phone || '',
                 pix_key: m.friend_pix || '',
                 color: m.friend_color || 'bg-sky-500',
+                has_account: Boolean(m.friend_has_account),
               }
             : null,
         }));

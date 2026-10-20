@@ -1,3 +1,4 @@
+import { createPortal } from 'react-dom';
 // src/components/RideDetailsModal.tsx
 import { useState } from 'react';
 import {
@@ -116,7 +117,9 @@ export function RideDetailsModal({
     if (onUpdated) onUpdated();
   };
 
-  return (
+  if (!isOpen || !ride) return null;
+
+  return createPortal(
     <div
       className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4 animate-fade-in"
       onClick={onClose}
@@ -398,6 +401,7 @@ export function RideDetailsModal({
           if (onUpdated) onUpdated();
         }}
       />
-    </div>
+    </div>,
+    document.body
   );
 }

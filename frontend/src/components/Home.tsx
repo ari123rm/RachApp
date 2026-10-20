@@ -6,7 +6,7 @@ import { FriendDetailsModal } from './FriendDetailsModal';
 import moneyConverter from '../utils/moneyConverter';
 import type { SyncStatus } from '../types';
 
-export function Home({ onDataChange }: { onDataChange?: () => void }) {
+export function Home({ onDataChange, dataVersion }: { onDataChange?: () => void; dataVersion?: number }) {
   const [dashboard, setDashboard] = useState({
     totalGasto: 0,
     totalAReceber: 0,
@@ -63,6 +63,19 @@ export function Home({ onDataChange }: { onDataChange?: () => void }) {
     });
     return () => unsub();
   }, []);
+
+  useEffect(() => {
+    if (dataVersion !== undefined && dataVersion > 0) {
+      dbService.dashboard.get().then((dados) => {
+        setDashboard({
+          totalGasto: dados.totalGasto || 0,
+          totalAReceber: dados.totalAReceber || 0,
+          totalAPagar: (dados as any).totalAPagar || 0,
+          amigosDevedores: dados.amigosDevedores || [],
+        });
+      }).catch(() => {});
+    }
+  }, [dataVersion]);
 
   const handleExcluirAmigo = async (id: string) => {
     if (!window.confirm('Tem certeza que deseja excluir este amigo?')) return;

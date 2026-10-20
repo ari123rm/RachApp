@@ -1,3 +1,4 @@
+import { createPortal } from 'react-dom';
 // src/components/FriendDetailsModal.tsx
 import { useState, useEffect } from 'react';
 import {
@@ -498,7 +499,9 @@ export function FriendDetailsModal({
     setIsPixModalOpen(true);
   };
 
-  return (
+  if (!isOpen || !baseAmigo) return null;
+
+  return createPortal(
     <div
       className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4 animate-fade-in"
       onClick={onClose}
@@ -916,6 +919,7 @@ export function FriendDetailsModal({
         whatsappPhone={telefone}
         whatsappCustomMessage={montarMensagemCobranca()}
       />
-    </div>
+    </div>,
+    document.body
   );
 }

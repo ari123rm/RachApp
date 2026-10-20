@@ -1,3 +1,4 @@
+import { createPortal } from 'react-dom';
 // src/components/ReceiptModals.tsx
 import { useState, useEffect, useRef } from 'react';
 import {
@@ -32,7 +33,7 @@ export function ReceiptViewerModal({
 
   if (!isOpen || !receiptUrl) return null;
 
-  return (
+  return createPortal(
     <div
       className="fixed inset-0 bg-black/85 backdrop-blur-sm z-[80] flex items-center justify-center p-4 animate-fade-in"
       onClick={onClose}
@@ -71,7 +72,8 @@ export function ReceiptViewerModal({
           Fechar
         </button>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
@@ -247,7 +249,9 @@ export function PayWithReceiptModal({
     }
   };
 
-  return (
+  if (!isOpen) return null;
+
+  return createPortal(
     <div
       className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[75] flex items-center justify-center p-4 animate-fade-in"
       onClick={onClose}
@@ -442,6 +446,7 @@ export function PayWithReceiptModal({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

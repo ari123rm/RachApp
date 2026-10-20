@@ -1,3 +1,4 @@
+import { createPortal } from 'react-dom';
 // src/components/GroupDetailsModal.tsx
 import { useState, useEffect } from 'react';
 import {
@@ -241,7 +242,9 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
   const pendenciasCount = memberBalances.filter((m) => Math.abs(m.netBalance) > 0.01).length;
   const userNet = Number(grupo?.userNetBalance || 0);
 
-  return (
+  if (!isOpen) return null;
+
+  return createPortal(
     <div
       className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4 animate-fade-in"
       onClick={onClose}
@@ -717,6 +720,7 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
         whatsappPhone={pixModalData.whatsappPhone}
         whatsappCustomMessage={pixModalData.whatsappCustomMessage}
       />
-    </div>
+    </div>,
+    document.body
   );
 }

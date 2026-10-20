@@ -1,5 +1,5 @@
 // src/components/Viagens.tsx
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { RideCard } from './RideCard';
 import { RideDetailsModal } from './RideDetailsModal';
 import {
@@ -25,7 +25,7 @@ function formatDateIso(d: Date): string {
   return `${year}-${month}-${day}`;
 }
 
-export function Viagens({ onDataChange }: { onDataChange?: () => void }) {
+export function Viagens({ onDataChange, dataVersion }: { onDataChange?: () => void; dataVersion?: number }) {
   const [corridas, setCorridas] = useState<Corrida[]>([]);
   const [amigos, setAmigos] = useState<Amigo[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -42,8 +42,10 @@ export function Viagens({ onDataChange }: { onDataChange?: () => void }) {
   const [ordemCrescente, setOrdemCrescente] = useState(false);
   const [itensVisiveis, setItensVisiveis] = useState(8);
 
-  const carregarDados = async () => {
-    setIsLoading(true);
+  const isFirstLoadRef = useRef(true);
+
+  const carregarDados = async (showLoading = isFirstLoadRef.current) => {
+    if (showLoading) setIsLoading(true);
     try {
       const [listaCorridas, listaAmigos] = await Promise.all([
         dbService.corridas.getAll(),
@@ -55,12 +57,25 @@ export function Viagens({ onDataChange }: { onDataChange?: () => void }) {
       console.error('Erro ao carregar viagens:', error);
     } finally {
       setIsLoading(false);
+      isFirstLoadRef.current = false;
     }
   };
 
   useEffect(() => {
-    carregarDados();
+    carregarDados(true);
+    const unsub = dbService.sync.subscribe((st) => {
+      if (st.state === 'synced') {
+        carregarDados(false);
+      }
+    });
+    return () => unsub();
   }, []);
+
+  useEffect(() => {
+    if (dataVersion !== undefined && dataVersion > 0) {
+      carregarDados(false);
+    }
+  }, [dataVersion]);
 
   const getParticipantesCompletos = (ids: string[]) => {
     return amigos.filter((a) => ids.includes(a.id));

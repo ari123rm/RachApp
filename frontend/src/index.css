@@ -12,6 +12,15 @@
   }
 }
 
+/* Ocultar barra de rolagem */
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
 /* Adicione no final do index.css */
 @keyframes slideUp {
   from { transform: translateY(100%); opacity: 0; }

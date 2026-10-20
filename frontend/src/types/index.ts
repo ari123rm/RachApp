@@ -100,6 +100,8 @@ export interface Grupo {
       phone?: string | null;
       pix_key?: string | null;
       color: string;
+      has_account?: boolean;
+      is_registered?: boolean;
     } | null;
   }[];
   expenses?: any[];

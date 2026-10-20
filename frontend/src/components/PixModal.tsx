@@ -1,3 +1,4 @@
+import { createPortal } from 'react-dom';
 // src/components/PixModal.tsx
 import { useState, useEffect } from 'react';
 import { X, Copy, Check, QrCode, Share2 } from 'lucide-react';
@@ -109,7 +110,9 @@ export function PixModal({
     openWhatsApp(whatsappPhone, defaultMsg);
   };
 
-  return (
+  if (!isOpen) return null;
+
+  return createPortal(
     <div
       className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[70] flex items-center justify-center p-4 animate-fade-in"
       onClick={onClose}
@@ -201,6 +204,7 @@ export function PixModal({
           Enviar Cobrança no WhatsApp
         </button>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

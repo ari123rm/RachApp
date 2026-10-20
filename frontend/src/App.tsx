@@ -11,9 +11,10 @@ import { AddRideModal } from './components/AddRideModal';
 import { AddFriendModal } from './components/AddFriendModal';
 import { AddGroupModal } from './components/AddGroupModal';
 import { App as CapApp } from '@capacitor/app';
-import { Grupos } from './components/Grupos';
 import { dbService } from './services/database';
 import { closeTopModal } from './utils/modalBackHandler';
+
+const TABS = ['home', 'viagens', 'amigos', 'perfil'] as const;
 
 function App() {
   const [isInitializing, setIsInitializing] = useState(true);
@@ -25,6 +26,8 @@ function App() {
   const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
   const [dataVersion, setDataVersion] = useState(0);
   const lastSyncedRef = useRef<string | null>(null);
+
+  const touchStartRef = useRef<{ x: number; y: number; time: number } | null>(null);
 
   const refreshData = () => setDataVersion((prev) => prev + 1);
 
@@ -46,9 +49,17 @@ function App() {
         }
       });
 
+    let lastSyncTrigger = 0;
     const unsub = dbService.sync.subscribe((st) => {
-      if (st.state === 'synced' && st.lastSyncedAt && st.lastSyncedAt !== lastSyncedRef.current) {
+      const now = Date.now();
+      if (
+        st.state === 'synced' &&
+        st.lastSyncedAt &&
+        st.lastSyncedAt !== lastSyncedRef.current &&
+        now - lastSyncTrigger > 800
+      ) {
         lastSyncedRef.current = st.lastSyncedAt;
+        lastSyncTrigger = now;
         if (mounted) {
           setDataVersion((prev) => prev + 1);
         }
@@ -61,7 +72,7 @@ function App() {
     };
   }, []);
 
-  // Listener do botão voltar (Android / Capacitor) sempre chamado antes de qualquer return condicional
+  // Listener do botão voltar (Android / Capacitor)
   useEffect(() => {
     let listenerHandle: any = null;
 
@@ -72,7 +83,7 @@ function App() {
             return;
           }
 
-          const hasOpenModal = document.querySelector('.fixed.z-50, .fixed.z-\\[60\\], .fixed.z-\\[70\\]');
+          const hasOpenModal = document.querySelector('.fixed.z-50, .fixed.z-\\[60\\], .fixed.z-\\[70\\], .fixed.z-\\[75\\], .fixed.z-\\[80\\]');
 
           if (hasOpenModal) {
             setIsRideModalOpen(false);
@@ -100,8 +111,36 @@ function App() {
 
   const handleFabClick = () => {
     if (activeTab === 'amigos') setIsFriendModalOpen(true);
-    else if (activeTab === 'grupos') setIsGroupModalOpen(true);
     else setIsRideModalOpen(true);
+  };
+
+  // Suporte a swipe horizontal entre as abas principais
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartRef.current = {
+      x: e.touches[0].clientX,
+      y: e.touches[0].clientY,
+      time: Date.now(),
+    };
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (!touchStartRef.current) return;
+    const diffX = e.changedTouches[0].clientX - touchStartRef.current.x;
+    const diffY = e.changedTouches[0].clientY - touchStartRef.current.y;
+    const elapsed = Date.now() - touchStartRef.current.time;
+    touchStartRef.current = null;
+
+    // Detecta arrasto predominantemente horizontal com deslocamento mínimo
+    if (Math.abs(diffX) > 45 && Math.abs(diffX) > Math.abs(diffY) * 1.3 && elapsed < 600) {
+      const currentIndex = TABS.indexOf(activeTab as any);
+      if (diffX < 0 && currentIndex < TABS.length - 1) {
+        // Swipe para a esquerda -> avança para a próxima aba
+        setActiveTab(TABS[currentIndex + 1]);
+      } else if (diffX > 0 && currentIndex > 0) {
+        // Swipe para a direita -> volta para a aba anterior
+        setActiveTab(TABS[currentIndex - 1]);
+      }
+    }
   };
 
   if (isInitializing) {
@@ -124,31 +163,58 @@ function App() {
     );
   }
 
+  const tabIndex = Math.max(0, TABS.indexOf(activeTab as any));
+
   return (
-    <div className="min-h-screen bg-[#05080f] text-white font-sans relative pb-20">
-      <main className="p-4 max-w-lg mx-auto">
-        {activeTab === 'home' && <Home key={`home-${dataVersion}`} onDataChange={refreshData} />}
-        {activeTab === 'viagens' && (
-          <Viagens key={`viagens-${dataVersion}`} onDataChange={refreshData} />
-        )}
-        {activeTab === 'amigos' && (
-          <Amigos key={`amigos-${dataVersion}`} onDataChange={refreshData} />
-        )}
-        {activeTab === 'grupos' && (
-          <Grupos key={`grupos-${dataVersion}`} onDataChange={refreshData} />
-        )}
-        {activeTab === 'perfil' && <Perfil onDataChange={() => setIsAuthenticated(false)} />}
+    <div className="h-[100dvh] bg-[#05080f] text-white font-sans relative overflow-hidden flex flex-col">
+      {/* Contêiner de abas principais com animação deslizante para os lados */}
+      <main
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
+        className="flex-1 w-full overflow-hidden relative"
+      >
+        <div
+          className="flex h-full w-full transition-transform duration-300 md:transition-none ease-out"
+          style={{
+            transform: `translateX(-${tabIndex * 100}%)`,
+          }}
+        >
+          {/* TAB 0: HOME */}
+          <div className="w-full min-w-full h-full shrink-0 overflow-hidden">
+            <div className="w-full h-full overflow-y-auto p-4 md:p-6 pb-24 max-w-lg md:max-w-xl lg:max-w-2xl mx-auto scrollbar-hide">
+              <Home dataVersion={dataVersion} onDataChange={refreshData} />
+            </div>
+          </div>
+
+          {/* TAB 1: VIAGENS / RACHAS */}
+          <div className="w-full min-w-full h-full shrink-0 overflow-hidden">
+            <div className="w-full h-full overflow-y-auto p-4 md:p-6 pb-24 max-w-lg md:max-w-xl lg:max-w-2xl mx-auto scrollbar-hide">
+              <Viagens dataVersion={dataVersion} onDataChange={refreshData} />
+            </div>
+          </div>
+
+          {/* TAB 2: AMIGOS (com Amigos e Grupos internos) */}
+          <div className="w-full min-w-full h-full shrink-0 overflow-hidden">
+            <div className="w-full h-full overflow-y-auto p-4 md:p-6 pb-24 max-w-lg md:max-w-xl lg:max-w-2xl mx-auto scrollbar-hide">
+              <Amigos dataVersion={dataVersion} onDataChange={refreshData} />
+            </div>
+          </div>
+
+          {/* TAB 3: PERFIL */}
+          <div className="w-full min-w-full h-full shrink-0 overflow-hidden">
+            <div className="w-full h-full overflow-y-auto p-4 md:p-6 pb-24 max-w-lg md:max-w-xl lg:max-w-2xl mx-auto scrollbar-hide">
+              <Perfil onDataChange={() => setIsAuthenticated(false)} />
+            </div>
+          </div>
+        </div>
       </main>
 
       <BottomNav activeTab={activeTab} setActiveTab={setActiveTab} />
 
-      {(activeTab === 'home' ||
-        activeTab === 'viagens' ||
-        activeTab === 'amigos' ||
-        activeTab === 'grupos') && (
+      {(activeTab === 'home' || activeTab === 'viagens' || activeTab === 'amigos') && (
         <button
           onClick={handleFabClick}
-          className="fixed bottom-20 right-6 w-14 h-14 bg-[#2DD4BF] hover:bg-[#25b5a3] rounded-full flex items-center justify-center shadow-lg shadow-teal-500/30 transition-transform active:scale-95 z-40"
+          className="fixed bottom-20 right-6 md:right-[max(1.5rem,calc(50%-22rem))] w-14 h-14 bg-[#2DD4BF] hover:bg-[#25b5a3] rounded-full flex items-center justify-center shadow-lg shadow-teal-500/30 transition-transform active:scale-95 z-40"
         >
           <Plus size={32} className="text-[#05080f] stroke-[2.5px]" />
         </button>
