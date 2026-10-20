@@ -182,6 +182,16 @@ export function FriendDetailsModal({
         });
       };
 
+      // Prioriza a chave Pix que o amigo cadastrou para si (caso exista em racha pago por ele)
+      const rachaComPix = todasCorridas.find(
+        (c) => checkIfFriendIsPayer(c) && c.payerPixKey?.trim()
+      );
+      if (rachaComPix?.payerPixKey?.trim()) {
+        atualizado.pix_key = rachaComPix.payerPixKey.trim();
+        atualizado.registered_pix_key = rachaComPix.payerPixKey.trim();
+        setAmigoAtual({ ...atualizado });
+      }
+
       const corridasFormatadas = todasCorridas
         .map((corrida) => {
           const amigoFoiPagador = checkIfFriendIsPayer(corrida);
@@ -252,6 +262,7 @@ export function FriendDetailsModal({
             jaPago: amigoFoiPagador ? seuJaPago : jaPago,
             amigoFoiPagador,
             receiptUrl,
+            payerPixKey: corrida.payerPixKey || null,
           };
         })
         .filter(Boolean) as any[];
@@ -279,7 +290,20 @@ export function FriendDetailsModal({
   const nome = baseAmigo.nome || baseAmigo.name || 'Amigo';
   const cor = baseAmigo.cor || baseAmigo.color || 'bg-sky-500';
   const telefone = baseAmigo.telefone || baseAmigo.phone || '';
-  const friendPix = baseAmigo.pix_key || baseAmigo.pix || '';
+
+  // Prioriza a chave Pix que o próprio amigo cadastrou para si (vinda da conta dele ou do pagador do racha)
+  let friendPix = (baseAmigo.registered_pix_key || '').trim();
+  if (!friendPix) {
+    for (const c of corridasDoAmigo) {
+      if (c.amigoFoiPagador && c.payerPixKey?.trim()) {
+        friendPix = c.payerPixKey.trim();
+        break;
+      }
+    }
+  }
+  if (!friendPix) {
+    friendPix = (baseAmigo.pix_key || baseAmigo.pix || '').trim();
+  }
 
   // Saldos consolidados das corridas e do perfil do amigo
   const rawVoceDeveFromAmigo = parseCurrency(

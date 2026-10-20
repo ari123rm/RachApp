@@ -78,7 +78,12 @@ export function RideDetailsModal({
   const isSelfQuitado = voceEhPagador || meuValorPago >= minhaParte - 0.01;
   const pagadorAmigo = participantes.find((p: any) => p.id === ride.paidByFriendId);
   const pagadorNome = pagadorAmigo?.nome || pagadorAmigo?.name || ride.paidByName || 'Amigo';
-  const pagadorPix = pagadorAmigo?.pix_key || pagadorAmigo?.pix || '';
+  const pagadorPix =
+    ride.payerPixKey?.trim() ||
+    pagadorAmigo?.registered_pix_key?.trim() ||
+    pagadorAmigo?.pix_key?.trim() ||
+    pagadorAmigo?.pix?.trim() ||
+    '';
 
   // Apenas o pagador (credor/"lesado") pode marcar/desmarcar diretamente sem comprovante
   const handleCreditorTogglePaid = async (

@@ -56,14 +56,46 @@ export function PixModal({
 
   const handleCopyKey = async () => {
     if (!pixKey) return;
-    await navigator.clipboard.writeText(pixKey);
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(pixKey);
+      } else {
+        throw new Error('Fallback');
+      }
+    } catch {
+      const ta = document.createElement('textarea');
+      ta.value = pixKey;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+    }
     setCopiedKey(true);
     setTimeout(() => setCopiedKey(false), 2000);
   };
 
   const handleCopyCode = async () => {
     if (!copiaECola) return;
-    await navigator.clipboard.writeText(copiaECola);
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(copiaECola);
+      } else {
+        throw new Error('Fallback');
+      }
+    } catch {
+      const ta = document.createElement('textarea');
+      ta.value = copiaECola;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+    }
     setCopiedCode(true);
     setTimeout(() => setCopiedCode(false), 2000);
   };

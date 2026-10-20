@@ -17,15 +17,15 @@ export class FriendService {
       select: { id: true, name: true, phone: true, pix_key: true },
     });
 
-    // Enriquece amigos locais com pix_key de usuários registrados com mesmo telefone, se ainda não tiverem
+    // Enriquece e atualiza amigos locais com a chave Pix do usuário cadastrado (priorizando o que ele cadastrou para si)
     for (let i = 0; i < myFriends.length; i++) {
       const mf = myFriends[i];
-      if (mf.phone && !mf.pix_key) {
+      if (mf.phone) {
         const regUser = allUsers.find((u) => u.id !== userId && phonesMatch(u.phone, mf.phone));
-        if (regUser?.pix_key) {
+        if (regUser?.pix_key?.trim() && regUser.pix_key.trim() !== mf.pix_key) {
           const updated = await prisma.friend.update({
             where: { id: mf.id },
-            data: { pix_key: regUser.pix_key },
+            data: { pix_key: regUser.pix_key.trim() },
           });
           myFriends[i] = updated;
         }
@@ -47,13 +47,13 @@ export class FriendService {
 
       if (existing) {
         const needsPhone = !existing.phone && normOwnerPhone;
-        const needsPix = !existing.pix_key && ownerUser.pix_key;
+        const needsPix = ownerUser.pix_key?.trim() && existing.pix_key !== ownerUser.pix_key.trim();
         if (needsPhone || needsPix) {
           existing = await prisma.friend.update({
             where: { id: existing.id },
             data: {
               ...(needsPhone ? { phone: normOwnerPhone } : {}),
-              ...(needsPix ? { pix_key: ownerUser.pix_key } : {}),
+              ...(needsPix ? { pix_key: ownerUser.pix_key.trim() } : {}),
             },
           });
           myFriends = myFriends.map((f) => (f.id === existing!.id ? existing! : f));
@@ -91,13 +91,13 @@ export class FriendService {
 
       if (existing) {
         const needsPhone = !existing.phone && normPhone;
-        const needsPix = !existing.pix_key && foreignFriend.pix_key;
+        const needsPix = foreignFriend.pix_key?.trim() && existing.pix_key !== foreignFriend.pix_key.trim();
         if (needsPhone || needsPix) {
           existing = await prisma.friend.update({
             where: { id: existing.id },
             data: {
               ...(needsPhone ? { phone: normPhone } : {}),
-              ...(needsPix ? { pix_key: foreignFriend.pix_key } : {}),
+              ...(needsPix ? { pix_key: foreignFriend.pix_key.trim() } : {}),
             },
           });
           myFriends = myFriends.map((f) => (f.id === existing!.id ? existing! : f));
@@ -194,14 +194,14 @@ export class FriendService {
     const color = data.color || data.cor || 'bg-sky-500';
     const is_favorite = data.is_favorite ?? data.favorito ?? false;
 
-    // Se o telefone pertencer a um usuário já cadastrado e não veio chave Pix, puxa a chave Pix dele
-    if (phone && !pix_key) {
+    // Se o telefone pertencer a um usuário já cadastrado, prioriza a chave Pix que ele cadastrou para si
+    if (phone) {
       const allUsers = await prisma.user.findMany({
         select: { id: true, phone: true, pix_key: true },
       });
       const registered = allUsers.find((u) => phonesMatch(u.phone, phone));
-      if (registered?.pix_key) {
-        pix_key = registered.pix_key;
+      if (registered?.pix_key?.trim()) {
+        pix_key = registered.pix_key.trim();
       }
     }
 
@@ -264,6 +264,11 @@ export class FriendService {
     const { ExpenseService } = await import('./Expense.service');
     const allUserExpenses = await ExpenseService.listExpenses(userId);
 
+    // Mapeia todos os usuários para priorizar a chave Pix que o amigo cadastrou para si
+    const allUsers = await prisma.user.findMany({
+      select: { id: true, name: true, phone: true, pix_key: true },
+    });
+
     return friends.map((friend) => {
       let divida = 0; // Quanto o amigo deve para Você
       let voceDeve = 0; // Quanto Você deve para o amigo
@@ -289,9 +294,22 @@ export class FriendService {
         }
       }
 
+      // Prioriza a chave Pix que o próprio amigo cadastrou na conta dele
+      let effectivePixKey = (friend.pix_key || '').trim();
+      if (friend.phone) {
+        const regUser = allUsers.find(
+          (u) => u.id !== userId && phonesMatch(u.phone, friend.phone) && u.pix_key?.trim()
+        );
+        if (regUser?.pix_key?.trim()) {
+          effectivePixKey = regUser.pix_key.trim();
+        }
+      }
+
       const { expenses, ...friendData } = friend;
       return {
         ...friendData,
+        pix_key: effectivePixKey,
+        registered_pix_key: effectivePixKey,
         divida: Number(divida.toFixed(2)),
         voceDeve: Number(voceDeve.toFixed(2)),
       };
@@ -335,16 +353,28 @@ export class FriendService {
       }
     }
 
-    const pix_key = data.pix_key !== undefined ? data.pix_key : data.pix;
+    let pix_key = data.pix_key !== undefined ? (data.pix_key ? data.pix_key.trim() : null) : (data.pix ? data.pix.trim() : undefined);
     const color = data.color ?? data.cor;
     const is_favorite = data.is_favorite !== undefined ? data.is_favorite : data.favorito;
+
+    // Se o amigo for um usuário registrado com chave Pix própria, prioriza a chave que ele cadastrou para si
+    const targetPhone = phoneToSave !== undefined ? phoneToSave : friend.phone;
+    if (targetPhone) {
+      const allUsers = await prisma.user.findMany({
+        select: { id: true, phone: true, pix_key: true },
+      });
+      const registered = allUsers.find((u) => u.id !== userId && phonesMatch(u.phone, targetPhone));
+      if (registered?.pix_key?.trim()) {
+        pix_key = registered.pix_key.trim();
+      }
+    }
 
     return prisma.friend.update({
       where: { id: friendId },
       data: {
         ...(name ? { name } : {}),
         ...(phoneToSave !== undefined ? { phone: phoneToSave } : {}),
-        ...(pix_key !== undefined ? { pix_key: pix_key.trim() || null } : {}),
+        ...(pix_key !== undefined ? { pix_key } : {}),
         ...(color ? { color } : {}),
         ...(is_favorite !== undefined ? { is_favorite } : {}),
       },

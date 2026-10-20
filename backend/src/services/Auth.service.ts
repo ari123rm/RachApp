@@ -179,6 +179,29 @@ export class AuthService {
       },
     });
 
+    // Se o usuário atualizou a chave Pix dele, atualiza automaticamente os registros de amigos de outros usuários
+    if (updatedUser.phone && updatedUser.pix_key) {
+      try {
+        const allFriendsWithPhone = await prisma.friend.findMany({
+          where: {
+            user_id: { not: userId },
+            phone: { not: null },
+          },
+        });
+        const matchingFriends = allFriendsWithPhone.filter((f) =>
+          phonesMatch(f.phone, updatedUser.phone)
+        );
+        if (matchingFriends.length > 0) {
+          await prisma.friend.updateMany({
+            where: { id: { in: matchingFriends.map((f) => f.id) } },
+            data: { pix_key: updatedUser.pix_key },
+          });
+        }
+      } catch (err) {
+        console.error('Erro ao propagar chave Pix do usuário para amigos:', err);
+      }
+    }
+
     const { password_hash, verification_code, ...userWithoutPassword } = updatedUser;
     return userWithoutPassword;
   }
