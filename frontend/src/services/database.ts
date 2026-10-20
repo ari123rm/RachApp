@@ -4,12 +4,39 @@ import { getSQLiteDB, runSQL, queryAll, queryOne, flushSQLite } from './sqlite';
 import { stripCountryCode } from '../utils/phoneFormatter';
 import type { Amigo, Corrida, Grupo, MembroSaldo, SyncStatus, Transferencia, UserProfile } from '../types';
 
-const rawApiUrl = (import.meta.env.VITE_API_URL || 'http://localhost:5000/api').trim().replace(/\/+$/, '');
-const API_BASE_URL = rawApiUrl.endsWith('/api') ? rawApiUrl : `${rawApiUrl}/api`;
+function normalizeApiUrl(raw: string): string {
+  let cleaned = (raw || '').trim().replace(/\/+$/, '');
+  if (!cleaned) {
+    if (
+      typeof window !== 'undefined' &&
+      window.location.hostname !== 'localhost' &&
+      window.location.hostname !== '127.0.0.1'
+    ) {
+      return `${window.location.origin}/api`;
+    }
+    return 'http://localhost:5000/api';
+  }
+  if (!cleaned.startsWith('http://') && !cleaned.startsWith('https://') && !cleaned.startsWith('/')) {
+    cleaned = `http://${cleaned}`;
+  }
+  return cleaned.endsWith('/api') ? cleaned : `${cleaned}/api`;
+}
+
+let currentApiBaseUrl = normalizeApiUrl(import.meta.env.VITE_API_URL || '');
+
+export function getApiBaseUrl(): string {
+  return currentApiBaseUrl;
+}
+
+export function setCustomApiUrl(newUrl: string): string {
+  currentApiBaseUrl = normalizeApiUrl(newUrl);
+  api.defaults.baseURL = currentApiBaseUrl;
+  return currentApiBaseUrl;
+}
 
 export const api = axios.create({
-  baseURL: API_BASE_URL,
-  timeout: 8000,
+  baseURL: currentApiBaseUrl,
+  timeout: 12000,
 });
 
 let memoryToken: string | null = null;

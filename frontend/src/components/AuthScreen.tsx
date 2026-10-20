@@ -1,6 +1,6 @@
 // src/components/AuthScreen.tsx
 import { useState } from 'react';
-import { dbService } from '../services/database';
+import { dbService, getApiBaseUrl, setCustomApiUrl } from '../services/database';
 import {
   LoaderCircle,
   Mail,
@@ -12,8 +12,10 @@ import {
   AlertCircle,
   ChevronLeft,
   KeyRound,
+  Server,
 } from 'lucide-react';
 import { formatPhoneBR, isValidPhoneBR } from '../utils/phoneFormatter';
+import appIcon from '../assets/icon.png';
 
 export function AuthScreen({ onLogin }: { onLogin: () => void }) {
   const [step, setStep] = useState<'login' | 'register' | 'verify' | 'reset'>('login');
@@ -21,6 +23,8 @@ export function AuthScreen({ onLogin }: { onLogin: () => void }) {
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
   const [simulatedCode, setSimulatedCode] = useState('');
+  const [showServerConfig, setShowServerConfig] = useState(false);
+  const [serverUrlInput, setServerUrlInput] = useState(getApiBaseUrl());
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -195,9 +199,11 @@ export function AuthScreen({ onLogin }: { onLogin: () => void }) {
     <div className="min-h-screen bg-[#05080f] flex flex-col justify-center px-6 py-10">
       <div className="max-w-md w-full mx-auto">
         <div className="mb-8 text-center">
-          <div className="w-20 h-20 bg-[#2DD4BF] rounded-3xl mx-auto mb-4 flex items-center justify-center shadow-lg shadow-teal-500/20">
-            <span className="text-4xl font-black text-[#05080f]">R</span>
-          </div>
+          <img
+            src={appIcon}
+            alt="RachApp"
+            className="w-24 h-24 rounded-3xl mx-auto mb-4 shadow-lg shadow-teal-500/20 object-cover border border-white/10"
+          />
           <h1 className="text-3xl font-bold text-white">RachApp</h1>
           <p className="text-gray-400 mt-2 text-sm">
             {step === 'login' && 'Faça login na sua conta para acessar seus rachas'}
@@ -207,9 +213,53 @@ export function AuthScreen({ onLogin }: { onLogin: () => void }) {
         </div>
 
         {errorMsg && (
-          <div className="mb-4 bg-red-500/10 border border-red-500/30 text-red-400 rounded-xl p-3.5 flex items-center gap-2.5 text-sm">
-            <AlertCircle size={18} className="shrink-0" />
-            <span>{errorMsg}</span>
+          <div className="mb-4 bg-red-500/10 border border-red-500/30 text-red-400 rounded-xl p-3.5 text-sm space-y-2">
+            <div className="flex items-center gap-2.5">
+              <AlertCircle size={18} className="shrink-0" />
+              <span>
+                {errorMsg === 'Network Error'
+                  ? `Não foi possível conectar ao servidor (${getApiBaseUrl()}).`
+                  : errorMsg}
+              </span>
+            </div>
+            {errorMsg === 'Network Error' && (
+              <button
+                type="button"
+                onClick={() => setShowServerConfig(true)}
+                className="text-xs text-[#2DD4BF] underline font-semibold block"
+              >
+                Configurar endereço do servidor
+              </button>
+            )}
+          </div>
+        )}
+
+        {showServerConfig && (
+          <div className="mb-4 bg-[#1c1c1e] border border-white/10 rounded-xl p-3.5 space-y-2.5">
+            <label className="text-xs text-gray-400 font-bold uppercase flex items-center gap-1.5">
+              <Server size={13} className="text-[#2DD4BF]" /> URL da API do Servidor
+            </label>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={serverUrlInput}
+                onChange={(e) => setServerUrlInput(e.target.value)}
+                placeholder="http://SEU_IP_VPS:5000/api"
+                className="flex-1 bg-[#2c2c2e] text-white text-xs rounded-lg px-3 py-2 outline-none border border-white/10 focus:border-[#2DD4BF]"
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  const updated = setCustomApiUrl(serverUrlInput);
+                  setServerUrlInput(updated);
+                  setShowServerConfig(false);
+                  setErrorMsg('');
+                }}
+                className="bg-[#2DD4BF] text-[#05080f] text-xs font-bold px-3 py-2 rounded-lg"
+              >
+                Salvar
+              </button>
+            </div>
           </div>
         )}
 

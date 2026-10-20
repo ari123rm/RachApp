@@ -2,11 +2,19 @@ import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
   appId: 'com.ariel.rachapp',
-  appName: 'Rachapp',
+  appName: 'RachApp',
   webDir: 'dist',
+  server: {
+    androidScheme: 'http',
+    cleartext: true,
+    allowNavigation: ['*'],
+  },
+  android: {
+    allowMixedContent: true,
+  },
   plugins: {
     Keyboard: {
-      resize: 'body', // Isso faz o app inteiro encolher quando o teclado sobe
+      resize: 'body',
       resizeOnFullScreen: true,
     },
   },
