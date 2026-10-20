@@ -4,6 +4,20 @@ import { getSQLiteDB, runSQL, queryAll, queryOne, flushSQLite } from './sqlite';
 import { stripCountryCode } from '../utils/phoneFormatter';
 import type { Amigo, Corrida, Grupo, MembroSaldo, SyncStatus, Transferencia, UserProfile } from '../types';
 
+function generateUUID(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r =
+      typeof crypto !== 'undefined' && typeof crypto.getRandomValues === 'function'
+        ? crypto.getRandomValues(new Uint8Array(1))[0] & 15
+        : (Math.random() * 16) | 0;
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+}
+
 function normalizeApiUrl(raw: string): string {
   let cleaned = (raw || '').trim().replace(/\/+$/, '');
   if (!cleaned) {
@@ -688,7 +702,7 @@ export const dbService = {
         }
       }
 
-      const id = crypto.randomUUID();
+      const id = generateUUID();
 
       await runSQL(
         `INSERT INTO friends (id, user_id, name, phone, pix_key, color, is_favorite, synced, updated_at)
@@ -866,7 +880,7 @@ export const dbService = {
       selfAmountOwed?: number;
     }): Promise<Corrida> => {
       const session = await queryOne<any>('SELECT user_id FROM auth_session WHERE id = 1');
-      const id = crypto.randomUUID();
+      const id = generateUUID();
       const uniqueParticipants = Array.from(new Set(novaCorrida.participantesIds));
       const totalPeople = uniqueParticipants.length + 1;
       const defaultSplit = Number((Number(novaCorrida.valorTotal) / totalPeople).toFixed(2));
@@ -1162,7 +1176,7 @@ export const dbService = {
 
     create: async (nameOrPayload: string | { name: string; friendIds?: string[] }): Promise<Grupo> => {
       const session = await queryOne<any>('SELECT * FROM auth_session WHERE id = 1');
-      const id = crypto.randomUUID();
+      const id = generateUUID();
       const name = typeof nameOrPayload === 'string' ? nameOrPayload.trim() : nameOrPayload.name.trim();
       const friendIds =
         typeof nameOrPayload === 'string' ? [] : Array.from(new Set(nameOrPayload.friendIds || []));
