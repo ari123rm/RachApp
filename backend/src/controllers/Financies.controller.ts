@@ -158,11 +158,16 @@ export class FinanciesController {
       const userId = req.user?.userId;
       if (!userId) return res.status(401).json({ error: 'Não autorizado.' });
 
-      const [user, friends, groups, expenses, dashboard] = await Promise.all([
+      // 1. Primeiro sincroniza vínculos reversos por telefone, grupos e despesas compartilhadas
+      const [user, groups, expenses] = await Promise.all([
         AuthService.getMe(userId),
-        FriendService.getAll(userId),
         GroupService.getUserGroups(userId),
         ExpenseService.listExpenses(userId),
+      ]);
+
+      // 2. Depois carrega a lista completa de amigos (já com novos vínculos criados) e dashboard
+      const [friends, dashboard] = await Promise.all([
+        FriendService.getAll(userId),
         ExpenseService.getDashboard(userId),
       ]);
 

@@ -1,6 +1,7 @@
 // src/components/FriendCard.tsx
 import { Star, QrCode, Phone } from 'lucide-react';
 import { formatPhoneBR } from '../utils/phoneFormatter';
+import moneyConverter from '../utils/moneyConverter';
 
 interface FriendCardProps {
   amigo: any;
@@ -14,10 +15,10 @@ export function FriendCard({ amigo, onClick, onToggleFavorito }: FriendCardProps
   const favorito = amigo.favorito ?? amigo.is_favorite ?? false;
   const pixKey = amigo.pix_key || amigo.pix || '';
   const telefone = amigo.telefone || amigo.phone || '';
-  const dividaStr =
-    typeof amigo.divida === 'number'
-      ? amigo.divida.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-      : amigo.divida || '0,00';
+
+  const dividaNum = Number(amigo.dividaNumerica ?? 0);
+  const voceDeveNum = Number(amigo.voceDeveNumerico ?? 0);
+  const saldoLiquido = Number((dividaNum - voceDeveNum).toFixed(2));
 
   return (
     <div
@@ -50,10 +51,20 @@ export function FriendCard({ amigo, onClick, onToggleFavorito }: FriendCardProps
 
       {/* Lado Direito: Dívida e Estrela */}
       <div className="flex items-center gap-3 shrink-0">
-        {dividaStr !== '0,00' && (
+        {saldoLiquido > 0.01 && (
           <div className="text-right">
-            <span className="font-bold text-[#FF453A] text-sm block">R$ {dividaStr}</span>
-            <span className="text-[10px] text-gray-500">pendente</span>
+            <span className="font-bold text-[#FF453A] text-sm block">
+              R$ {moneyConverter(saldoLiquido)}
+            </span>
+            <span className="text-[10px] text-gray-500">te deve</span>
+          </div>
+        )}
+        {saldoLiquido < -0.01 && (
+          <div className="text-right">
+            <span className="font-bold text-amber-400 text-sm block">
+              R$ {moneyConverter(Math.abs(saldoLiquido))}
+            </span>
+            <span className="text-[10px] text-gray-500">você deve</span>
           </div>
         )}
 

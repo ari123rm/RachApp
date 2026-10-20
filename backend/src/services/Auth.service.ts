@@ -16,6 +16,23 @@ export function normalizePhoneBackend(raw?: string | null): string {
   return digits.slice(0, 11);
 }
 
+export function phonesMatch(rawA?: string | null, rawB?: string | null): boolean {
+  const a = normalizePhoneBackend(rawA);
+  const b = normalizePhoneBackend(rawB);
+  if (!a || !b) return false;
+  if (a === b) return true;
+  if (a.length >= 10 && b.length >= 10) {
+    const dddA = a.slice(0, 2);
+    const dddB = b.slice(0, 2);
+    const last8A = a.slice(-8);
+    const last8B = b.slice(-8);
+    if (dddA === dddB && last8A === last8B) {
+      return true;
+    }
+  }
+  return false;
+}
+
 export class AuthService {
   static async register(data: { name: string; email: string; password_hash: string; phone: string; pix_key?: string }) {
     if (!data.name || !data.email || !data.password_hash) {
@@ -106,7 +123,7 @@ export class AuthService {
     const cleanIdentifier = identifier.trim().toLowerCase();
     const cleanPhone = normalizePhoneBackend(identifier);
 
-    const user = await prisma.user.findFirst({
+    let user = await prisma.user.findFirst({
       where: {
         OR: [
           { email: cleanIdentifier },
@@ -115,6 +132,11 @@ export class AuthService {
         ],
       },
     });
+
+    if (!user && cleanPhone.length >= 10) {
+      const allUsers = await prisma.user.findMany();
+      user = allUsers.find((u) => phonesMatch(u.phone, cleanPhone)) || null;
+    }
 
     if (!user) {
       throw new Error('Credenciais inválidas.');
@@ -184,7 +206,7 @@ export class AuthService {
     const cleanId = identifier.trim().toLowerCase();
     const cleanPhone = normalizePhoneBackend(identifier);
 
-    const user = await prisma.user.findFirst({
+    let user = await prisma.user.findFirst({
       where: {
         OR: [
           { email: cleanId },
@@ -193,6 +215,11 @@ export class AuthService {
         ],
       },
     });
+
+    if (!user && cleanPhone.length >= 10) {
+      const allUsers = await prisma.user.findMany();
+      user = allUsers.find((u) => phonesMatch(u.phone, cleanPhone)) || null;
+    }
 
     if (!user) {
       throw new Error('Nenhuma conta encontrada com este e-mail ou telefone.');

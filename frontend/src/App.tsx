@@ -1,5 +1,5 @@
 // src/App.tsx
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Plus, LoaderCircle } from 'lucide-react';
 import { BottomNav } from './components/BottomNav';
 import { Home } from './components/Home';
@@ -23,6 +23,7 @@ function App() {
   const [isFriendModalOpen, setIsFriendModalOpen] = useState(false);
   const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
   const [dataVersion, setDataVersion] = useState(0);
+  const lastSyncedRef = useRef<string | null>(null);
 
   const refreshData = () => setDataVersion((prev) => prev + 1);
 
@@ -43,8 +44,19 @@ function App() {
           setIsInitializing(false);
         }
       });
+
+    const unsub = dbService.sync.subscribe((st) => {
+      if (st.state === 'synced' && st.lastSyncedAt && st.lastSyncedAt !== lastSyncedRef.current) {
+        lastSyncedRef.current = st.lastSyncedAt;
+        if (mounted) {
+          setDataVersion((prev) => prev + 1);
+        }
+      }
+    });
+
     return () => {
       mounted = false;
+      unsub();
     };
   }, []);
 

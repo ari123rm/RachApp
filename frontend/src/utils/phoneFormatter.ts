@@ -1,4 +1,5 @@
 // src/utils/phoneFormatter.ts
+import { Capacitor } from '@capacitor/core';
 
 /**
  * Remove caracteres não numéricos e retira o DDI +55 caso o número possua 12 ou 13 dígitos.
@@ -19,6 +20,26 @@ export function stripCountryCode(raw?: string | null): string {
   }
 
   return digits.slice(0, 11);
+}
+
+/**
+ * Compara dois números de telefone brasileiros ignorando formatação, DDI +55 e variações do 9º dígito.
+ */
+export function phonesMatchBR(rawA?: string | null, rawB?: string | null): boolean {
+  const a = stripCountryCode(rawA);
+  const b = stripCountryCode(rawB);
+  if (!a || !b) return false;
+  if (a === b) return true;
+  if (a.length >= 10 && b.length >= 10) {
+    const dddA = a.slice(0, 2);
+    const dddB = b.slice(0, 2);
+    const last8A = a.slice(-8);
+    const last8B = b.slice(-8);
+    if (dddA === dddB && last8A === last8B) {
+      return true;
+    }
+  }
+  return false;
 }
 
 /**
@@ -54,4 +75,34 @@ export function toWhatsAppNumber(raw?: string | null): string {
   const digits = stripCountryCode(raw);
   if (!digits) return '';
   return `55${digits}`;
+}
+
+/**
+ * Abre o WhatsApp de forma compatível tanto no APK Android/iOS (via Deep Link nativo whatsapp://send)
+ * quanto no navegador Web (via https://wa.me), evitando o erro net::ERR_UNKNOWN_URL_SCHEME na WebView.
+ */
+export function openWhatsApp(rawPhone?: string | null, message: string = ''): void {
+  const fullPhone = toWhatsAppNumber(rawPhone);
+  const encodedMessage = encodeURIComponent(message);
+
+  if (Capacitor.isNativePlatform()) {
+    const nativeUrl = fullPhone
+      ? `whatsapp://send?phone=${fullPhone}&text=${encodedMessage}`
+      : `whatsapp://send?text=${encodedMessage}`;
+
+    const link = document.createElement('a');
+    link.href = nativeUrl;
+    link.target = '_blank';
+    link.rel = 'noopener noreferrer';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    return;
+  }
+
+  const webUrl = fullPhone
+    ? `https://wa.me/${fullPhone}?text=${encodedMessage}`
+    : `https://wa.me/?text=${encodedMessage}`;
+
+  window.open(webUrl, '_blank', 'noopener,noreferrer');
 }

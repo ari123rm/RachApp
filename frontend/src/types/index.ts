@@ -25,6 +25,8 @@ export interface Amigo {
   is_favorite?: boolean;
   divida?: string | number;
   dividaNumerica?: number;
+  voceDeve?: string | number;
+  voceDeveNumerico?: number;
   pendingExpensesCount?: number;
 }
 
@@ -35,6 +37,7 @@ export interface Corrida {
   valorTotal: number;
   total_amount?: number;
   selfAmountOwed?: number;
+  selfAmountPaid?: number;
   data: string; // YYYY-MM-DD
   expense_date?: string;
   tag: string;

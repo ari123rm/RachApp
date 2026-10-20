@@ -49,6 +49,7 @@ export function RideDetailsModal({
 
   const minhaParte =
     ride.selfAmountOwed !== undefined ? Number(ride.selfAmountOwed) : valorDivididoPadrao;
+  const meuValorPago = Number(ride.selfAmountPaid || 0);
 
   const formatarDataBR = (iso: string) => {
     if (!iso) return '';
@@ -71,6 +72,7 @@ export function RideDetailsModal({
   };
 
   const voceEhPagador = !ride.paidByFriendId;
+  const isSelfQuitado = voceEhPagador || meuValorPago >= minhaParte - 0.01;
 
   return (
     <div className="fixed inset-0 bg-[#05080f] z-50 flex flex-col animate-slide-up overflow-y-auto pb-10">
@@ -216,12 +218,30 @@ export function RideDetailsModal({
                 <div className="w-10 h-10 rounded-full bg-[#2DD4BF] flex items-center justify-center font-bold text-[#05080f]">
                   V
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="font-medium text-white">Você</span>
-                  {voceEhPagador && (
-                    <span className="text-[10px] bg-[#2DD4BF]/20 text-[#2DD4BF] px-2 py-0.5 rounded-md font-bold">
-                      Pagador
-                    </span>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium text-white">Você</span>
+                    {voceEhPagador && (
+                      <span className="text-[10px] bg-[#2DD4BF]/20 text-[#2DD4BF] px-2 py-0.5 rounded-md font-bold">
+                        Pagador
+                      </span>
+                    )}
+                  </div>
+                  {!voceEhPagador && (
+                    <button
+                      onClick={() => handleTogglePaid('self', isSelfQuitado, minhaParte)}
+                      className={`text-[11px] font-semibold mt-0.5 flex items-center gap-1 ${
+                        isSelfQuitado ? 'text-[#34C759]' : 'text-amber-400 hover:underline'
+                      }`}
+                    >
+                      {isSelfQuitado ? (
+                        <>
+                          <Check size={12} /> Pago (clique p/ desfazer)
+                        </>
+                      ) : (
+                        '• Pendente (clique p/ quitar)'
+                      )}
+                    </button>
                   )}
                 </div>
               </div>

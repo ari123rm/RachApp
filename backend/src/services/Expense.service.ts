@@ -1,5 +1,7 @@
 // src/services/Expense.service.ts
 import { prisma } from '../config/db';
+import { phonesMatch } from './Auth.service';
+import { FriendService } from './Friend.service';
 
 export interface Transfer {
   fromId: string;
@@ -15,11 +17,117 @@ export interface Transfer {
 }
 
 export class ExpenseService {
-  // 1. Listar todas as despesas do utilizador (avulsas e de grupos)
+  /**
+   * Transforma uma despesa criada por outro usuário (onde userId foi incluído pelo telefone)
+   * para a perspectiva de userId ("Você" passa a ser userId, e o criador passa a ser um Friend local de userId).
+   */
+  static async transformExpenseForUser(
+    exp: any,
+    userId: string,
+    reverseContext: Awaited<ReturnType<typeof FriendService.syncReverseLinks>>
+  ) {
+    if (exp.user_id === userId) {
+      return exp;
+    }
+
+    const { reverseFriendIds, ensureLocalFriendForOwner, ensureLocalFriendForForeign } = reverseContext;
+    const reverseSet = new Set(reverseFriendIds);
+
+    const myPart = (exp.participants || []).find((p: any) => reverseSet.has(p.friend_id));
+    const totalPeople = (exp.participants?.length || 0) + 1;
+    const defaultShare = Number((Number(exp.total_amount || 0) / totalPeople).toFixed(2));
+
+    const ownerUser = exp.owner || (await prisma.user.findUnique({ where: { id: exp.user_id } }));
+    const ownerLocalFriend = ownerUser
+      ? await ensureLocalFriendForOwner(ownerUser)
+      : await ensureLocalFriendForForeign({ id: exp.user_id, name: 'Amigo' });
+
+    const iAmPayer = Boolean(exp.paid_by_friend_id && reverseSet.has(exp.paid_by_friend_id));
+
+    const myOwed = myPart ? Number(myPart.amount_owed) : defaultShare;
+    const myPaid = iAmPayer ? myOwed : myPart ? Number(myPart.amount_paid || 0) : 0;
+
+    let transformedPaidByFriend: any = null;
+    let transformedPaidByFriendId: string | null = null;
+
+    if (!exp.paid_by_friend_id) {
+      // O criador da despesa pagou -> na minha visão, esse amigo pagou
+      transformedPaidByFriend = ownerLocalFriend;
+      transformedPaidByFriendId = ownerLocalFriend.id;
+    } else if (iAmPayer) {
+      // Eu paguei -> na minha visão, paid_by_friend_id é null ("Você")
+      transformedPaidByFriend = null;
+      transformedPaidByFriendId = null;
+    } else if (exp.paidByFriend) {
+      // Um terceiro amigo pagou
+      const thirdLocal = await ensureLocalFriendForForeign(exp.paidByFriend);
+      transformedPaidByFriend = thirdLocal;
+      transformedPaidByFriendId = thirdLocal.id;
+    }
+
+    const ownerOwed =
+      Number(exp.self_amount_owed) > 0 ? Number(exp.self_amount_owed) : defaultShare;
+    const ownerPaid = !exp.paid_by_friend_id ? ownerOwed : Number(exp.self_amount_paid || 0);
+
+    const transformedParticipants: any[] = [
+      {
+        expense_id: exp.id,
+        friend_id: ownerLocalFriend.id,
+        amount_owed: ownerOwed,
+        amount_paid: ownerPaid,
+        friend: ownerLocalFriend,
+      },
+    ];
+
+    for (const p of exp.participants || []) {
+      if (reverseSet.has(p.friend_id)) continue;
+      if (p.friend) {
+        const localF = await ensureLocalFriendForForeign(p.friend);
+        if (localF.id !== ownerLocalFriend.id) {
+          transformedParticipants.push({
+            expense_id: exp.id,
+            friend_id: localF.id,
+            amount_owed: Number(p.amount_owed),
+            amount_paid: Number(p.amount_paid),
+            friend: localF,
+          });
+        }
+      }
+    }
+
+    return {
+      ...exp,
+      user_id: userId,
+      original_owner_id: exp.user_id,
+      paid_by_friend_id: transformedPaidByFriendId,
+      paidByFriend: transformedPaidByFriend,
+      self_amount_owed: myOwed,
+      self_amount_paid: myPaid,
+      participants: transformedParticipants,
+    };
+  }
+
+  // 1. Listar todas as despesas do utilizador (próprias e compartilhadas por amigos via telefone)
   static async listExpenses(userId: string) {
+    const reverseContext = await FriendService.syncReverseLinks(userId);
+    const { reverseFriendIds } = reverseContext;
+
     const expenses = await prisma.expense.findMany({
-      where: { user_id: userId },
+      where: {
+        OR: [
+          { user_id: userId },
+          ...(reverseFriendIds.length > 0
+            ? [
+                { participants: { some: { friend_id: { in: reverseFriendIds } } } },
+                { paid_by_friend_id: { in: reverseFriendIds } },
+              ]
+            : []),
+        ],
+      },
       include: {
+        owner: {
+          select: { id: true, name: true, phone: true, pix_key: true },
+        },
         participants: {
           include: {
             friend: true,
@@ -33,7 +141,12 @@ export class ExpenseService {
       orderBy: { expense_date: 'desc' },
     });
 
-    return expenses;
+    const transformed = [];
+    for (const exp of expenses) {
+      transformed.push(await this.transformExpenseForUser(exp, userId, reverseContext));
+    }
+
+    return transformed;
   }
 
   // 2. Criar uma despesa e dividir os valores (suporta divisão igual, por % ou valor personalizado)
@@ -69,7 +182,7 @@ export class ExpenseService {
 
     if (data.id) {
       const existing = await prisma.expense.findUnique({ where: { id: data.id } });
-      if (existing && existing.user_id === data.userId) {
+      if (existing) {
         return this.updateExpense(data.userId, data.id, data);
       }
     }
@@ -146,13 +259,70 @@ export class ExpenseService {
       selfAmountOwed?: number;
     }
   ) {
+    const reverseContext = await FriendService.syncReverseLinks(userId);
+    const { reverseFriendIds } = reverseContext;
+
     const existing = await prisma.expense.findFirst({
-      where: { id: expenseId, user_id: userId },
-      include: { participants: true },
+      where: {
+        id: expenseId,
+        OR: [
+          { user_id: userId },
+          ...(reverseFriendIds.length > 0
+            ? [
+                { participants: { some: { friend_id: { in: reverseFriendIds } } } },
+                { paid_by_friend_id: { in: reverseFriendIds } },
+              ]
+            : []),
+        ],
+      },
+      include: {
+        owner: { select: { id: true, name: true, phone: true, pix_key: true } },
+        participants: { include: { friend: true } },
+      },
     });
 
     if (!existing) {
       throw new Error('Racha não encontrado.');
+    }
+
+    // Se a despesa pertence a outro usuário e está sendo editada por um participante, atualiza campos básicos e valores correspondentes
+    if (existing.user_id !== userId) {
+      const totalAmount =
+        data.totalAmount !== undefined ? Number(data.totalAmount) : Number(existing.total_amount);
+      const parsedDate = data.expenseDate ? new Date(data.expenseDate) : existing.expense_date;
+      const myPart = existing.participants.find((p) => reverseFriendIds.includes(p.friend_id));
+
+      if (myPart && data.selfAmountOwed !== undefined) {
+        await prisma.expenseParticipant.update({
+          where: {
+            expense_id_friend_id: {
+              expense_id: expenseId,
+              friend_id: myPart.friend_id,
+            },
+          },
+          data: {
+            amount_owed: Number(Number(data.selfAmountOwed).toFixed(2)),
+          },
+        });
+      }
+
+      const updatedRaw = await prisma.expense.update({
+        where: { id: expenseId },
+        data: {
+          ...(data.title !== undefined ? { title: data.title.trim() } : {}),
+          ...(data.tag !== undefined ? { tag: data.tag.trim() } : {}),
+          total_amount: totalAmount,
+          expense_date: isNaN(parsedDate.getTime()) ? existing.expense_date : parsedDate,
+        },
+        include: {
+          owner: { select: { id: true, name: true, phone: true, pix_key: true } },
+          participants: { include: { friend: true } },
+          group: { select: { id: true, name: true } },
+          paidByFriend: true,
+        },
+      });
+
+      return this.transformExpenseForUser(updatedRaw, userId, reverseContext);
     }
 
     const totalAmount =
@@ -231,8 +401,20 @@ export class ExpenseService {
 
   // 4. Excluir uma despesa
   static async deleteExpense(userId: string, expenseId: string) {
+    const { reverseFriendIds } = await FriendService.syncReverseLinks(userId);
     const existing = await prisma.expense.findFirst({
-      where: { id: expenseId, user_id: userId },
+      where: {
+        id: expenseId,
+        OR: [
+          { user_id: userId },
+          ...(reverseFriendIds.length > 0
+            ? [
+                { participants: { some: { friend_id: { in: reverseFriendIds } } } },
+                { paid_by_friend_id: { in: reverseFriendIds } },
+              ]
+            : []),
+        ],
+      },
     });
     if (!existing) throw new Error('Racha não encontrado.');
 
@@ -246,27 +428,137 @@ export class ExpenseService {
     friendId: string,
     amountPaid?: number
   ) {
+    const { reverseFriendIds, myFriends } = await FriendService.syncReverseLinks(userId);
     const expense = await prisma.expense.findFirst({
-      where: { id: expenseId, user_id: userId },
-      include: { participants: true },
+      where: {
+        id: expenseId,
+        OR: [
+          { user_id: userId },
+          ...(reverseFriendIds.length > 0
+            ? [
+                { participants: { some: { friend_id: { in: reverseFriendIds } } } },
+                { paid_by_friend_id: { in: reverseFriendIds } },
+              ]
+            : []),
+        ],
+      },
+      include: {
+        owner: { select: { id: true, name: true, phone: true } },
+        participants: { include: { friend: true } },
+      },
     });
     if (!expense) throw new Error('Racha não encontrado.');
 
-    const part = expense.participants.find((p) => p.friend_id === friendId);
-    if (!part) throw new Error('Participante não encontrado neste racha.');
+    // Caso 1: A despesa foi criada pelo próprio userId
+    if (expense.user_id === userId) {
+      if (friendId === 'self') {
+        const totalParts = expense.participants.length + 1;
+        const selfOwed =
+          Number(expense.self_amount_owed) > 0
+            ? Number(expense.self_amount_owed)
+            : Number(expense.total_amount) / totalParts;
+        const target =
+          amountPaid !== undefined ? Math.min(selfOwed, Math.max(0, Number(amountPaid))) : 0;
+        return prisma.expense.update({
+          where: { id: expenseId },
+          data: { self_amount_paid: Number(target.toFixed(2)) },
+        });
+      }
+
+      const part = expense.participants.find((p) => p.friend_id === friendId);
+      if (!part) throw new Error('Participante não encontrado neste racha.');
+
+      const targetAmount =
+        amountPaid !== undefined
+          ? Math.min(Number(part.amount_owed), Math.max(0, Number(amountPaid)))
+          : 0;
+
+      return prisma.expenseParticipant.update({
+        where: {
+          expense_id_friend_id: {
+            expense_id: expenseId,
+            friend_id: friendId,
+          },
+        },
+        data: {
+          amount_paid: targetAmount,
+        },
+      });
+    }
+
+    // Caso 2: A despesa foi criada por outro usuário (exp.owner) e compartilhada com userId
+    const myPart = expense.participants.find((p) => reverseFriendIds.includes(p.friend_id));
+    const localFriendTarget = myFriends.find((f) => f.id === friendId);
+    const isTargetTheExpenseOwner =
+      localFriendTarget &&
+      expense.owner &&
+      (phonesMatch(localFriendTarget.phone, expense.owner.phone) ||
+        localFriendTarget.name.trim().toLowerCase() === expense.owner.name.trim().toLowerCase());
+
+    // Se friendId === 'self' ou se o criador pagou (!expense.paid_by_friend_id) e estou quitando minha parte com ele
+    if (friendId === 'self' || (!expense.paid_by_friend_id && isTargetTheExpenseOwner)) {
+      if (!myPart) throw new Error('Participação não encontrada neste racha.');
+      const targetAmount =
+        amountPaid !== undefined
+          ? Math.min(Number(myPart.amount_owed), Math.max(0, Number(amountPaid)))
+          : 0;
+
+      return prisma.expenseParticipant.update({
+        where: {
+          expense_id_friend_id: {
+            expense_id: expenseId,
+            friend_id: myPart.friend_id,
+          },
+        },
+        data: {
+          amount_paid: Number(targetAmount.toFixed(2)),
+        },
+      });
+    }
+
+    // Se EU fui o pagador na despesa criada pelo meu amigo, e estou quitando a parte dele (owner)
+    if (isTargetTheExpenseOwner) {
+      const totalParts = expense.participants.length + 1;
+      const ownerOwed =
+        Number(expense.self_amount_owed) > 0
+          ? Number(expense.self_amount_owed)
+          : Number(expense.total_amount) / totalParts;
+      const targetAmount =
+        amountPaid !== undefined ? Math.min(ownerOwed, Math.max(0, Number(amountPaid))) : 0;
+
+      return prisma.expense.update({
+        where: { id: expenseId },
+        data: {
+          self_amount_paid: Number(targetAmount.toFixed(2)),
+        },
+      });
+    }
+
+    // Caso seja um 3º participante
+    const otherPart = expense.participants.find(
+      (p) =>
+        p.friend_id === friendId ||
+        (localFriendTarget &&
+          p.friend &&
+          (phonesMatch(p.friend.phone, localFriendTarget.phone) ||
+            p.friend.name.trim().toLowerCase() === localFriendTarget.name.trim().toLowerCase()))
+    );
+    if (!otherPart) throw new Error('Participante não encontrado neste racha.');
 
     const targetAmount =
-      amountPaid !== undefined ? Math.min(Number(part.amount_owed), Math.max(0, Number(amountPaid))) : 0;
+      amountPaid !== undefined
+        ? Math.min(Number(otherPart.amount_owed), Math.max(0, Number(amountPaid)))
+        : 0;
 
     return prisma.expenseParticipant.update({
       where: {
         expense_id_friend_id: {
           expense_id: expenseId,
-          friend_id: friendId,
+          friend_id: otherPart.friend_id,
         },
       },
       data: {
-        amount_paid: targetAmount,
+        amount_paid: Number(targetAmount.toFixed(2)),
       },
     });
   }
@@ -285,6 +577,7 @@ export class ExpenseService {
         },
         expenses: {
           include: {
+            owner: { select: { id: true, name: true, pix_key: true, phone: true } },
             participants: { include: { friend: true } },
             paidByFriend: true,
           },
@@ -294,34 +587,53 @@ export class ExpenseService {
 
     if (!group) throw new Error('Grupo não encontrado.');
 
-    const ownerId = userId || group.created_by;
-    const ownerKey = `user:${ownerId}`;
+    const effectiveUserId = userId || group.created_by;
+    const reverseContext = await FriendService.syncReverseLinks(effectiveUserId);
+    const currentUser = reverseContext.currentUser;
+    const ownerKey = `user:${effectiveUserId}`;
 
     const entityMeta: Record<
       string,
       { id: string; name: string; phone?: string | null; pix_key?: string | null; color: string; isOwner?: boolean }
     > = {
       [ownerKey]: {
-        id: ownerId,
-        name: group.owner?.name || 'Você',
-        phone: group.owner?.phone,
-        pix_key: group.owner?.pix_key,
+        id: effectiveUserId,
+        name: currentUser?.name || group.owner?.name || 'Você',
+        phone: currentUser?.phone || group.owner?.phone,
+        pix_key: currentUser?.pix_key || group.owner?.pix_key,
         color: 'bg-[#2DD4BF]',
         isOwner: true,
       },
     };
 
-    group.members.forEach((m) => {
-      if (m.friend) {
-        entityMeta[m.friend.id] = {
-          id: m.friend.id,
-          name: m.friend.name,
-          phone: m.friend.phone,
-          pix_key: m.friend.pix_key,
-          color: m.friend.color || 'bg-sky-500',
+    if (group.created_by !== effectiveUserId && group.owner) {
+      const ownerLocal = await reverseContext.ensureLocalFriendForOwner(group.owner);
+      entityMeta[ownerLocal.id] = {
+        id: ownerLocal.id,
+        name: ownerLocal.name,
+        phone: ownerLocal.phone,
+        pix_key: ownerLocal.pix_key,
+        color: ownerLocal.color || 'bg-teal-500',
+      };
+    }
+
+    const reverseSet = new Set(reverseContext.reverseFriendIds);
+
+    for (const m of group.members) {
+      if (m.friend && !reverseSet.has(m.friend.id)) {
+        const localF =
+          group.created_by === effectiveUserId
+            ? m.friend
+            : await reverseContext.ensureLocalFriendForForeign(m.friend);
+        entityMeta[localF.id] = {
+          id: localF.id,
+          name: localF.name,
+          phone: localF.phone,
+          pix_key: localF.pix_key,
+          color: localF.color || 'bg-sky-500',
         };
       }
-    });
+    }
 
     const netBalances: Record<string, number> = { [ownerKey]: 0 };
     const memberPendingCount: Record<string, number> = {};
@@ -333,8 +645,10 @@ export class ExpenseService {
       memberOwesOwner[k] = 0;
     });
 
-    group.expenses.forEach((exp) => {
-      exp.participants.forEach((p) => {
+    for (const rawExp of group.expenses) {
+      const exp = await this.transformExpenseForUser(rawExp, effectiveUserId, reverseContext);
+
+      exp.participants.forEach((p: any) => {
         if (p.friend && !entityMeta[p.friend_id]) {
           entityMeta[p.friend_id] = {
             id: p.friend.id,
@@ -352,7 +666,7 @@ export class ExpenseService {
       const payerFriendId = exp.paid_by_friend_id;
 
       if (!payerFriendId) {
-        exp.participants.forEach((part) => {
+        exp.participants.forEach((part: any) => {
           const pending = Number(part.amount_owed) - Number(part.amount_paid);
           if (pending > 0.005) {
             netBalances[ownerKey] = (netBalances[ownerKey] || 0) + pending;
@@ -372,7 +686,7 @@ export class ExpenseService {
           };
         }
 
-        exp.participants.forEach((part) => {
+        exp.participants.forEach((part: any) => {
           if (part.friend_id === payerFriendId) return;
           const pending = Number(part.amount_owed) - Number(part.amount_paid);
           if (pending > 0.005) {
@@ -395,7 +709,7 @@ export class ExpenseService {
           memberOwesOwner[payerFriendId] = (memberOwesOwner[payerFriendId] || 0) - selfPending;
         }
       }
-    });
+    }
 
     const transfers = this.simplifyDebts(netBalances, entityMeta);
 
@@ -482,50 +796,58 @@ export class ExpenseService {
     amount: number,
     groupId?: string
   ) {
-    const expenses = await prisma.expense.findMany({
-      where: {
-        user_id: creditorId,
-        paid_by_friend_id: null,
-        ...(groupId ? { group_id: groupId } : {}),
-        participants: {
-          some: { friend_id: debtorFriendId },
-        },
-      },
-      include: {
-        participants: {
-          where: { friend_id: debtorFriendId },
-        },
-      },
-      orderBy: { expense_date: 'asc' },
-    });
+    const allExpenses = await this.listExpenses(creditorId);
+    const filtered = allExpenses
+      .filter((e) => !groupId || e.group_id === groupId)
+      .sort((a, b) => new Date(a.expense_date).getTime() - new Date(b.expense_date).getTime());
 
     let remainingAmount = Number(amount);
 
-    for (const expense of expenses) {
+    // 1. Abate nas despesas em que o amigo deve para Você (!paid_by_friend_id)
+    for (const expense of filtered) {
       if (remainingAmount <= 0.005) break;
+      if (expense.paid_by_friend_id) continue;
 
-      const participant = expense.participants[0];
-      if (!participant) continue;
+      const part = (expense.participants || []).find((p: any) => p.friend_id === debtorFriendId);
+      if (!part) continue;
 
-      const owed = Number(participant.amount_owed);
-      const paid = Number(participant.amount_paid);
+      const owed = Number(part.amount_owed);
+      const paid = Number(part.amount_paid);
       const pending = owed - paid;
 
       if (pending > 0.005) {
         const amountToPayHere = Math.min(pending, remainingAmount);
+        await this.setParticipantPayment(
+          creditorId,
+          expense.id,
+          debtorFriendId,
+          Number((paid + amountToPayHere).toFixed(2))
+        );
+        remainingAmount -= amountToPayHere;
+      }
+    }
 
-        await prisma.expenseParticipant.update({
-          where: {
-            expense_id_friend_id: {
-              expense_id: expense.id,
-              friend_id: debtorFriendId,
-            },
-          },
-          data: {
-            amount_paid: Number((paid + amountToPayHere).toFixed(2)),
-          },
-        });
+    // 2. Se ainda sobrar valor (ou se Você devia para o amigo), abate nas despesas em que o amigo pagou
+    for (const expense of filtered) {
+      if (remainingAmount <= 0.005) break;
+      if (expense.paid_by_friend_id !== debtorFriendId) continue;
 
+      const totalParts = (expense.participants?.length || 0) + 1;
+      const selfOwed =
+        Number(expense.self_amount_owed) > 0
+          ? Number(expense.self_amount_owed)
+          : Number(expense.total_amount) / totalParts;
+      const selfPaid = Number(expense.self_amount_paid || 0);
+      const pending = selfOwed - selfPaid;
+
+      if (pending > 0.005) {
+        const amountToPayHere = Math.min(pending, remainingAmount);
+        await this.setParticipantPayment(
+          creditorId,
+          expense.id,
+          'self',
+          Number((selfPaid + amountToPayHere).toFixed(2))
+        );
         remainingAmount -= amountToPayHere;
       }
     }
@@ -538,41 +860,33 @@ export class ExpenseService {
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
-    const expensesThisMonth = await prisma.expense.aggregate({
-      _sum: { total_amount: true },
-      where: { user_id: userId, expense_date: { gte: startOfMonth } },
-    });
-    const totalGasto = Number(expensesThisMonth._sum.total_amount || 0);
+    const allExpenses = await this.listExpenses(userId);
+    const totalGasto = allExpenses
+      .filter((e) => new Date(e.expense_date) >= startOfMonth)
+      .reduce((acc, e) => acc + Number(e.total_amount || 0), 0);
 
-    const friends = await prisma.friend.findMany({
-      where: { user_id: userId },
-      include: { expenses: { include: { expense: true } } },
-    });
+    const friends = await FriendService.getAll(userId);
 
     let totalAReceber = 0;
+    let totalAPagar = 0;
     const amigosDevedores: any[] = [];
 
-    friends.forEach((friend) => {
-      let divida = 0;
-      let pendingExpensesCount = 0;
-      friend.expenses.forEach((expPart) => {
-        if (expPart.expense.user_id === userId && !expPart.expense.paid_by_friend_id) {
-          const pendente = Number(expPart.amount_owed) - Number(expPart.amount_paid);
-          if (pendente > 0.005) {
-            divida += pendente;
-            pendingExpensesCount += 1;
-          }
-        }
-      });
+    friends.forEach((friend: any) => {
+      const divida = Number(friend.divida || 0);
+      const voceDeve = Number(friend.voceDeve || 0);
 
       if (divida > 0.01) {
-        const roundedDivida = Number(divida.toFixed(2));
-        totalAReceber += roundedDivida;
-        const { expenses, ...friendClean } = friend;
+        totalAReceber += divida;
+      }
+      if (voceDeve > 0.01) {
+        totalAPagar += voceDeve;
+      }
+
+      if (divida > 0.01 || voceDeve > 0.01) {
         amigosDevedores.push({
-          ...friendClean,
-          divida: roundedDivida,
-          pendingExpensesCount,
+          ...friend,
+          divida: Number(divida.toFixed(2)),
+          voceDeve: Number(voceDeve.toFixed(2)),
         });
       }
     });
@@ -580,6 +894,7 @@ export class ExpenseService {
     return {
       totalGasto: Number(totalGasto.toFixed(2)),
       totalAReceber: Number(totalAReceber.toFixed(2)),
+      totalAPagar: Number(totalAPagar.toFixed(2)),
       amigosDevedores,
     };
   }

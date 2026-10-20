@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { X, Copy, Check, QrCode, Share2 } from 'lucide-react';
 import { generatePixCopiaECola, generatePixQRCodeDataUrl } from '../utils/pixGenerator';
 import moneyConverter from '../utils/moneyConverter';
+import { openWhatsApp } from '../utils/phoneFormatter';
 
 interface PixModalProps {
   isOpen: boolean;
@@ -65,25 +66,12 @@ export function PixModal({
   };
 
   const handleSendWhatsApp = () => {
-    const cleanDigits = whatsappPhone ? whatsappPhone.replace(/\D/g, '') : '';
-    const normDigits =
-      (cleanDigits.length === 12 || cleanDigits.length === 13) && cleanDigits.startsWith('55')
-        ? cleanDigits
-        : cleanDigits
-        ? `55${cleanDigits}`
-        : '';
-
     const defaultMsg =
       whatsappCustomMessage ||
       `Olá! Segue o resumo do acerto pelo RachApp:\nValor: R$ ${moneyConverter(amount)}\nChave Pix (${recipientName}): ${pixKey}${
         copiaECola ? `\n\nPix Copia e Cola:\n${copiaECola}` : ''
       }`;
-    const encoded = encodeURIComponent(defaultMsg);
-    if (normDigits) {
-      window.open(`https://wa.me/${normDigits}?text=${encoded}`, '_blank');
-    } else {
-      window.open(`https://wa.me/?text=${encoded}`, '_blank');
-    }
+    openWhatsApp(whatsappPhone, defaultMsg);
   };
 
   return (

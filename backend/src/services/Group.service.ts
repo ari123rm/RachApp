@@ -1,8 +1,92 @@
 // src/services/Group.service.ts
 import { prisma } from '../config/db';
 import { ExpenseService } from './Expense.service';
+import { FriendService } from './Friend.service';
+import { normalizePhoneBackend, phonesMatch } from './Auth.service';
 
 export class GroupService {
+  static async transformGroupForUser(
+    group: any,
+    userId: string,
+    reverseContext: Awaited<ReturnType<typeof FriendService.syncReverseLinks>>
+  ) {
+    const { currentUser, reverseFriendIds, ensureLocalFriendForOwner, ensureLocalFriendForForeign } =
+      reverseContext;
+    const reverseSet = new Set(reverseFriendIds);
+
+    let transformedMembers = group.members || [];
+
+    if (group.created_by !== userId) {
+      const ownerLocalFriend = group.owner
+        ? await ensureLocalFriendForOwner(group.owner)
+        : await ensureLocalFriendForForeign({ id: group.created_by, name: 'Amigo' });
+
+      const newMembers: any[] = [
+        {
+          id: `${group.id}_self`,
+          group_id: group.id,
+          user_id: userId,
+          friend_id: null,
+          user: currentUser
+            ? {
+                id: currentUser.id,
+                name: currentUser.name,
+                pix_key: currentUser.pix_key,
+                phone: currentUser.phone,
+              }
+            : null,
+          friend: null,
+        },
+        {
+          id: `${group.id}_${ownerLocalFriend.id}`,
+          group_id: group.id,
+          user_id: null,
+          friend_id: ownerLocalFriend.id,
+          user: null,
+          friend: ownerLocalFriend,
+        },
+      ];
+
+      const seenFriendIds = new Set<string>([ownerLocalFriend.id]);
+
+      for (const m of group.members || []) {
+        if (m.friend_id && !reverseSet.has(m.friend_id) && m.friend) {
+          const localF = await ensureLocalFriendForForeign(m.friend);
+          if (!seenFriendIds.has(localF.id)) {
+            seenFriendIds.add(localF.id);
+            newMembers.push({
+              id: m.id || `${group.id}_${localF.id}`,
+              group_id: group.id,
+              user_id: null,
+              friend_id: localF.id,
+              user: null,
+              friend: localF,
+            });
+          }
+        }
+      }
+
+      transformedMembers = newMembers;
+    }
+
+    const transformedExpenses = [];
+    for (const exp of group.expenses || []) {
+      transformedExpenses.push(
+        await ExpenseService.transformExpenseForUser(exp, userId, reverseContext)
+      );
+    }
+
+    return {
+      ...group,
+      members: transformedMembers,
+      expenses: transformedExpenses,
+      _count: {
+        members: transformedMembers.length,
+        expenses: transformedExpenses.length,
+      },
+    };
+  }
+
   static async createGroup(
     userId: string,
     data: { id?: string; name: string; friendIds?: string[] }
@@ -49,11 +133,24 @@ export class GroupService {
   }
 
   static async getUserGroups(userId: string) {
+    const reverseContext = await FriendService.syncReverseLinks(userId);
+    const { reverseFriendIds } = reverseContext;
+
     const groups = await prisma.group.findMany({
       where: {
         OR: [
           { created_by: userId },
           { members: { some: { user_id: userId } } },
+          ...(reverseFriendIds.length > 0
+            ? [
+                { members: { some: { friend_id: { in: reverseFriendIds } } } },
+                {
+                  expenses: {
+                    some: { participants: { some: { friend_id: { in: reverseFriendIds } } } },
+                  },
+                },
+              ]
+            : []),
         ],
       },
       include: {
@@ -66,7 +163,9 @@ export class GroupService {
         },
         expenses: {
           include: {
-            participants: true,
+            owner: { select: { id: true, name: true, pix_key: true, phone: true } },
+            participants: { include: { friend: true } },
+            paidByFriend: true,
           },
         },
         _count: {
@@ -78,7 +177,12 @@ export class GroupService {
       },
     });
 
-    return groups;
+    const transformed = [];
+    for (const g of groups) {
+      transformed.push(await this.transformGroupForUser(g, userId, reverseContext));
+    }
+
+    return transformed;
   }
 
   static async updateGroup(
@@ -86,10 +190,17 @@ export class GroupService {
     groupId: string,
     data: { name?: string; friendIds?: string[] }
   ) {
+    const { reverseFriendIds } = await FriendService.syncReverseLinks(userId);
     const group = await prisma.group.findFirst({
       where: {
         id: groupId,
-        OR: [{ created_by: userId }, { members: { some: { user_id: userId } } }],
+        OR: [
+          { created_by: userId },
+          { members: { some: { user_id: userId } } },
+          ...(reverseFriendIds.length > 0
+            ? [{ members: { some: { friend_id: { in: reverseFriendIds } } } }]
+            : []),
+        ],
       },
     });
     if (!group) throw new Error('Grupo não encontrado.');
@@ -101,7 +212,7 @@ export class GroupService {
       });
     }
 
-    if (Array.isArray(data.friendIds)) {
+    if (Array.isArray(data.friendIds) && group.created_by === userId) {
       const uniqueFriendIds = Array.from(new Set(data.friendIds));
       await prisma.groupMember.deleteMany({
         where: {
@@ -149,31 +260,33 @@ export class GroupService {
       });
     } else if (payload.identifier) {
       const idClean = payload.identifier.trim();
-      friendToAdd = await prisma.friend.findFirst({
-        where: {
-          user_id: userId,
-          OR: [
-            { name: { equals: idClean, mode: 'insensitive' } },
-            { phone: idClean },
-            { pix_key: idClean },
-          ],
-        },
-      });
+      const normPhone = normalizePhoneBackend(idClean);
+      const userFriends = await prisma.friend.findMany({ where: { user_id: userId } });
+
+      friendToAdd =
+        userFriends.find(
+          (f) =>
+            f.name.trim().toLowerCase() === idClean.toLowerCase() ||
+            (normPhone && phonesMatch(f.phone, normPhone)) ||
+            f.pix_key === idClean
+        ) || null;
 
       if (!friendToAdd) {
-        // Verifica se existe um User registrado com esse email/telefone para puxar dados
-        const registeredUser = await prisma.user.findFirst({
-          where: {
-            OR: [{ email: idClean.toLowerCase() }, { phone: idClean }],
-          },
-        });
+        const allUsers = await prisma.user.findMany();
+        const registeredUser = allUsers.find(
+          (u) =>
+            u.email.toLowerCase() === idClean.toLowerCase() ||
+            (normPhone && phonesMatch(u.phone, normPhone))
+        );
 
         friendToAdd = await prisma.friend.create({
           data: {
             user_id: userId,
-            name: registeredUser ? registeredUser.name : (payload.name || idClean),
-            phone: registeredUser ? registeredUser.phone : (payload.phone || null),
-            pix_key: registeredUser ? registeredUser.pix_key : (payload.pix_key || null),
+            name: registeredUser ? registeredUser.name : payload.name || idClean,
+            phone: registeredUser
+              ? normalizePhoneBackend(registeredUser.phone)
+              : normalizePhoneBackend(payload.phone) || null,
+            pix_key: registeredUser ? registeredUser.pix_key : payload.pix_key || null,
             color: payload.color || 'bg-teal-500',
             is_favorite: false,
           },
@@ -220,6 +333,7 @@ export class GroupService {
   }
 
   static async getGroupById(groupId: string, userId: string) {
+    const reverseContext = await FriendService.syncReverseLinks(userId);
     const group = await prisma.group.findUnique({
       where: { id: groupId },
       include: {
@@ -233,7 +347,7 @@ export class GroupService {
         expenses: {
           orderBy: { expense_date: 'desc' },
           include: {
-            owner: { select: { id: true, name: true, pix_key: true } },
+            owner: { select: { id: true, name: true, pix_key: true, phone: true } },
             paidByFriend: true,
             participants: {
               include: {
@@ -249,10 +363,11 @@ export class GroupService {
       throw new Error('Grupo não encontrado.');
     }
 
+    const transformedGroup = await this.transformGroupForUser(group, userId, reverseContext);
     const balanceSummary = await ExpenseService.calculateGroupBalances(groupId, userId);
 
     return {
-      ...group,
+      ...transformedGroup,
       ...balanceSummary,
     };
   }

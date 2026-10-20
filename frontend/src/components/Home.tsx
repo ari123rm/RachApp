@@ -1,6 +1,6 @@
 // src/components/Home.tsx
 import { useState, useEffect } from 'react';
-import { ArrowUpRight, LoaderCircle, TrendingUp, RefreshCw } from 'lucide-react';
+import { ArrowUpRight, LoaderCircle, TrendingUp, TrendingDown, RefreshCw } from 'lucide-react';
 import { dbService } from '../services/database';
 import { FriendDetailsModal } from './FriendDetailsModal';
 import moneyConverter from '../utils/moneyConverter';
@@ -10,6 +10,7 @@ export function Home({ onDataChange }: { onDataChange?: () => void }) {
   const [dashboard, setDashboard] = useState({
     totalGasto: 0,
     totalAReceber: 0,
+    totalAPagar: 0,
     amigosDevedores: [] as any[],
   });
   const [isLoading, setIsLoading] = useState(true);
@@ -32,7 +33,12 @@ export function Home({ onDataChange }: { onDataChange?: () => void }) {
       setNomeUsuario(config.nome || config.name || 'Usuário');
 
       const dados = await dbService.dashboard.get();
-      setDashboard(dados);
+      setDashboard({
+        totalGasto: dados.totalGasto || 0,
+        totalAReceber: dados.totalAReceber || 0,
+        totalAPagar: (dados as any).totalAPagar || 0,
+        amigosDevedores: dados.amigosDevedores || [],
+      });
     } catch (error) {
       console.error('Erro ao carregar Dashboard:', error);
     } finally {
@@ -44,6 +50,16 @@ export function Home({ onDataChange }: { onDataChange?: () => void }) {
     carregarDashboard();
     const unsub = dbService.sync.subscribe((st) => {
       setSyncStatus(st);
+      if (st.state === 'synced') {
+        dbService.dashboard.get().then((dados) => {
+          setDashboard({
+            totalGasto: dados.totalGasto || 0,
+            totalAReceber: dados.totalAReceber || 0,
+            totalAPagar: (dados as any).totalAPagar || 0,
+            amigosDevedores: dados.amigosDevedores || [],
+          });
+        }).catch(() => {});
+      }
     });
     return () => unsub();
   }, []);
@@ -63,6 +79,7 @@ export function Home({ onDataChange }: { onDataChange?: () => void }) {
   const handleManualSync = async () => {
     await dbService.sync.now();
     await carregarDashboard();
+    if (onDataChange) onDataChange();
   };
 
   if (isLoading) {
@@ -115,7 +132,7 @@ export function Home({ onDataChange }: { onDataChange?: () => void }) {
       <div className="bg-gradient-to-br from-[#1A2b4c] via-[#241b3d] to-[#3B1F42] rounded-3xl p-6 shadow-2xl relative overflow-hidden border border-white/5">
         <div className="relative z-10">
           <div className="flex justify-between items-start">
-            <p className="text-gray-300 text-sm mb-1">Total Pago ({nomeMesAtual}):</p>
+            <p className="text-gray-300 text-sm mb-1">Total em Rachas ({nomeMesAtual}):</p>
             <ArrowUpRight size={18} className="text-[#2DD4BF]" />
           </div>
           <div className="flex items-end gap-2 mb-4">
@@ -124,26 +141,48 @@ export function Home({ onDataChange }: { onDataChange?: () => void }) {
             </h2>
           </div>
 
-          <div className="bg-white/10 backdrop-blur-md rounded-2xl p-3 flex items-center gap-3 border border-white/10">
-            <div className="w-8 h-8 bg-[#2DD4BF] rounded-full flex items-center justify-center text-[#05080f]">
-              <TrendingUp size={18} />
+          <div
+            className={`grid gap-2.5 ${
+              dashboard.totalAPagar > 0.01 ? 'grid-cols-2' : 'grid-cols-1'
+            }`}
+          >
+            <div className="bg-white/10 backdrop-blur-md rounded-2xl p-3 flex items-center gap-2.5 border border-white/10">
+              <div className="w-8 h-8 bg-[#2DD4BF] rounded-full flex items-center justify-center text-[#05080f] shrink-0">
+                <TrendingUp size={17} />
+              </div>
+              <div className="min-w-0">
+                <p className="text-[10px] text-gray-400 uppercase font-bold tracking-wider truncate">
+                  A receber
+                </p>
+                <p className="text-white font-bold text-sm truncate">
+                  R$ {moneyConverter(Number(dashboard.totalAReceber || 0))}
+                </p>
+              </div>
             </div>
-            <div>
-              <p className="text-[10px] text-gray-400 uppercase font-bold tracking-wider">
-                A receber (Total)
-              </p>
-              <p className="text-white font-bold">
-                R$ {moneyConverter(Number(dashboard.totalAReceber || 0))}
-              </p>
-            </div>
+
+            {dashboard.totalAPagar > 0.01 && (
+              <div className="bg-white/10 backdrop-blur-md rounded-2xl p-3 flex items-center gap-2.5 border border-white/10">
+                <div className="w-8 h-8 bg-amber-400 rounded-full flex items-center justify-center text-[#05080f] shrink-0">
+                  <TrendingDown size={17} />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-[10px] text-gray-400 uppercase font-bold tracking-wider truncate">
+                    A pagar
+                  </p>
+                  <p className="text-amber-300 font-bold text-sm truncate">
+                    R$ {moneyConverter(Number(dashboard.totalAPagar || 0))}
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
 
-      {/* Seção Amigos que te devem (Figura 2) */}
+      {/* Seção Pendências com Amigos */}
       <div>
         <div className="flex justify-between items-center mb-4">
-          <h3 className="text-lg font-bold text-gray-200">Amigos que te devem</h3>
+          <h3 className="text-lg font-bold text-gray-200">Amigos com pendências</h3>
           {dashboard.amigosDevedores.length > 0 && (
             <span className="text-xs text-gray-500 font-medium">
               {dashboard.amigosDevedores.length}{' '}
@@ -161,6 +200,12 @@ export function Home({ onDataChange }: { onDataChange?: () => void }) {
             {dashboard.amigosDevedores.map((amigo) => {
               const nome = amigo.nome || amigo.name || 'Amigo';
               const cor = amigo.cor || amigo.color || 'bg-sky-500';
+              const divida = Number(amigo.divida || 0);
+              const voceDeve = Number(amigo.voceDeve || 0);
+              const saldoLiquido = Number((divida - voceDeve).toFixed(2));
+              const isVoceDeve = saldoLiquido < -0.01;
+              const valorExibido = Math.abs(saldoLiquido);
+
               return (
                 <div
                   key={amigo.id}
@@ -169,7 +214,7 @@ export function Home({ onDataChange }: { onDataChange?: () => void }) {
                       ...amigo,
                       nome,
                       cor,
-                      divida: moneyConverter(Number(amigo.divida || 0)),
+                      divida: moneyConverter(valorExibido),
                     })
                   }
                   className="flex flex-col items-center gap-2 min-w-[85px] cursor-pointer active:scale-95 transition-transform"
@@ -182,7 +227,11 @@ export function Home({ onDataChange }: { onDataChange?: () => void }) {
                         {nome[0]?.toUpperCase()}
                       </span>
                     </div>
-                    <div className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 rounded-full border-2 border-[#05080f] flex items-center justify-center">
+                    <div
+                      className={`absolute -top-1 -right-1 w-5 h-5 ${
+                        isVoceDeve ? 'bg-amber-500' : 'bg-red-500'
+                      } rounded-full border-2 border-[#05080f] flex items-center justify-center`}
+                    >
                       <span className="text-[10px] font-bold text-white">!</span>
                     </div>
                   </div>
@@ -190,8 +239,12 @@ export function Home({ onDataChange }: { onDataChange?: () => void }) {
                     <p className="text-xs font-semibold text-white truncate w-20">
                       {nome.split(' ')[0]}
                     </p>
-                    <p className="text-[11px] font-bold text-red-400">
-                      R$ {moneyConverter(Number(amigo.divida || 0))}
+                    <p
+                      className={`text-[11px] font-bold ${
+                        isVoceDeve ? 'text-amber-400' : 'text-red-400'
+                      }`}
+                    >
+                      R$ {moneyConverter(valorExibido)}
                     </p>
                   </div>
                 </div>

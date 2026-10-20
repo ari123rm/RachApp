@@ -623,7 +623,7 @@ export const dbService = {
       const amigos: Amigo[] = [];
       for (const r of rows) {
         const normPhone = stripCountryCode(r.phone || '');
-        // Busca todas as participações desse amigo (avulsas E de grupos!)
+        // 1. Participações onde Você pagou e o amigo te deve
         const dividaRows = await queryAll<{ amount_owed: number; amount_paid: number }>(
           `SELECT ep.amount_owed, ep.amount_paid
            FROM expense_participants ep
@@ -648,6 +648,41 @@ export const dbService = {
           }
         }
 
+        // 2. Despesas onde o amigo pagou (ou adicionou você pelo número) e Você deve a sua parte para ele
+        const voceDeveRows = await queryAll<{
+          self_amount_owed: number;
+          self_amount_paid: number;
+          total_amount: number;
+          part_count: number;
+        }>(
+          `SELECT e.self_amount_owed, e.self_amount_paid, e.total_amount,
+                  (SELECT COUNT(*) FROM expense_participants ep2 WHERE ep2.expense_id = e.id) as part_count
+           FROM expenses e
+           LEFT JOIN friends f ON f.id = e.paid_by_friend_id
+           WHERE e.paid_by_friend_id IS NOT NULL AND e.paid_by_friend_id != ''
+             AND (
+               e.paid_by_friend_id = ?
+               OR (? != '' AND f.phone = ?)
+               OR LOWER(TRIM(f.name)) = LOWER(TRIM(?))
+             )`,
+          [r.id, normPhone, normPhone, r.name || '']
+        );
+
+        let voceDeveNum = 0;
+        for (const vr of voceDeveRows) {
+          const totalPeople = Number(vr.part_count || 1) + 1;
+          const selfOwed =
+            Number(vr.self_amount_owed) > 0
+              ? Number(vr.self_amount_owed)
+              : Number(vr.total_amount || 0) / totalPeople;
+          const selfPaid = Number(vr.self_amount_paid || 0);
+          const pend = selfOwed - selfPaid;
+          if (pend > 0.005) {
+            voceDeveNum += pend;
+            pendingCount += 1;
+          }
+        }
+
         amigos.push({
           id: r.id,
           nome: r.name,
@@ -661,6 +696,7 @@ export const dbService = {
           favorito: !!r.is_favorite,
           is_favorite: !!r.is_favorite,
           dividaNumerica: Number(dividaNum.toFixed(2)),
+          voceDeveNumerico: Number(voceDeveNum.toFixed(2)),
           pendingExpensesCount: pendingCount,
         });
       }
@@ -712,7 +748,7 @@ export const dbService = {
 
       const payload = { id, name, phone, pix_key, color, is_favorite };
       await enqueueSync('friend', 'create', id, payload);
-      syncWithBackend(false).catch(() => {});
+      syncWithBackend(true).catch(() => {});
 
       return {
         id,
@@ -768,7 +804,7 @@ export const dbService = {
 
       const payload = { name, phone, pix_key, color, is_favorite };
       await enqueueSync('friend', 'update', id, payload);
-      syncWithBackend(false).catch(() => {});
+      syncWithBackend(true).catch(() => {});
 
       return {
         id,
@@ -842,6 +878,11 @@ export const dbService = {
         const defaultShare = Number(e.total_amount) / (partRows.length + 1);
         const selfAmountOwed =
           Number(e.self_amount_owed) > 0 ? Number(e.self_amount_owed) : Number(defaultShare.toFixed(2));
+        const selfAmountPaid = Number(e.self_amount_paid || 0);
+
+        if (e.paid_by_friend_id && selfAmountOwed - selfAmountPaid > 0.01) {
+          allPaid = false;
+        }
 
         corridas.push({
           id: e.id,
@@ -850,6 +891,7 @@ export const dbService = {
           valorTotal: Number(e.total_amount),
           total_amount: Number(e.total_amount),
           selfAmountOwed,
+          selfAmountPaid,
           data: toIsoDateOnly(e.expense_date),
           expense_date: toIsoDateOnly(e.expense_date),
           tag: e.tag || 'Uber',
@@ -958,6 +1000,7 @@ export const dbService = {
         titulo: novaCorrida.titulo.trim(),
         valorTotal: Number(novaCorrida.valorTotal),
         selfAmountOwed: selfOwed,
+        selfAmountPaid: paidByFriendId ? 0 : selfOwed,
         data: dateStr,
         tag: (novaCorrida.tag || 'Uber').trim(),
         groupId: novaCorrida.groupId || null,
@@ -1071,6 +1114,7 @@ export const dbService = {
         titulo: dados.titulo.trim(),
         valorTotal: Number(dados.valorTotal),
         selfAmountOwed: selfOwed,
+        selfAmountPaid: Number(existing.self_amount_paid || 0),
         data: dateStr,
         tag: (dados.tag || 'Uber').trim(),
         groupId: dados.groupId !== undefined ? dados.groupId || null : existing.group_id,
@@ -1516,15 +1560,23 @@ export const dbService = {
 
       const amigos = await dbService.amigos.getAll();
       let totalAReceber = 0;
+      let totalAPagar = 0;
       const amigosDevedores: any[] = [];
 
       for (const amigo of amigos) {
         const divida = Number(amigo.dividaNumerica || 0);
+        const voceDeve = Number(amigo.voceDeveNumerico || 0);
         if (divida > 0.01) {
           totalAReceber += divida;
+        }
+        if (voceDeve > 0.01) {
+          totalAPagar += voceDeve;
+        }
+        if (divida > 0.01 || voceDeve > 0.01) {
           amigosDevedores.push({
             ...amigo,
             divida: Number(divida.toFixed(2)),
+            voceDeve: Number(voceDeve.toFixed(2)),
           });
         }
       }
@@ -1532,6 +1584,7 @@ export const dbService = {
       return {
         totalGasto,
         totalAReceber: Number(totalAReceber.toFixed(2)),
+        totalAPagar: Number(totalAPagar.toFixed(2)),
         amigosDevedores,
       };
     },
@@ -1568,6 +1621,20 @@ export const dbService = {
     },
 
     desfazerPagamentoDaCorrida: async (corridaId: string, amigoId: string): Promise<void> => {
+      if (amigoId === 'self') {
+        await runSQL(
+          `UPDATE expenses SET self_amount_paid = 0 WHERE id = ?`,
+          [corridaId],
+          true
+        );
+        await enqueueSync('payment', 'set_participant', corridaId, {
+          friendId: 'self',
+          amountPaid: 0,
+        });
+        syncWithBackend(false).catch(() => {});
+        return;
+      }
+
       await runSQL(
         `UPDATE expense_participants SET amount_paid = 0 WHERE expense_id = ? AND friend_id = ?`,
         [corridaId, amigoId],
@@ -1581,14 +1648,29 @@ export const dbService = {
     },
 
     definirPagamentoParticipante: async (corridaId: string, amigoId: string, valorPago: number): Promise<void> => {
+      const rounded = Number(valorPago.toFixed(2));
+      if (amigoId === 'self') {
+        await runSQL(
+          `UPDATE expenses SET self_amount_paid = ? WHERE id = ?`,
+          [rounded, corridaId],
+          true
+        );
+        await enqueueSync('payment', 'set_participant', corridaId, {
+          friendId: 'self',
+          amountPaid: rounded,
+        });
+        syncWithBackend(false).catch(() => {});
+        return;
+      }
+
       await runSQL(
         `UPDATE expense_participants SET amount_paid = ? WHERE expense_id = ? AND friend_id = ?`,
-        [Number(valorPago.toFixed(2)), corridaId, amigoId],
+        [rounded, corridaId, amigoId],
         true
       );
       await enqueueSync('payment', 'set_participant', corridaId, {
         friendId: amigoId,
-        amountPaid: Number(valorPago.toFixed(2)),
+        amountPaid: rounded,
       });
       syncWithBackend(false).catch(() => {});
     },
@@ -1624,6 +1706,46 @@ export const dbService = {
             false
           );
           saldoRestante -= abater;
+        }
+      }
+
+      // Se ainda restar saldo (ou se era pagamento de dívida onde o amigo foi o pagador), abate nas despesas onde paid_by_friend_id = amigoId
+      if (saldoRestante > 0.005) {
+        const selfRows = await queryAll<{
+          id: string;
+          self_amount_owed: number;
+          self_amount_paid: number;
+          total_amount: number;
+          part_count: number;
+        }>(
+          `SELECT e.id, e.self_amount_owed, e.self_amount_paid, e.total_amount,
+                  (SELECT COUNT(*) FROM expense_participants ep2 WHERE ep2.expense_id = e.id) as part_count
+           FROM expenses e
+           WHERE e.paid_by_friend_id = ?
+             ${groupId ? 'AND e.group_id = ?' : ''}
+           ORDER BY e.expense_date ASC, e.rowid ASC`,
+          groupId ? [amigoId, groupId] : [amigoId]
+        );
+
+        for (const sr of selfRows) {
+          if (saldoRestante <= 0.005) break;
+          const totalPeople = Number(sr.part_count || 1) + 1;
+          const selfOwed =
+            Number(sr.self_amount_owed) > 0
+              ? Number(sr.self_amount_owed)
+              : Number(sr.total_amount || 0) / totalPeople;
+          const selfPaid = Number(sr.self_amount_paid || 0);
+          const faltaPagar = selfOwed - selfPaid;
+          if (faltaPagar > 0.005) {
+            const abater = Math.min(faltaPagar, saldoRestante);
+            const novoPago = Number((selfPaid + abater).toFixed(2));
+            await runSQL(
+              `UPDATE expenses SET self_amount_paid = ? WHERE id = ?`,
+              [novoPago, sr.id],
+              false
+            );
+            saldoRestante -= abater;
+          }
         }
       }
 
