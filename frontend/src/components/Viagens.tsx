@@ -39,8 +39,19 @@ export function Viagens({ onDataChange }: { onDataChange?: () => void }) {
     carregarDados();
   }, []);
 
-  const getParticipantesCompletos = (ids: string[]) => {
-    return amigos.filter((a) => ids.includes(a.id));
+  const getParticipantesCompletos = (ids?: string[] | null) => {
+    if (!ids || !Array.isArray(ids)) return [];
+    return ids.map((id, idx) => {
+      const found = amigos.find((a) => a && a.id === id);
+      if (found) return found;
+      return {
+        id,
+        nome: `Amigo ${idx + 1}`,
+        name: `Amigo ${idx + 1}`,
+        cor: 'bg-sky-500',
+        color: 'bg-sky-500',
+      } as Amigo;
+    });
   };
 
   const deletarCorrida = async (id: string) => {
@@ -60,9 +71,11 @@ export function Viagens({ onDataChange }: { onDataChange?: () => void }) {
   const anoAtual = new Date().getFullYear();
 
   const corridasFiltradas = corridas.filter((c) => {
+    if (!c) return false;
     // 1. Filtro por mês
     if (filtroAba === 'este_mes') {
-      const [ano, mes] = (c.data || '').split('-');
+      const dataStr = c.data || c.expense_date || '';
+      const [ano, mes] = String(dataStr).split('-');
       if (Number(mes) !== mesAtual || Number(ano) !== anoAtual) return false;
     }
 
@@ -77,7 +90,7 @@ export function Viagens({ onDataChange }: { onDataChange?: () => void }) {
       const matchTag = (c.tag || '').toLowerCase().includes(termo);
       const parts = getParticipantesCompletos(c.participantesIds || []);
       const matchParticipante = parts.some((p) =>
-        (p.nome || p.name || '').toLowerCase().includes(termo)
+        (p?.nome || p?.name || '').toLowerCase().includes(termo)
       );
 
       if (!matchTitulo && !matchTag && !matchParticipante) return false;
@@ -87,8 +100,10 @@ export function Viagens({ onDataChange }: { onDataChange?: () => void }) {
   });
 
   const corridasOrdenadas = [...corridasFiltradas].sort((a, b) => {
-    const tempoA = new Date(a.data).getTime();
-    const tempoB = new Date(b.data).getTime();
+    const dataA = a?.data || a?.expense_date || '';
+    const dataB = b?.data || b?.expense_date || '';
+    const tempoA = dataA ? new Date(dataA).getTime() : 0;
+    const tempoB = dataB ? new Date(dataB).getTime() : 0;
     return ordemCrescente ? tempoA - tempoB : tempoB - tempoA;
   });
 
@@ -96,10 +111,16 @@ export function Viagens({ onDataChange }: { onDataChange?: () => void }) {
   const temMaisCorridas = itensVisiveis < corridasOrdenadas.length;
 
   const corridasAgrupadas = corridasPaginadas.reduce((grupos, corrida) => {
-    const [ano, mes] = (corrida.data || '').split('-');
-    const dataObj = new Date(Number(ano) || anoAtual, (Number(mes) || mesAtual) - 1, 1);
-    const nomeMes = dataObj.toLocaleString('pt-BR', { month: 'long' });
-    const chaveMes = `${nomeMes.charAt(0).toUpperCase() + nomeMes.slice(1)} ${ano || anoAtual}`;
+    if (!corrida) return grupos;
+    let chaveMes = 'Rachas Recentes';
+    try {
+      const rawDate = corrida.data || corrida.expense_date;
+      const dataValida = rawDate && !isNaN(new Date(rawDate).getTime()) ? new Date(rawDate) : new Date();
+      const nomeMes = dataValida.toLocaleString('pt-BR', { month: 'long' });
+      chaveMes = `${nomeMes.charAt(0).toUpperCase() + nomeMes.slice(1)} ${dataValida.getFullYear()}`;
+    } catch {
+      chaveMes = 'Rachas';
+    }
 
     if (!grupos[chaveMes]) {
       grupos[chaveMes] = [];
@@ -249,10 +270,10 @@ export function Viagens({ onDataChange }: { onDataChange?: () => void }) {
                       valorTotal={moneyConverter(corrida.valorTotal)}
                       participantes={[
                         { id: 0, nome: 'Você', cor: 'bg-[#2DD4BF]' },
-                        ...getParticipantesCompletos(corrida.participantesIds).map((a, idx) => ({
+                        ...getParticipantesCompletos(corrida.participantesIds || []).map((a, idx) => ({
                           id: idx + 1,
-                          nome: a.nome || a.name || 'Amigo',
-                          cor: a.cor || a.color || 'bg-sky-500',
+                          nome: a?.nome || a?.name || 'Amigo',
+                          cor: a?.cor || a?.color || 'bg-sky-500',
                         })),
                       ]}
                       isPaied={corrida.isPaied}
@@ -279,9 +300,14 @@ export function Viagens({ onDataChange }: { onDataChange?: () => void }) {
 
       <RideDetailsModal
         ride={corridaSelecionada || undefined}
+        participantes={getParticipantesCompletos(corridaSelecionada?.participantesIds || [])}
         isOpen={!!corridaSelecionada}
         onClose={() => setCorridaSelecionadaId(null)}
         onDelete={deletarCorrida}
+        onUpdated={() => {
+          carregarDados();
+          if (onDataChange) onDataChange();
+        }}
         update={() => {
           carregarDados();
           if (onDataChange) onDataChange();

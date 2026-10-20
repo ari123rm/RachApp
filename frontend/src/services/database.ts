@@ -1,7 +1,7 @@
 // src/services/database.ts
 import axios from 'axios';
 import { getSQLiteDB, runSQL, queryAll, queryOne, flushSQLite } from './sqlite';
-import { stripCountryCode } from '../utils/phoneFormatter';
+import { stripCountryCode, getCanonicalPhoneKey, phonesMatchBR } from '../utils/phoneFormatter';
 import type { Amigo, Corrida, Grupo, MembroSaldo, SyncStatus, Transferencia, UserProfile } from '../types';
 
 function generateUUID(): string {
@@ -124,9 +124,14 @@ async function saveRemoteSnapshotToSQLite(data: {
   const pendingRows = await queryAll<{ entity_id: string }>('SELECT entity_id FROM sync_queue');
   const pendingIds = new Set(pendingRows.map((r) => r.entity_id));
   const localFriends = await queryAll<{ id: string }>('SELECT id FROM friends WHERE synced = 1');
+  const localFriendsWithData = await queryAll<{ id: string; name: string; phone: string }>('SELECT id, name, phone FROM friends');
   const localGroups = await queryAll<{ id: string }>('SELECT id FROM groups_table WHERE synced = 1');
   const localExps = await queryAll<{ id: string }>('SELECT id FROM expenses WHERE synced = 1');
   const currentSession = await queryOne<any>('SELECT * FROM auth_session WHERE id = 1');
+  const friendsWithExpensesRows = await queryAll<{ friend_id: string }>(
+    'SELECT friend_id FROM expense_participants UNION SELECT paid_by_friend_id as friend_id FROM expenses WHERE paid_by_friend_id IS NOT NULL'
+  );
+  const friendsWithExpenses = new Set(friendsWithExpensesRows.map((r) => r.friend_id));
 
   db.run('BEGIN TRANSACTION');
   try {
@@ -152,21 +157,30 @@ async function saveRemoteSnapshotToSQLite(data: {
     if (Array.isArray(data.friends)) {
       const remoteFriendIds = new Set(data.friends.map((f) => f.id));
       for (const lf of localFriends) {
-        if (!remoteFriendIds.has(lf.id) && !pendingIds.has(lf.id)) {
+        // PROTEÇÃO: Nunca deletar do SQLite local amigos vinculados a despesas
+        if (!remoteFriendIds.has(lf.id) && !pendingIds.has(lf.id) && !friendsWithExpenses.has(lf.id)) {
           db.run('DELETE FROM friends WHERE id = ?', [lf.id]);
         }
       }
 
       for (const f of data.friends) {
         if (pendingIds.has(f.id)) continue;
+        const normP = stripCountryCode(f.phone || f.telefone || '');
+        const canonP = getCanonicalPhoneKey(normP);
+        // PRIORIZA O NOME QUE O USUÁRIO DEU AO AMIGO LOCALMENTE
+        const existingLocal = localFriendsWithData.find(
+          (lf) => (canonP && getCanonicalPhoneKey(lf.phone) === canonP) || lf.id === f.id
+        );
+        const friendName = (existingLocal && existingLocal.name) || f.name || f.nome || '';
+
         db.run(
           `INSERT OR REPLACE INTO friends (id, user_id, name, phone, pix_key, color, is_favorite, synced, updated_at)
            VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?)`,
           [
             f.id,
             f.user_id || data.user?.id || '',
-            f.name || f.nome || '',
-            stripCountryCode(f.phone || f.telefone || ''),
+            friendName,
+            normP,
             f.pix_key || f.pix || '',
             f.color || f.cor || 'bg-sky-500',
             f.is_favorite || f.favorito ? 1 : 0,
@@ -731,11 +745,11 @@ export const dbService = {
         });
       }
 
-      // Deduplicação de amigos (garante que não haja amigos duplicados na listagem)
+      // Deduplicação de amigos (garante que não haja amigos duplicados na listagem pelo telefone canônico)
       const amigosUnicosMap = new Map<string, Amigo>();
       for (const a of amigos) {
-        const normP = stripCountryCode(a.telefone || a.phone || '');
-        const key = normP ? `phone_${normP}` : `name_${(a.nome || a.name || '').trim().toLowerCase()}`;
+        const canon = getCanonicalPhoneKey(a.telefone || a.phone);
+        const key = canon ? `phone_${canon}` : `id_${a.id}`;
         if (!amigosUnicosMap.has(key)) {
           amigosUnicosMap.set(key, a);
         } else {
@@ -1282,36 +1296,59 @@ export const dbService = {
           [g.id]
         );
 
-        const members = memberRows.map((m) => ({
-          id: m.id,
-          user: m.user_id
-            ? {
-                id: m.user_id,
-                name: session?.name || 'Você',
-                pix_key: session?.pix_key || '',
-                phone: session?.phone || '',
-              }
-            : null,
-          friend: m.friend_id
-            ? {
-                id: m.friend_id,
-                name: m.friend_name || 'Amigo',
-                phone: m.friend_phone || '',
-                pix_key: m.friend_pix || '',
-                color: m.friend_color || 'bg-sky-500',
-              }
-            : null,
-        }));
+        const allLocalFriends = await queryAll<any>('SELECT * FROM friends');
+        const members = memberRows.map((m) => {
+          const matchedLocal = allLocalFriends.find(
+            (lf) =>
+              lf.id === m.friend_id ||
+              (m.friend_phone && phonesMatchBR(lf.phone, m.friend_phone))
+          );
+          const friendName = matchedLocal?.name || m.friend_name || 'Amigo';
 
-        const hasSelf = members.some((m) => m.user !== null);
-        const totalMembersCount = hasSelf ? members.length : members.length + 1;
+          return {
+            id: m.id,
+            user: m.user_id
+              ? {
+                  id: m.user_id,
+                  name: m.user_id === session?.user_id ? 'Você' : (session?.name || 'Você'),
+                  pix_key: session?.pix_key || '',
+                  phone: session?.phone || '',
+                }
+              : null,
+            friend: m.friend_id
+              ? {
+                  id: matchedLocal?.id || m.friend_id,
+                  name: friendName,
+                  phone: matchedLocal?.phone || m.friend_phone || '',
+                  pix_key: matchedLocal?.pix_key || m.friend_pix || '',
+                  color: matchedLocal?.color || m.friend_color || 'bg-sky-500',
+                }
+              : null,
+          };
+        });
+
+        // Deduplica membros do grupo para evitar duplicações pelo telefone canônico
+        const uniqueMembers: typeof members = [];
+        const seenMemberKeys = new Set<string>();
+        for (const m of members) {
+          const isSelf = m.user !== null && (m.user.id === session?.user_id || m.user.name === 'Você');
+          const canon = getCanonicalPhoneKey(m.friend?.phone || m.user?.phone);
+          const dedupeKey = isSelf ? 'self' : canon ? `phone_${canon}` : `id_${m.friend?.id || m.user?.id || m.id}`;
+          if (!seenMemberKeys.has(dedupeKey)) {
+            seenMemberKeys.add(dedupeKey);
+            uniqueMembers.push(m);
+          }
+        }
+
+        const hasSelf = uniqueMembers.some((m) => m.user !== null);
+        const totalMembersCount = hasSelf ? uniqueMembers.length : uniqueMembers.length + 1;
 
         result.push({
           id: g.id,
           name: g.name,
           created_by: g.created_by,
           created_at: g.created_at,
-          members,
+          members: uniqueMembers,
           _count: {
             members: totalMembersCount,
             expenses: Number(expCountRow?.cnt || 0),

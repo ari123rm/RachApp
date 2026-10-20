@@ -25,6 +25,17 @@ export function stripCountryCode(raw?: string | null): string {
 /**
  * Compara dois números de telefone brasileiros ignorando formatação, DDI +55 e variações do 9º dígito.
  */
+export function getCanonicalPhoneKey(raw?: string | null): string {
+  if (!raw) return '';
+  const digits = stripCountryCode(raw);
+  if (digits.length >= 10) {
+    const ddd = digits.slice(0, 2);
+    const last8 = digits.slice(-8);
+    return `${ddd}_${last8}`;
+  }
+  return digits;
+}
+
 export function phonesMatchBR(rawA?: string | null, rawB?: string | null): boolean {
   const a = stripCountryCode(rawA);
   const b = stripCountryCode(rawB);

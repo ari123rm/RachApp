@@ -2,7 +2,7 @@
 import { prisma } from '../config/db';
 import { ExpenseService } from './Expense.service';
 import { FriendService } from './Friend.service';
-import { normalizePhoneBackend, phonesMatch } from './Auth.service';
+import { getCanonicalPhoneBackend, normalizePhoneBackend, phonesMatch } from './Auth.service';
 
 export class GroupService {
   static async transformGroupForUser(
@@ -10,18 +10,39 @@ export class GroupService {
     userId: string,
     reverseContext: Awaited<ReturnType<typeof FriendService.syncReverseLinks>>
   ) {
-    const { currentUser, reverseFriendIds, ensureLocalFriendForOwner, ensureLocalFriendForForeign } =
+    const { currentUser, reverseFriendIds, myFriends, ensureLocalFriendForOwner, ensureLocalFriendForForeign } =
       reverseContext;
     const reverseSet = new Set(reverseFriendIds);
 
-    let transformedMembers = group.members || [];
+    const resolveLocalFriend = async (foreignFriend: any) => {
+      if (!foreignFriend) return null;
+      const canonF = getCanonicalPhoneBackend(foreignFriend.phone);
+      const matchInMy = myFriends.find(
+        (f) =>
+          f.id === foreignFriend.id ||
+          (canonF && getCanonicalPhoneBackend(f.phone) === canonF) ||
+          (foreignFriend.phone && phonesMatch(f.phone, foreignFriend.phone)) ||
+          f.name.trim().toLowerCase() === foreignFriend.name.trim().toLowerCase()
+      );
+      if (matchInMy) return matchInMy;
+      return ensureLocalFriendForForeign(foreignFriend);
+    };
+
+    let mappedMembers: any[] = [];
 
     if (group.created_by !== userId) {
-      const ownerLocalFriend = group.owner
-        ? await ensureLocalFriendForOwner(group.owner)
-        : await ensureLocalFriendForForeign({ id: group.created_by, name: 'Amigo' });
+      const ownerCanon = getCanonicalPhoneBackend(group.owner?.phone);
+      const ownerLocalFriend =
+        myFriends.find(
+          (f) =>
+            (ownerCanon && getCanonicalPhoneBackend(f.phone) === ownerCanon) ||
+            (group.owner?.phone && phonesMatch(f.phone, group.owner.phone))
+        ) ||
+        (group.owner
+          ? await ensureLocalFriendForOwner(group.owner)
+          : await ensureLocalFriendForForeign({ id: group.created_by, name: 'Amigo' }));
 
-      const newMembers: any[] = [
+      mappedMembers.push(
         {
           id: `${group.id}_self`,
           group_id: group.id,
@@ -44,17 +65,14 @@ export class GroupService {
           friend_id: ownerLocalFriend.id,
           user: null,
           friend: ownerLocalFriend,
-        },
-      ];
-
-      const seenFriendIds = new Set<string>([ownerLocalFriend.id]);
+        }
+      );
 
       for (const m of group.members || []) {
         if (m.friend_id && !reverseSet.has(m.friend_id) && m.friend) {
-          const localF = await ensureLocalFriendForForeign(m.friend);
-          if (!seenFriendIds.has(localF.id)) {
-            seenFriendIds.add(localF.id);
-            newMembers.push({
+          const localF = await resolveLocalFriend(m.friend);
+          if (localF && localF.id !== ownerLocalFriend.id) {
+            mappedMembers.push({
               id: m.id || `${group.id}_${localF.id}`,
               group_id: group.id,
               user_id: null,
@@ -65,8 +83,60 @@ export class GroupService {
           }
         }
       }
+    } else {
+      // O grupo foi criado por userId: prioriza sempre o nome que o usuário deu aos seus amigos
+      for (const m of group.members || []) {
+        const isSelf = m.user_id === userId || (m.user && m.user.id === userId);
+        if (isSelf) {
+          mappedMembers.push({
+            id: m.id || `${group.id}_self`,
+            group_id: group.id,
+            user_id: userId,
+            friend_id: null,
+            user: currentUser
+              ? {
+                  id: currentUser.id,
+                  name: currentUser.name,
+                  pix_key: currentUser.pix_key,
+                  phone: currentUser.phone,
+                }
+              : null,
+            friend: null,
+          });
+        } else {
+          const rawFriend = m.friend || m.user;
+          const localF = await resolveLocalFriend(rawFriend);
+          if (localF) {
+            mappedMembers.push({
+              id: m.id || `${group.id}_${localF.id}`,
+              group_id: group.id,
+              user_id: null,
+              friend_id: localF.id,
+              user: null,
+              friend: localF,
+            });
+          }
+        }
+      }
+    }
 
-      transformedMembers = newMembers;
+    // Deduplica membros do grupo pelo telefone canônico para que NINGUÉM apareça duplicado
+    const uniqueMembers: any[] = [];
+    const seenMemberKeys = new Set<string>();
+
+    for (const m of mappedMembers) {
+      const isSelf = m.user_id === userId;
+      const canon = getCanonicalPhoneBackend(m.friend?.phone || m.user?.phone);
+      const dedupeKey = isSelf
+        ? 'self'
+        : canon
+        ? `phone_${canon}`
+        : `id_${m.friend_id || m.friend?.id || m.id}`;
+
+      if (!seenMemberKeys.has(dedupeKey)) {
+        seenMemberKeys.add(dedupeKey);
+        uniqueMembers.push(m);
+      }
     }
 
     const transformedExpenses = [];
@@ -78,10 +148,10 @@ export class GroupService {
 
     return {
       ...group,
-      members: transformedMembers,
+      members: uniqueMembers,
       expenses: transformedExpenses,
       _count: {
-        members: transformedMembers.length,
+        members: uniqueMembers.length,
         expenses: transformedExpenses.length,
       },
     };

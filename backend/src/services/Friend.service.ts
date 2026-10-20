@@ -1,17 +1,53 @@
 // src/services/Friend.service.ts
 import { prisma } from '../config/db';
-import { normalizePhoneBackend, phonesMatch } from './Auth.service';
+import { getCanonicalPhoneBackend, normalizePhoneBackend, phonesMatch } from './Auth.service';
 
 export class FriendService {
+  private static rejectedRequests = new Set<string>();
+
   /**
    * Sincroniza vínculos reversos pelo número de telefone:
-   * Se outro usuário (User B) cadastrou o usuário atual (User A) como amigo usando o telefone de User A,
-   * encontra todos os registros Friend que apontam para User A (reverseFriendIds) e garante que User B
-   * também exista na lista de amigos de User A.
+   * Mantém amigos existentes e conexões de despesas compartilhadas como amigos confirmados.
+   * Novas solicitações de amizade sem histórico de despesas permanecem como pedidos pendentes.
    */
   static async syncReverseLinks(userId: string) {
     const currentUser = await prisma.user.findUnique({ where: { id: userId } });
-    let myFriends = await prisma.friend.findMany({ where: { user_id: userId } });
+    let myFriends = await prisma.friend.findMany({ where: { user_id: userId }, orderBy: { id: 'asc' } });
+
+    // CONSOLIDAÇÃO DE DUPLICATAS POR TELEFONE:
+    // Se houver amigos duplicados do mesmo usuário com o mesmo telefone canônico,
+    // preserva SEMPRE o nome original dado pelo usuário (o amigo mais antigo) e funde os vínculos.
+    const friendsByCanon = new Map<string, typeof myFriends>();
+    for (const f of myFriends) {
+      const canon = getCanonicalPhoneBackend(f.phone);
+      if (canon) {
+        if (!friendsByCanon.has(canon)) friendsByCanon.set(canon, []);
+        friendsByCanon.get(canon)!.push(f);
+      }
+    }
+
+    for (const [, list] of friendsByCanon.entries()) {
+      if (list.length > 1) {
+        const primary = list[0];
+        const duplicates = list.slice(1);
+        for (const dup of duplicates) {
+          await prisma.expenseParticipant.updateMany({
+            where: { friend_id: dup.id },
+            data: { friend_id: primary.id },
+          });
+          await prisma.expense.updateMany({
+            where: { paid_by_friend_id: dup.id },
+            data: { paid_by_friend_id: primary.id },
+          });
+          await prisma.groupMember.updateMany({
+            where: { friend_id: dup.id },
+            data: { friend_id: primary.id },
+          });
+          await prisma.friend.delete({ where: { id: dup.id } }).catch(() => {});
+        }
+        myFriends = myFriends.filter((f) => !duplicates.some((d) => d.id === f.id));
+      }
+    }
 
     const allUsers = await prisma.user.findMany({
       select: { id: true, name: true, phone: true, pix_key: true },
@@ -41,8 +77,10 @@ export class FriendService {
     }) => {
       const normOwnerPhone = normalizePhoneBackend(ownerUser.phone);
       const cleanOwnerPix = ownerUser.pix_key?.trim() || null;
+      const canonOwner = getCanonicalPhoneBackend(ownerUser.phone);
       let existing = myFriends.find(
         (f) =>
+          (canonOwner && getCanonicalPhoneBackend(f.phone) === canonOwner) ||
           (normOwnerPhone && phonesMatch(f.phone, normOwnerPhone)) ||
           (!f.phone && f.name.trim().toLowerCase() === ownerUser.name.trim().toLowerCase())
       );
@@ -63,17 +101,19 @@ export class FriendService {
         return existing;
       }
 
-      // ISOLAMENTO DE GRUPOS: Membros/donos de grupo que não são amigos NÃO são inseridos em Friend
-      return {
-        id: ownerUser.id,
-        user_id: userId,
-        name: ownerUser.name.trim() || 'Criador do Grupo',
-        phone: normOwnerPhone || null,
-        pix_key: cleanOwnerPix,
-        color: 'bg-teal-500',
-        is_favorite: false,
-        is_group_only: true,
-      } as any;
+      // Amigo que participa/criou uma despesa compartilhada precisa existir no banco para integridade dos dados
+      const created = await prisma.friend.create({
+        data: {
+          user_id: userId,
+          name: ownerUser.name.trim() || 'Criador do Racha',
+          phone: normOwnerPhone || null,
+          pix_key: cleanOwnerPix,
+          color: 'bg-teal-500',
+          is_favorite: false,
+        },
+      });
+      myFriends.push(created);
+      return created;
     };
 
     const ensureLocalFriendForForeign = async (foreignFriend: {
@@ -85,8 +125,10 @@ export class FriendService {
     }) => {
       const normPhone = normalizePhoneBackend(foreignFriend.phone);
       const cleanForeignPix = foreignFriend.pix_key?.trim() || null;
+      const canonForeign = getCanonicalPhoneBackend(foreignFriend.phone);
       let existing = myFriends.find(
         (f) =>
+          (canonForeign && getCanonicalPhoneBackend(f.phone) === canonForeign) ||
           (normPhone && phonesMatch(f.phone, normPhone)) ||
           f.name.trim().toLowerCase() === foreignFriend.name.trim().toLowerCase()
       );
@@ -107,17 +149,19 @@ export class FriendService {
         return existing;
       }
 
-      // ISOLAMENTO DE GRUPOS: Membros de grupo que não são amigos NÃO são inseridos em Friend
-      return {
-        id: foreignFriend.id,
-        user_id: userId,
-        name: foreignFriend.name.trim() || 'Membro do Grupo',
-        phone: normPhone || null,
-        pix_key: cleanForeignPix,
-        color: foreignFriend.color || 'bg-sky-500',
-        is_favorite: false,
-        is_group_only: true,
-      } as any;
+      // Amigo que participa de uma despesa compartilhada precisa existir no banco
+      const created = await prisma.friend.create({
+        data: {
+          user_id: userId,
+          name: foreignFriend.name.trim() || 'Membro do Racha',
+          phone: normPhone || null,
+          pix_key: cleanForeignPix,
+          color: foreignFriend.color || 'bg-sky-500',
+          is_favorite: false,
+        },
+      });
+      myFriends.push(created);
+      return created;
     };
 
     if (!currentUser || !currentUser.phone) {
@@ -148,8 +192,57 @@ export class FriendService {
     );
     const reverseFriendIds = reverseFriends.map((f) => f.id);
 
-    // NOTA: As solicitações reversas ficam visíveis na aba dedicada "Aceitar Amizades",
-    // em vez de criar automaticamente registros de amigos na lista principal sem consentimento.
+    // Identifica usuários que já compartilham despesas na versão antiga/atual
+    const existingExpenses = await prisma.expense.findMany({
+      where: {
+        OR: [
+          { user_id: userId },
+          { participants: { some: { friend: { phone: currentUser.phone } } } },
+          { paidByFriend: { phone: currentUser.phone } },
+        ],
+      },
+      include: {
+        owner: { select: { id: true, phone: true, name: true, pix_key: true } },
+        participants: { include: { friend: true } },
+      },
+    });
+
+    const connectedUserPhones = new Set<string>();
+    for (const exp of existingExpenses) {
+      if (exp.owner?.phone) connectedUserPhones.add(normalizePhoneBackend(exp.owner.phone));
+      for (const p of exp.participants) {
+        if (p.friend?.phone) connectedUserPhones.add(normalizePhoneBackend(p.friend.phone));
+      }
+    }
+
+    // Para usuários da versão antiga que já compartilham despesas ou vínculos existentes,
+    // garante que permaneçam como amigos confirmados mútuos
+    for (const rf of reverseFriends) {
+      if (!rf.user) continue;
+      const requesterNormPhone = normalizePhoneBackend(rf.user.phone);
+      if (!requesterNormPhone) continue;
+
+      const isConnectedByExpense = connectedUserPhones.has(requesterNormPhone);
+      const canonReq = getCanonicalPhoneBackend(requesterNormPhone);
+      const alreadyFriend = myFriends.some((f) => {
+        const cf = getCanonicalPhoneBackend(f.phone);
+        return (cf && canonReq && cf === canonReq) || (f.phone && phonesMatch(f.phone, requesterNormPhone));
+      });
+
+      if (isConnectedByExpense && !alreadyFriend) {
+        const created = await prisma.friend.create({
+          data: {
+            user_id: userId,
+            name: rf.user.name,
+            phone: requesterNormPhone,
+            pix_key: rf.user.pix_key || null,
+            color: 'bg-teal-500',
+            is_favorite: false,
+          },
+        });
+        myFriends.push(created);
+      }
+    }
 
     return {
       currentUser,
@@ -267,11 +360,12 @@ export class FriendService {
       select: { id: true, name: true, phone: true, pix_key: true },
     });
 
-    // Deduplicação em memória para garantir que não haja amigos duplicados na lista
+    // Deduplicação em memória para garantir que não haja amigos duplicados com o mesmo telefone
     const uniqueFriendsMap = new Map<string, typeof friends[0]>();
     for (const f of friends) {
       const normP = normalizePhoneBackend(f.phone);
-      const dedupeKey = normP ? `phone_${normP}` : `name_${f.name.trim().toLowerCase()}`;
+      const canonP = getCanonicalPhoneBackend(f.phone);
+      const dedupeKey = canonP ? `phone_${canonP}` : `id_${f.id}`;
       if (!uniqueFriendsMap.has(dedupeKey)) {
         uniqueFriendsMap.set(dedupeKey, f);
       } else {
@@ -350,6 +444,29 @@ export class FriendService {
       myFriends.map((f) => normalizePhoneBackend(f.phone)).filter(Boolean)
     );
 
+    // Identifica usuários que já compartilham despesas (amigos já consolidados da versão antiga/atual)
+    const existingExpenses = await prisma.expense.findMany({
+      where: {
+        OR: [
+          { user_id: userId },
+          { participants: { some: { friend: { phone: currentUser.phone } } } },
+          { paidByFriend: { phone: currentUser.phone } },
+        ],
+      },
+      include: {
+        owner: { select: { id: true, phone: true } },
+        participants: { include: { friend: true } },
+      },
+    });
+
+    const connectedUserPhones = new Set<string>();
+    for (const exp of existingExpenses) {
+      if (exp.owner?.phone) connectedUserPhones.add(normalizePhoneBackend(exp.owner.phone));
+      for (const p of exp.participants) {
+        if (p.friend?.phone) connectedUserPhones.add(normalizePhoneBackend(p.friend.phone));
+      }
+    }
+
     const otherFriendsWithPhone = await prisma.friend.findMany({
       where: {
         user_id: { not: userId },
@@ -368,20 +485,24 @@ export class FriendService {
     for (const rf of otherFriendsWithPhone) {
       if (!rf.user || rf.user.id === userId) continue;
       if (seenUserIds.has(rf.user.id)) continue;
+      if (FriendService.rejectedRequests.has(`${userId}_${rf.user.id}`)) continue;
 
       if (phonesMatch(rf.phone, currentUser.phone)) {
         const requesterNormPhone = normalizePhoneBackend(rf.user.phone);
-        if (!myFriendPhones.has(requesterNormPhone)) {
-          seenUserIds.add(rf.user.id);
-          requests.push({
-            id: rf.id,
-            requesterId: rf.user.id,
-            name: rf.user.name,
-            phone: rf.user.phone,
-            pix_key: rf.user.pix_key,
-            created_at: rf.user.id,
-          });
-        }
+        // Se já é amigo na lista de User B, NÃO é pendente
+        if (myFriendPhones.has(requesterNormPhone)) continue;
+        // Se já compartilham despesas da versão antiga, NÃO é pendente
+        if (connectedUserPhones.has(requesterNormPhone)) continue;
+
+        seenUserIds.add(rf.user.id);
+        requests.push({
+          id: rf.id,
+          requesterId: rf.user.id,
+          name: rf.user.name,
+          phone: rf.user.phone,
+          pix_key: rf.user.pix_key,
+          created_at: rf.user.id,
+        });
       }
     }
 
@@ -417,12 +538,22 @@ export class FriendService {
           is_favorite: false,
         },
       });
+    } else {
+      existing = await prisma.friend.update({
+        where: { id: existing.id },
+        data: {
+          phone: normPhone || existing.phone,
+          pix_key: requester.pix_key || existing.pix_key,
+        },
+      });
     }
 
+    FriendService.rejectedRequests.delete(`${userId}_${requesterUserId}`);
     return existing;
   }
 
   static async rejectFriendRequest(userId: string, requesterUserId: string) {
+    FriendService.rejectedRequests.add(`${userId}_${requesterUserId}`);
     return { success: true };
   }
 

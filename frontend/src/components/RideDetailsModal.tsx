@@ -47,12 +47,30 @@ export function RideDetailsModal({
       setLocalParticipantes(initialParticipantes);
     } else if (ride?.participantesIds && ride.participantesIds.length > 0) {
       dbService.amigos.getAll().then((todos) => {
-        setLocalParticipantes(todos.filter((a) => ride.participantesIds.includes(a.id)));
+        const found = todos.filter((a) => a && a.id && ride.participantesIds.includes(a.id));
+        if (found.length > 0) {
+          setLocalParticipantes(found);
+        } else {
+          setLocalParticipantes(
+            ride.participantesIds.map((id, idx) => ({
+              id,
+              nome: `Amigo ${idx + 1}`,
+              cor: 'bg-sky-500',
+            }))
+          );
+        }
       });
     }
   }, [ride, initialParticipantes]);
 
-  const participantes = localParticipantes;
+  const participantes =
+    localParticipantes && localParticipantes.length > 0
+      ? localParticipantes
+      : (ride?.participantesIds || []).map((id, idx) => ({
+          id,
+          nome: `Amigo ${idx + 1}`,
+          cor: 'bg-sky-500',
+        }));
   const triggerUpdate = () => {
     if (onUpdated) onUpdated();
     if (update) update();
@@ -86,16 +104,21 @@ export function RideDetailsModal({
     ride.selfAmountOwed !== undefined ? Number(ride.selfAmountOwed) : valorDivididoPadrao;
   const meuValorPago = Number(ride.selfAmountPaid || 0);
 
-  const formatarDataBR = (iso: string) => {
+  const formatarDataBR = (iso: any) => {
     if (!iso) return '';
-    const parts = iso.split('-');
-    if (parts.length !== 3) return iso;
-    return `${parts[2]}/${parts[1]}/${parts[0]}`;
+    try {
+      const str = String(iso).split('T')[0];
+      const parts = str.split('-');
+      if (parts.length !== 3) return str;
+      return `${parts[2]}/${parts[1]}/${parts[0]}`;
+    } catch {
+      return '';
+    }
   };
 
   const voceEhPagador = !ride.paidByFriendId;
   const isSelfQuitado = voceEhPagador || meuValorPago >= minhaParte - 0.01;
-  const pagadorAmigo = participantes.find((p: any) => p.id === ride.paidByFriendId);
+  const pagadorAmigo = participantes.find((p: any) => p && p.id === ride.paidByFriendId);
   const pagadorNome = pagadorAmigo?.nome || pagadorAmigo?.name || ride.paidByName || 'Amigo';
   const pagadorPix =
     ride.payerPixKey?.trim() ||
@@ -223,27 +246,27 @@ export function RideDetailsModal({
             </div>
 
             <div className="space-y-2.5">
-              {participantes.map((p: any) => {
-                const nome = p.nome || p.name || 'Amigo';
-                const cor = p.cor || p.color || 'bg-sky-500';
-                const valorParte = obterParteAmigo(p.id);
+              {participantes.map((p: any, idx: number) => {
+                const nome = p?.nome || p?.name || 'Amigo';
+                const cor = p?.cor || p?.color || 'bg-sky-500';
+                const valorParte = obterParteAmigo(p?.id);
                 const pctParte =
                   valorNumerico > 0 ? ((valorParte / valorNumerico) * 100).toFixed(1) : '0';
-                const valorPago = ride.pagamentos?.[p.id] || 0;
-                const isFriendPayer = ride.paidByFriendId === p.id;
+                const valorPago = (p?.id && ride.pagamentos?.[p.id]) || 0;
+                const isFriendPayer = Boolean(p?.id && ride.paidByFriendId === p.id);
                 const isQuitado = isFriendPayer || valorPago >= valorParte - 0.01;
-                const receiptDoAmigo = ride.comprovantes?.[p.id] || null;
+                const receiptDoAmigo = (p?.id && ride.comprovantes?.[p.id]) || null;
 
                 return (
                   <div
-                    key={p.id}
+                    key={p?.id || idx}
                     className="flex justify-between items-center bg-[#1c1c1e] p-3.5 rounded-xl border border-white/5"
                   >
                     <div className="flex items-center gap-3">
                       <div
                         className={`w-10 h-10 rounded-full ${cor} flex items-center justify-center font-bold text-white shrink-0`}
                       >
-                        {nome[0]?.toUpperCase()}
+                        {(nome[0] || 'A').toUpperCase()}
                       </div>
                       <div>
                         <div className="flex items-center gap-2 flex-wrap">
@@ -275,7 +298,7 @@ export function RideDetailsModal({
                             <button
                               type="button"
                               onClick={() =>
-                                handleCreditorTogglePaid(p.id, isQuitado, valorParte)
+                                p?.id && handleCreditorTogglePaid(p.id, isQuitado, valorParte)
                               }
                               className={`mt-1.5 px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all active:scale-95 border ${
                                 isQuitado

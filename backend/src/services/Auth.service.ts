@@ -33,6 +33,17 @@ export function phonesMatch(rawA?: string | null, rawB?: string | null): boolean
   return false;
 }
 
+export function getCanonicalPhoneBackend(raw?: string | null): string {
+  if (!raw) return '';
+  const digits = normalizePhoneBackend(raw);
+  if (digits.length >= 10) {
+    const ddd = digits.slice(0, 2);
+    const last8 = digits.slice(-8);
+    return `${ddd}_${last8}`;
+  }
+  return digits;
+}
+
 export class AuthService {
   static async register(data: { name: string; email: string; password_hash: string; phone: string; pix_key?: string }) {
     if (!data.name || !data.email || !data.password_hash) {

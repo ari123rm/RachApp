@@ -1,6 +1,6 @@
 // src/services/Expense.service.ts
 import { prisma } from '../config/db';
-import { phonesMatch } from './Auth.service';
+import { getCanonicalPhoneBackend, phonesMatch } from './Auth.service';
 import { FriendService } from './Friend.service';
 
 export interface Transfer {
@@ -636,10 +636,15 @@ export class ExpenseService {
 
     for (const m of group.members) {
       if (m.friend && !reverseSet.has(m.friend.id)) {
+        const canonF = getCanonicalPhoneBackend(m.friend.phone);
+        const matchLocal = canonF
+          ? reverseContext.myFriends.find((f) => getCanonicalPhoneBackend(f.phone) === canonF)
+          : null;
         const localF =
-          group.created_by === effectiveUserId
+          matchLocal ||
+          (group.created_by === effectiveUserId
             ? m.friend
-            : await reverseContext.ensureLocalFriendForForeign(m.friend);
+            : await reverseContext.ensureLocalFriendForForeign(m.friend));
         entityMeta[localF.id] = {
           id: localF.id,
           name: localF.name,
@@ -728,18 +733,38 @@ export class ExpenseService {
 
     const transfers = this.simplifyDebts(netBalances, entityMeta);
 
-    const memberBalances = Object.entries(entityMeta)
-      .filter(([key]) => key !== ownerKey)
-      .map(([key, meta]) => ({
-        friendId: meta.id,
-        name: meta.name,
-        phone: meta.phone,
-        pix_key: meta.pix_key,
-        color: meta.color,
-        netBalance: Number((netBalances[key] || 0).toFixed(2)),
-        owesYou: Number((memberOwesOwner[key] || 0).toFixed(2)),
-        pendingCount: memberPendingCount[key] || 0,
-      }));
+    const seenMemberKeys = new Set<string>();
+    const memberBalances: any[] = [];
+
+    for (const [key, meta] of Object.entries(entityMeta)) {
+      if (key === ownerKey) continue;
+      const canon = getCanonicalPhoneBackend(meta.phone);
+      const dedupeKey = canon ? `phone_${canon}` : `id_${meta.id}`;
+
+      if (!seenMemberKeys.has(dedupeKey)) {
+        seenMemberKeys.add(dedupeKey);
+        memberBalances.push({
+          friendId: meta.id,
+          name: meta.name,
+          phone: meta.phone,
+          pix_key: meta.pix_key,
+          color: meta.color,
+          netBalance: Number((netBalances[key] || 0).toFixed(2)),
+          owesYou: Number((memberOwesOwner[key] || 0).toFixed(2)),
+          pendingCount: memberPendingCount[key] || 0,
+        });
+      } else {
+        const existing = memberBalances.find((m) => {
+          const c = getCanonicalPhoneBackend(m.phone);
+          return c ? `phone_${c}` === dedupeKey : `id_${m.friendId}` === dedupeKey;
+        });
+        if (existing) {
+          existing.netBalance = Number((existing.netBalance + Number(netBalances[key] || 0)).toFixed(2));
+          existing.owesYou = Number((existing.owesYou + Number(memberOwesOwner[key] || 0)).toFixed(2));
+          existing.pendingCount += memberPendingCount[key] || 0;
+        }
+      }
+    }
 
     return {
       userNetBalance: Number((netBalances[ownerKey] || 0).toFixed(2)),
