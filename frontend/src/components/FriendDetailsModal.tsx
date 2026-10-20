@@ -25,6 +25,17 @@ import { generatePixCopiaECola } from '../utils/pixGenerator';
 import { formatPhoneBR, openWhatsApp, phonesMatchBR, stripCountryCode } from '../utils/phoneFormatter';
 import { useModalBackHandler } from '../utils/modalBackHandler';
 
+function parseCurrency(val: any): number {
+  if (typeof val === 'number') return isNaN(val) ? 0 : val;
+  if (!val) return 0;
+  if (typeof val === 'string') {
+    const cleaned = val.replace(/[^\d,-]/g, '').replace(',', '.');
+    const parsed = parseFloat(cleaned);
+    return isNaN(parsed) ? 0 : parsed;
+  }
+  return 0;
+}
+
 interface FriendDetailsProps {
   amigo: any;
   isOpen: boolean;
@@ -86,11 +97,14 @@ export function FriendDetailsModal({
   useModalBackHandler(isPaymentModalOpen, () => setIsPaymentModalOpen(false));
 
   useEffect(() => {
-    setAmigoAtual(amigo);
+    if (amigo) {
+      setAmigoAtual(amigo);
+    }
   }, [amigo]);
 
   const carregarCorridas = async () => {
-    if (!amigoAtual?.id) return;
+    const targetAmigo = amigo || amigoAtual;
+    if (!targetAmigo?.id) return;
     setIsLoading(true);
     try {
       const [todasCorridas, config, todosAmigos, todosGrupos] = await Promise.all([
@@ -105,19 +119,35 @@ export function FriendDetailsModal({
         pix: (config.pix_key || config.pix || '').trim(),
       });
 
-      const atualizado = todosAmigos.find((a) => a.id === amigoAtual.id) || amigoAtual;
+      const targetPhone = stripCountryCode(targetAmigo.telefone || targetAmigo.phone || '');
+      const targetName = (targetAmigo.nome || targetAmigo.name || '').trim().toLowerCase();
+
+      const atualizado =
+        todosAmigos.find((a) => a.id === targetAmigo.id) ||
+        todosAmigos.find((a) => {
+          const aPhone = stripCountryCode(a.telefone || a.phone || '');
+          if (targetPhone && aPhone && phonesMatchBR(targetPhone, aPhone)) return true;
+          const aName = (a.nome || a.name || '').trim().toLowerCase();
+          return targetName && aName && targetName === aName;
+        }) ||
+        targetAmigo;
+
       setAmigoAtual(atualizado);
 
-      const targetPhone = stripCountryCode(atualizado.telefone || atualizado.phone || '');
-      const targetName = (atualizado.nome || atualizado.name || '').trim().toLowerCase();
+      const effectivePhone = stripCountryCode(atualizado.telefone || atualizado.phone || targetPhone);
+      const effectiveName = (atualizado.nome || atualizado.name || targetName).trim().toLowerCase();
 
-      const matchingFriendIds = new Set<string>([atualizado.id]);
+      // Mapeia todos os IDs de amigos equivalentes (por ID direto, telefone ou nome)
+      const matchingFriendIds = new Set<string>();
+      if (atualizado.id) matchingFriendIds.add(atualizado.id);
+      if (targetAmigo.id) matchingFriendIds.add(targetAmigo.id);
+
       todosAmigos.forEach((a) => {
         const aPhone = stripCountryCode(a.telefone || a.phone || '');
         const aName = (a.nome || a.name || '').trim().toLowerCase();
         if (
-          (targetPhone && phonesMatchBR(aPhone, targetPhone)) ||
-          (targetName && aName === targetName)
+          (effectivePhone && phonesMatchBR(aPhone, effectivePhone)) ||
+          (effectiveName && aName && aName === effectiveName)
         ) {
           matchingFriendIds.add(a.id);
         }
@@ -128,30 +158,55 @@ export function FriendDetailsModal({
         groupMap.set(g.id, g.name);
       });
 
-      const compartilhadas = todasCorridas.filter(
-        (c) =>
-          c.participantesIds.some((pid) => matchingFriendIds.has(pid)) ||
-          (c.paidByFriendId && matchingFriendIds.has(c.paidByFriendId))
-      );
+      // Determina se este amigo foi o pagador da corrida
+      const checkIfFriendIsPayer = (c: any) => {
+        if (!c.paidByFriendId) return false;
+        if (matchingFriendIds.has(c.paidByFriendId)) return true;
+        if (effectivePhone && c.payerPhone && phonesMatchBR(c.payerPhone, effectivePhone)) return true;
+        if (effectiveName && c.paidByName && c.paidByName.trim().toLowerCase() === effectiveName) return true;
+        return false;
+      };
 
-      const corridasFormatadas = compartilhadas
+      // Determina se este amigo é participante da corrida
+      const checkIfFriendIsParticipant = (c: any) => {
+        return (c.participantesIds || []).some((pid: string) => {
+          if (matchingFriendIds.has(pid)) return true;
+          const f = todosAmigos.find((a) => a.id === pid);
+          if (f) {
+            const fPhone = stripCountryCode(f.telefone || f.phone || '');
+            const fName = (f.nome || f.name || '').trim().toLowerCase();
+            if (effectivePhone && phonesMatchBR(fPhone, effectivePhone)) return true;
+            if (effectiveName && fName && fName === effectiveName) return true;
+          }
+          return false;
+        });
+      };
+
+      const corridasFormatadas = todasCorridas
         .map((corrida) => {
+          const amigoFoiPagador = checkIfFriendIsPayer(corrida);
+          const amigoEhParticipante = checkIfFriendIsParticipant(corrida);
+
+          // Se o amigo não foi pagador e nem participante, desconsidera
+          if (!amigoFoiPagador && !amigoEhParticipante) return null;
+
+          // Se outro amigo (terceiro) pagou a corrida, o acerto é entre eles
+          if (corrida.paidByFriendId && !amigoFoiPagador) {
+            return null;
+          }
+
           const pid =
             corrida.participantesIds.find((id) => matchingFriendIds.has(id)) || atualizado.id;
-          const qtdPessoas = corrida.participantesIds.length + 1;
+          const qtdPessoas = (corrida.participantesIds?.length || 0) + 1;
+
+          // Quando Você pagou e o amigo deve a parte dele:
           const parte =
             corrida.valoresDevidos?.[pid] !== undefined
               ? Number(corrida.valoresDevidos[pid])
               : corrida.valorTotal / qtdPessoas;
           const jaPago = Number(corrida.pagamentos?.[pid] || 0);
 
-          if (corrida.paidByFriendId && !matchingFriendIds.has(corrida.paidByFriendId)) {
-            return null;
-          }
-
-          const amigoFoiPagador =
-            !!corrida.paidByFriendId && matchingFriendIds.has(corrida.paidByFriendId);
-
+          // Quando o amigo pagou e Você deve sua parte para ele:
           const suaParte =
             corrida.selfAmountOwed !== undefined && corrida.selfAmountOwed > 0
               ? Number(corrida.selfAmountOwed)
@@ -218,18 +273,42 @@ export function FriendDetailsModal({
     }
   }, [isOpen, amigo?.id]);
 
-  if (!isOpen || !amigoAtual) return null;
+  const baseAmigo = amigoAtual || amigo;
+  if (!isOpen || !baseAmigo) return null;
 
-  const nome = amigoAtual.nome || amigoAtual.name || 'Amigo';
-  const cor = amigoAtual.cor || amigoAtual.color || 'bg-sky-500';
-  const telefone = amigoAtual.telefone || amigoAtual.phone || '';
-  const friendPix = amigoAtual.pix_key || amigoAtual.pix || '';
+  const nome = baseAmigo.nome || baseAmigo.name || 'Amigo';
+  const cor = baseAmigo.cor || baseAmigo.color || 'bg-sky-500';
+  const telefone = baseAmigo.telefone || baseAmigo.phone || '';
+  const friendPix = baseAmigo.pix_key || baseAmigo.pix || '';
 
-  const totalEleDeve = corridasDoAmigo.reduce((acc, curr) => acc + (curr.pendente || 0), 0);
-  const totalVoceDeve = corridasDoAmigo.reduce((acc, curr) => acc + (curr.voceDeve || 0), 0);
+  // Saldos consolidados das corridas e do perfil do amigo
+  const rawVoceDeveFromAmigo = parseCurrency(
+    baseAmigo?.voceDeveNumerico ??
+    baseAmigo?.voceDeve ??
+    amigo?.voceDeveNumerico ??
+    amigo?.voceDeve
+  );
+  const rawDividaFromAmigo = parseCurrency(
+    baseAmigo?.dividaNumerica ??
+    baseAmigo?.divida ??
+    amigo?.dividaNumerica ??
+    amigo?.divida
+  );
+
+  const totalEleDeveFromCorridas = corridasDoAmigo.reduce((acc, curr) => acc + (curr.pendente || 0), 0);
+  const totalVoceDeveFromCorridas = corridasDoAmigo.reduce((acc, curr) => acc + (curr.voceDeve || 0), 0);
+
+  const totalEleDeve = Math.max(totalEleDeveFromCorridas, rawDividaFromAmigo);
+  const totalVoceDeve = Math.max(totalVoceDeveFromCorridas, rawVoceDeveFromAmigo);
+
   const saldoLiquido = Number((totalEleDeve - totalVoceDeve).toFixed(2));
-  const valorDestaque = Math.abs(saldoLiquido);
-  const voceDeveNoSaldo = saldoLiquido < -0.005;
+  const voceDeveNoSaldo = totalVoceDeve > totalEleDeve + 0.005;
+  const eleDeveNoSaldo = totalEleDeve > totalVoceDeve + 0.005;
+  const valorDestaque = voceDeveNoSaldo
+    ? Number((totalVoceDeve - totalEleDeve).toFixed(2))
+    : eleDeveNoSaldo
+    ? Number((totalEleDeve - totalVoceDeve).toFixed(2))
+    : 0;
 
   // Apenas o credor ("lesado") pode desfazer o pagamento
   const handleUndoPayment = async (corridaId: string, participantId?: string) => {
@@ -242,7 +321,7 @@ export function FriendDetailsModal({
       try {
         await dbService.financeiro.desfazerPagamentoDaCorrida(
           corridaId,
-          participantId || amigoAtual.id
+          participantId || baseAmigo.id
         );
         await carregarCorridas();
         if (update) update();
@@ -264,7 +343,7 @@ export function FriendDetailsModal({
     try {
       await dbService.financeiro.definirPagamentoParticipante(
         corridaId,
-        participantId || amigoAtual.id,
+        participantId || baseAmigo.id,
         valorTotalParte
       );
       await carregarCorridas();
@@ -299,7 +378,7 @@ export function FriendDetailsModal({
 
     setIsProcessingPayment(true);
     try {
-      await dbService.financeiro.registrarPagamento(amigoAtual.id, valor);
+      await dbService.financeiro.registrarPagamento(baseAmigo.id, valor);
       setPaymentAmount('');
       setIsPaymentModalOpen(false);
       await carregarCorridas();
@@ -321,7 +400,7 @@ export function FriendDetailsModal({
       );
     } else {
       await dbService.financeiro.registrarPagamento(
-        amigoAtual.id,
+        baseAmigo.id,
         amount,
         undefined,
         receiptBase64
@@ -422,7 +501,7 @@ export function FriendDetailsModal({
               <Pencil size={18} />
             </button>
             <button
-              onClick={() => onDelete(amigoAtual.id)}
+              onClick={() => onDelete(baseAmigo.id)}
               className="p-2 text-red-500 hover:bg-red-500/20 hover:text-red-400 rounded-full transition-colors"
               title="Excluir Amigo"
             >
@@ -464,7 +543,7 @@ export function FriendDetailsModal({
             <p className="text-gray-500 text-xs uppercase font-bold tracking-wider mb-4">
               {voceDeveNoSaldo
                 ? `Você deve para ${nome.split(' ')[0]}`
-                : valorDestaque > 0.005
+                : eleDeveNoSaldo
                 ? `${nome.split(' ')[0]} te deve`
                 : 'Tudo em dia'}
             </p>
@@ -480,7 +559,7 @@ export function FriendDetailsModal({
                     description: `Acerto RachApp ${nome}`,
                   })
                 }
-                className="w-full bg-[#2DD4BF] hover:bg-[#25b5a3] text-[#05080f] py-3.5 px-6 rounded-2xl font-bold flex items-center justify-center gap-2 transition-transform active:scale-95 shadow-lg shadow-teal-500/20"
+                className="w-full bg-[#2DD4BF] hover:bg-[#25b5a3] text-[#05080f] py-3.5 px-6 rounded-2xl font-bold flex items-center justify-center gap-2 transition-transform active:scale-95 shadow-lg shadow-teal-500/20 text-sm"
               >
                 <Upload size={18} />
                 Pagar {nome.split(' ')[0]} (R$ {moneyConverter(valorDestaque)})
@@ -543,9 +622,20 @@ export function FriendDetailsModal({
             </div>
           ) : corridasDoAmigo.length === 0 ? (
             <div className="bg-[#1c1c1e] p-6 rounded-2xl border border-white/5 text-center mb-4">
-              <p className="text-gray-400 text-sm">
-                Você ainda não dividiu nenhum racha com {nome.split(' ')[0]}.
-              </p>
+              {voceDeveNoSaldo ? (
+                <>
+                  <p className="text-amber-300 font-bold text-sm mb-1">
+                    Você possui uma pendência de R$ {moneyConverter(valorDestaque)} com {nome.split(' ')[0]}.
+                  </p>
+                  <p className="text-gray-400 text-xs">
+                    Toque no botão "Pagar {nome.split(' ')[0]}" acima para anexar o comprovante Pix e liquidar este saldo.
+                  </p>
+                </>
+              ) : (
+                <p className="text-gray-400 text-sm">
+                  Você ainda não dividiu nenhum racha com {nome.split(' ')[0]}.
+                </p>
+              )}
             </div>
           ) : (
             <div className="space-y-3 pb-4">
@@ -772,10 +862,10 @@ export function FriendDetailsModal({
       {/* Modal de Editar Amigo */}
       <AddFriendModal
         isOpen={isEditModalOpen}
-        friendToEdit={amigoAtual}
+        friendToEdit={baseAmigo}
         onClose={() => setIsEditModalOpen(false)}
         onSuccess={(updatedFriend) => {
-          if (updatedFriend) setAmigoAtual({ ...amigoAtual, ...updatedFriend });
+          if (updatedFriend) setAmigoAtual({ ...baseAmigo, ...updatedFriend });
           carregarCorridas();
           if (update) update();
         }}

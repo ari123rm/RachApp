@@ -214,7 +214,11 @@ export function Home({ onDataChange }: { onDataChange?: () => void }) {
                       ...amigo,
                       nome,
                       cor,
-                      divida: moneyConverter(valorExibido),
+                      divida: isVoceDeve ? 0 : valorExibido,
+                      dividaNumerica: isVoceDeve ? 0 : valorExibido,
+                      voceDeve: isVoceDeve ? valorExibido : 0,
+                      voceDeveNumerico: isVoceDeve ? valorExibido : 0,
+                      saldoLiquido,
                     })
                   }
                   className="flex flex-col items-center gap-2 min-w-[85px] cursor-pointer active:scale-95 transition-transform"

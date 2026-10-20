@@ -45,6 +45,8 @@ export interface Corrida {
   groupName?: string | null;
   paidByFriendId?: string | null;
   paidByName?: string | null;
+  payerPhone?: string | null;
+  payerPixKey?: string | null;
   participantesIds: string[];
   isPaied?: boolean;
   pagamentos?: Record<string, number>; // { amigoId: valorPago }

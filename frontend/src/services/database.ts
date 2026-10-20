@@ -848,7 +848,7 @@ export const dbService = {
   corridas: {
     getAll: async (): Promise<Corrida[]> => {
       const expRows = await queryAll<any>(
-        `SELECT e.*, g.name as group_name, f.name as payer_friend_name
+        `SELECT e.*, g.name as group_name, f.name as payer_friend_name, f.phone as payer_friend_phone, f.pix_key as payer_friend_pix
          FROM expenses e
          LEFT JOIN groups_table g ON g.id = e.group_id
          LEFT JOIN friends f ON f.id = e.paid_by_friend_id
@@ -906,6 +906,8 @@ export const dbService = {
           groupName: e.group_name || null,
           paidByFriendId: e.paid_by_friend_id || null,
           paidByName: e.paid_by_friend_id ? e.payer_friend_name || 'Amigo' : 'Você',
+          payerPhone: e.payer_friend_phone || null,
+          payerPixKey: e.payer_friend_pix || null,
           participantesIds,
           isPaied: allPaid,
           pagamentos,
@@ -1720,6 +1722,10 @@ export const dbService = {
       groupId?: string,
       receiptUrl?: string | null
     ): Promise<void> => {
+      const friendRow = await queryOne<any>('SELECT * FROM friends WHERE id = ?', [amigoId]);
+      const normPhone = stripCountryCode(friendRow?.phone || '');
+      const friendName = (friendRow?.name || '').trim();
+
       const rows = await queryAll<{
         expense_id: string;
         friend_id: string;
@@ -1729,11 +1735,18 @@ export const dbService = {
         `SELECT ep.expense_id, ep.friend_id, ep.amount_owed, ep.amount_paid
          FROM expense_participants ep
          JOIN expenses e ON e.id = ep.expense_id
-         WHERE ep.friend_id = ?
+         LEFT JOIN friends f ON f.id = ep.friend_id
+         WHERE (
+           ep.friend_id = ?
+           OR (? != '' AND f.phone = ?)
+           OR (? != '' AND LOWER(TRIM(f.name)) = LOWER(TRIM(?)))
+         )
            AND (e.paid_by_friend_id IS NULL OR e.paid_by_friend_id = '')
            ${groupId ? 'AND e.group_id = ?' : ''}
          ORDER BY e.expense_date ASC, e.rowid ASC`,
-        groupId ? [amigoId, groupId] : [amigoId]
+        groupId
+          ? [amigoId, normPhone, normPhone, friendName, friendName, groupId]
+          : [amigoId, normPhone, normPhone, friendName, friendName]
       );
 
       let saldoRestante = Number(valorPago);
@@ -1773,10 +1786,18 @@ export const dbService = {
           `SELECT e.id, e.self_amount_owed, e.self_amount_paid, e.total_amount,
                   (SELECT COUNT(*) FROM expense_participants ep2 WHERE ep2.expense_id = e.id) as part_count
            FROM expenses e
-           WHERE e.paid_by_friend_id = ?
+           LEFT JOIN friends f ON f.id = e.paid_by_friend_id
+           WHERE e.paid_by_friend_id IS NOT NULL AND e.paid_by_friend_id != ''
+             AND (
+               e.paid_by_friend_id = ?
+               OR (? != '' AND f.phone = ?)
+               OR (? != '' AND LOWER(TRIM(f.name)) = LOWER(TRIM(?)))
+             )
              ${groupId ? 'AND e.group_id = ?' : ''}
            ORDER BY e.expense_date ASC, e.rowid ASC`,
-          groupId ? [amigoId, groupId] : [amigoId]
+          groupId
+            ? [amigoId, normPhone, normPhone, friendName, friendName, groupId]
+            : [amigoId, normPhone, normPhone, friendName, friendName]
         );
 
         for (const sr of selfRows) {

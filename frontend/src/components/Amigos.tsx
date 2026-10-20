@@ -45,6 +45,8 @@ export function Amigos({ onDataChange }: { onDataChange?: () => void }) {
             cor: amigo.cor || amigo.color || 'bg-sky-500',
             favorito: amigo.favorito ?? amigo.is_favorite ?? false,
             divida: dividaFormatada,
+            dividaNumerica: valorDevido,
+            voceDeveNumerico: Number(amigo.voceDeveNumerico || 0),
           };
         })
       );
