@@ -6,6 +6,7 @@ on:
       - main
       - feature/backend
       - feature/full-integration
+      - feature/fix-backend
   workflow_dispatch:
 
 permissions:

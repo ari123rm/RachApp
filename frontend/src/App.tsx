@@ -10,9 +10,11 @@ import { AuthScreen } from './components/AuthScreen';
 import { AddRideModal } from './components/AddRideModal';
 import { AddFriendModal } from './components/AddFriendModal';
 import { AddGroupModal } from './components/AddGroupModal';
+import { AssignReceiptModal } from './components/AssignReceiptModal';
 import { App as CapApp } from '@capacitor/app';
 import { dbService } from './services/database';
 import { closeTopModal } from './utils/modalBackHandler';
+import { listenForSharedReceipt } from './utils/receiptShare';
 
 const TABS = ['home', 'viagens', 'amigos', 'perfil'] as const;
 
@@ -24,6 +26,7 @@ function App() {
   const [isRideModalOpen, setIsRideModalOpen] = useState(false);
   const [isFriendModalOpen, setIsFriendModalOpen] = useState(false);
   const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
+  const [incomingSharedReceipt, setIncomingSharedReceipt] = useState<string | null>(null);
   const [dataVersion, setDataVersion] = useState(0);
   const lastSyncedRef = useRef<string | null>(null);
 
@@ -72,6 +75,16 @@ function App() {
     };
   }, []);
 
+  // Escuta comprovantes compartilhados de outros apps (via Android Intent ou PWA)
+  useEffect(() => {
+    const unsubShared = listenForSharedReceipt((receiptDataUrl) => {
+      if (receiptDataUrl) {
+        setIncomingSharedReceipt(receiptDataUrl);
+      }
+    });
+    return unsubShared;
+  }, []);
+
   // Listener do botão voltar (Android / Capacitor)
   useEffect(() => {
     let listenerHandle: any = null;
@@ -83,9 +96,10 @@ function App() {
             return;
           }
 
-          const hasOpenModal = document.querySelector('.fixed.z-50, .fixed.z-\\[60\\], .fixed.z-\\[70\\], .fixed.z-\\[75\\], .fixed.z-\\[80\\]');
+          const hasOpenModal = document.querySelector('.fixed.z-50, .fixed.z-\\[60\\], .fixed.z-\\[70\\], .fixed.z-\\[75\\], .fixed.z-\\[80\\], .fixed.z-\\[90\\]');
 
           if (hasOpenModal) {
+            setIncomingSharedReceipt(null);
             setIsRideModalOpen(false);
             setIsFriendModalOpen(false);
             setIsGroupModalOpen(false);
@@ -234,6 +248,15 @@ function App() {
         isOpen={isGroupModalOpen}
         onClose={() => setIsGroupModalOpen(false)}
         onSuccess={refreshData}
+      />
+      <AssignReceiptModal
+        isOpen={!!incomingSharedReceipt}
+        receiptDataUrl={incomingSharedReceipt}
+        onClose={() => setIncomingSharedReceipt(null)}
+        onSuccess={() => {
+          setIncomingSharedReceipt(null);
+          refreshData();
+        }}
       />
     </div>
   );

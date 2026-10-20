@@ -11,10 +11,12 @@ import {
   LoaderCircle,
   Image as ImageIcon,
   Trash2,
+  Share2,
 } from 'lucide-react';
 import moneyConverter from '../utils/moneyConverter';
 import { generatePixCopiaECola, generatePixQRCodeDataUrl } from '../utils/pixGenerator';
 import { compressReceiptImage, useModalBackHandler } from '../utils/modalBackHandler';
+import { shareReceipt } from '../utils/receiptShare';
 
 interface ReceiptViewerModalProps {
   isOpen: boolean;
@@ -30,6 +32,19 @@ export function ReceiptViewerModal({
   title = 'Comprovante de Pagamento',
 }: ReceiptViewerModalProps) {
   useModalBackHandler(isOpen, onClose);
+  const [isSharing, setIsSharing] = useState(false);
+  const [sharedFeedback, setSharedFeedback] = useState(false);
+
+  const handleShare = async () => {
+    if (!receiptUrl) return;
+    setIsSharing(true);
+    const result = await shareReceipt(receiptUrl, title);
+    setIsSharing(false);
+    if (result.success) {
+      setSharedFeedback(true);
+      setTimeout(() => setSharedFeedback(false), 2500);
+    }
+  };
 
   if (!isOpen || !receiptUrl) return null;
 
@@ -49,12 +64,22 @@ export function ReceiptViewerModal({
             </div>
             <h3 className="text-white font-bold text-base">{title}</h3>
           </div>
-          <button
-            onClick={onClose}
-            className="p-1.5 text-gray-400 hover:text-white rounded-full hover:bg-white/10 transition-colors"
-          >
-            <X size={22} />
-          </button>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={handleShare}
+              disabled={isSharing}
+              title="Compartilhar comprovante em outros apps"
+              className="p-2 text-gray-400 hover:text-[#2DD4BF] rounded-full hover:bg-white/10 transition-colors disabled:opacity-50"
+            >
+              <Share2 size={20} />
+            </button>
+            <button
+              onClick={onClose}
+              className="p-1.5 text-gray-400 hover:text-white rounded-full hover:bg-white/10 transition-colors"
+            >
+              <X size={22} />
+            </button>
+          </div>
         </div>
 
         <div className="flex-1 overflow-y-auto bg-[#05080f] rounded-2xl p-2 border border-white/5 flex items-center justify-center min-h-[240px]">
@@ -65,12 +90,38 @@ export function ReceiptViewerModal({
           />
         </div>
 
-        <button
-          onClick={onClose}
-          className="w-full mt-4 bg-[#2c2c2e] hover:bg-[#3a3a3c] text-white font-bold py-3 rounded-xl transition-colors text-sm"
-        >
-          Fechar
-        </button>
+        <div className="flex gap-2.5 mt-4">
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex-1 bg-[#2c2c2e] hover:bg-[#3a3a3c] text-gray-300 font-bold py-3 rounded-xl transition-colors text-sm"
+          >
+            Fechar
+          </button>
+          <button
+            type="button"
+            disabled={isSharing}
+            onClick={handleShare}
+            className="flex-1 bg-[#2DD4BF] hover:bg-[#25b5a3] text-[#05080f] font-bold py-3 rounded-xl transition-colors text-sm flex items-center justify-center gap-2 shadow-lg shadow-teal-500/20 active:scale-95 disabled:opacity-50"
+          >
+            {sharedFeedback ? (
+              <>
+                <Check size={18} />
+                <span>Compartilhado!</span>
+              </>
+            ) : isSharing ? (
+              <>
+                <LoaderCircle size={18} className="animate-spin" />
+                <span>Enviando...</span>
+              </>
+            ) : (
+              <>
+                <Share2 size={18} />
+                <span>Compartilhar</span>
+              </>
+            )}
+          </button>
+        </div>
       </div>
     </div>,
     document.body
