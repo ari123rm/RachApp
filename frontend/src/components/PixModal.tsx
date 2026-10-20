@@ -4,6 +4,7 @@ import { X, Copy, Check, QrCode, Share2 } from 'lucide-react';
 import { generatePixCopiaECola, generatePixQRCodeDataUrl } from '../utils/pixGenerator';
 import moneyConverter from '../utils/moneyConverter';
 import { openWhatsApp } from '../utils/phoneFormatter';
+import { useModalBackHandler } from '../utils/modalBackHandler';
 
 interface PixModalProps {
   isOpen: boolean;
@@ -30,6 +31,8 @@ export function PixModal({
   const [copiaECola, setCopiaECola] = useState('');
   const [copiedKey, setCopiedKey] = useState(false);
   const [copiedCode, setCopiedCode] = useState(false);
+
+  useModalBackHandler(isOpen, onClose);
 
   useEffect(() => {
     if (isOpen && pixKey) {
@@ -75,11 +78,17 @@ export function PixModal({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/80 z-[70] flex items-center justify-center p-4 animate-fade-in">
-      <div className="bg-[#1c1c1e] w-full max-w-sm rounded-3xl p-6 border border-white/10 relative max-h-[90vh] overflow-y-auto">
+    <div
+      className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[70] flex items-center justify-center p-4 animate-fade-in"
+      onClick={onClose}
+    >
+      <div
+        className="bg-[#1c1c1e] w-full max-w-sm rounded-3xl p-6 border border-white/10 shadow-2xl relative max-h-[90vh] overflow-y-auto animate-slide-up"
+        onClick={(e) => e.stopPropagation()}
+      >
         <button
           onClick={onClose}
-          className="absolute top-5 right-5 text-gray-400 hover:text-white p-1"
+          className="absolute top-5 right-5 text-gray-400 hover:text-white p-1 rounded-full hover:bg-white/10 transition-colors"
         >
           <X size={24} />
         </button>

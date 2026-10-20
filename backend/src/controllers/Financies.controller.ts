@@ -98,10 +98,16 @@ export class FinanciesController {
       if (!userId) return res.status(401).json({ error: 'Usuário não autenticado.' });
 
       const { id } = req.params;
-      const { friendId, amountPaid } = req.body;
+      const { friendId, amountPaid, receiptUrl } = req.body;
       if (!friendId) return res.status(400).json({ error: 'friendId é obrigatório.' });
 
-      const result = await ExpenseService.setParticipantPayment(userId, id, friendId, amountPaid);
+      const result = await ExpenseService.setParticipantPayment(
+        userId,
+        id,
+        friendId,
+        amountPaid,
+        receiptUrl || null
+      );
       res.status(200).json(result);
     } catch (error: any) {
       res.status(400).json({ error: error.message });
@@ -127,14 +133,20 @@ export class FinanciesController {
   static async registerPayment(req: Request, res: Response) {
     try {
       const creditorId = req.user?.userId;
-      const { debtorId, amount, groupId } = req.body;
+      const { debtorId, amount, groupId, receiptUrl } = req.body;
 
       if (!creditorId) return res.status(401).json({ error: 'Utilizador não autenticado.' });
       if (!debtorId || !amount || Number(amount) <= 0) {
         return res.status(400).json({ error: 'Dados de pagamento inválidos.' });
       }
 
-      const result = await ExpenseService.registerPayment(creditorId, debtorId, Number(amount), groupId);
+      const result = await ExpenseService.registerPayment(
+        creditorId,
+        debtorId,
+        Number(amount),
+        groupId,
+        receiptUrl || null
+      );
       res.status(200).json(result);
     } catch (error: any) {
       res.status(400).json({ error: error.message });

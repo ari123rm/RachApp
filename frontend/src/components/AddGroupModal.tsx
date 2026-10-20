@@ -4,6 +4,7 @@ import { X, Users, LoaderCircle, Search, Check, ArrowRight, UserPlus } from 'luc
 import { dbService } from '../services/database';
 import { AddFriendModal } from './AddFriendModal';
 import { formatPhoneBR } from '../utils/phoneFormatter';
+import { useModalBackHandler } from '../utils/modalBackHandler';
 import type { Amigo, Grupo } from '../types';
 
 interface AddGroupModalProps {
@@ -20,6 +21,8 @@ export function AddGroupModal({ isOpen, onClose, onSuccess, groupToEdit }: AddGr
   const [selecionados, setSelecionados] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isAddFriendOpen, setIsAddFriendOpen] = useState(false);
+
+  useModalBackHandler(isOpen, onClose);
 
   const isEditing = !!groupToEdit;
 
@@ -89,11 +92,17 @@ export function AddGroupModal({ isOpen, onClose, onSuccess, groupToEdit }: AddGr
   const totalPessoas = selecionados.length + 1;
 
   return (
-    <div className="fixed inset-0 bg-black/75 z-[60] flex items-end sm:items-center justify-center transition-opacity">
-      <div className="bg-[#05080f] sm:bg-[#1c1c1e] w-full max-w-md rounded-t-3xl sm:rounded-3xl p-6 animate-slide-up relative max-h-[92vh] overflow-y-auto border border-white/10">
+    <div
+      className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[60] flex items-center justify-center p-4 transition-opacity animate-fade-in"
+      onClick={onClose}
+    >
+      <div
+        className="bg-[#1c1c1e] w-full max-w-md rounded-3xl p-6 animate-slide-up relative max-h-[90vh] overflow-y-auto border border-white/10 shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
         <button
           onClick={onClose}
-          className="absolute top-5 right-5 text-gray-400 hover:text-white"
+          className="absolute top-5 right-5 text-gray-400 hover:text-white p-1 rounded-full hover:bg-white/10 transition-colors"
         >
           <X size={24} />
         </button>
@@ -108,7 +117,7 @@ export function AddGroupModal({ isOpen, onClose, onSuccess, groupToEdit }: AddGr
             <label className="text-gray-400 text-xs uppercase font-bold">Nome do Grupo</label>
             <span className="text-xs text-gray-500">{nome.length}/30</span>
           </div>
-          <div className="bg-[#1c1c1e] sm:bg-[#2c2c2e] rounded-2xl p-4 flex items-center text-white border border-white/5 focus-within:border-[#2DD4BF]">
+          <div className="bg-[#2c2c2e] rounded-2xl p-4 flex items-center text-white border border-white/5 focus-within:border-[#2DD4BF]">
             <Users size={18} className="text-[#2DD4BF] mr-3 shrink-0" />
             <input
               type="text"
@@ -141,7 +150,7 @@ export function AddGroupModal({ isOpen, onClose, onSuccess, groupToEdit }: AddGr
           </div>
 
           {/* Busca de Amigo */}
-          <div className="bg-[#1c1c1e] sm:bg-[#2c2c2e] rounded-xl p-3 flex items-center text-gray-400 border border-white/5 mb-3">
+          <div className="bg-[#2c2c2e] rounded-xl p-3 flex items-center text-gray-400 border border-white/5 mb-3">
             <Search size={16} className="mr-2.5" />
             <input
               type="text"
@@ -154,7 +163,7 @@ export function AddGroupModal({ isOpen, onClose, onSuccess, groupToEdit }: AddGr
 
           {/* Chips de Selecionados */}
           <div className="flex gap-2 overflow-x-auto pb-2 mb-3 scrollbar-hide">
-            <div className="flex items-center gap-1.5 bg-[#1c1c1e] border border-[#2DD4BF]/40 px-3 py-1.5 rounded-full shrink-0">
+            <div className="flex items-center gap-1.5 bg-[#05080f] border border-[#2DD4BF]/40 px-3 py-1.5 rounded-full shrink-0">
               <div className="w-5 h-5 rounded-full bg-[#2DD4BF] text-[#05080f] text-[10px] font-black flex items-center justify-center">
                 V
               </div>
@@ -171,7 +180,7 @@ export function AddGroupModal({ isOpen, onClose, onSuccess, groupToEdit }: AddGr
                     key={amigo.id}
                     type="button"
                     onClick={() => toggleAmigo(amigo.id)}
-                    className="flex items-center gap-1.5 bg-[#1c1c1e] border border-white/10 px-3 py-1.5 rounded-full shrink-0 hover:border-red-400/50"
+                    className="flex items-center gap-1.5 bg-[#05080f] border border-white/10 px-3 py-1.5 rounded-full shrink-0 hover:border-red-400/50"
                   >
                     <div
                       className={`w-5 h-5 rounded-full ${corAmigo} text-white text-[10px] font-bold flex items-center justify-center`}
@@ -188,7 +197,7 @@ export function AddGroupModal({ isOpen, onClose, onSuccess, groupToEdit }: AddGr
           {/* Lista de Amigos Selecionáveis */}
           <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
             {amigosFiltrados.length === 0 ? (
-              <div className="text-center py-4 bg-[#1c1c1e] rounded-2xl border border-white/5">
+              <div className="text-center py-4 bg-[#05080f] rounded-2xl border border-white/5">
                 <p className="text-gray-400 text-xs mb-2">Nenhum amigo encontrado.</p>
                 <button
                   type="button"
@@ -211,7 +220,7 @@ export function AddGroupModal({ isOpen, onClose, onSuccess, groupToEdit }: AddGr
                     className={`flex items-center justify-between p-3 rounded-2xl border cursor-pointer transition-colors ${
                       isSelected
                         ? 'bg-[#2DD4BF]/10 border-[#2DD4BF]/40'
-                        : 'bg-[#1c1c1e] sm:bg-[#2c2c2e]/60 border-white/5 hover:bg-white/5'
+                        : 'bg-[#2c2c2e]/60 border-white/5 hover:bg-white/5'
                     }`}
                   >
                     <div className="flex items-center gap-3">

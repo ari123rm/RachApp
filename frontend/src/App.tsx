@@ -13,6 +13,7 @@ import { AddGroupModal } from './components/AddGroupModal';
 import { App as CapApp } from '@capacitor/app';
 import { Grupos } from './components/Grupos';
 import { dbService } from './services/database';
+import { closeTopModal } from './utils/modalBackHandler';
 
 function App() {
   const [isInitializing, setIsInitializing] = useState(true);
@@ -67,7 +68,11 @@ function App() {
     const setupListener = async () => {
       try {
         listenerHandle = await CapApp.addListener('backButton', () => {
-          const hasOpenModal = document.querySelector('.fixed.z-50, .fixed.z-\\[60\\]');
+          if (closeTopModal()) {
+            return;
+          }
+
+          const hasOpenModal = document.querySelector('.fixed.z-50, .fixed.z-\\[60\\], .fixed.z-\\[70\\]');
 
           if (hasOpenModal) {
             setIsRideModalOpen(false);

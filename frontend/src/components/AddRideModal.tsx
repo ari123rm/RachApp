@@ -4,6 +4,7 @@ import { X, LoaderCircle, UsersRound, Wallet, Percent, DollarSign, Equal } from 
 import { dbService } from '../services/database';
 import type { Amigo, Corrida, Grupo } from '../types';
 import moneyConverter from '../utils/moneyConverter';
+import { useModalBackHandler } from '../utils/modalBackHandler';
 
 interface AddRideModalProps {
   isOpen: boolean;
@@ -50,10 +51,11 @@ export function AddRideModal({
   const [isLoadingAmigos, setIsLoadingAmigos] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
+  useModalBackHandler(isOpen, onClose);
+
   const isEditing = !!rideToEdit;
   const valorNumerico = valor ? parseFloat(valor.replace(/\./g, '').replace(',', '.')) : 0;
 
-  // Recalcula valores iguais ao mudar participantes ou ao trocar de modo
   const inicializarDivisaoIgual = (ids: string[], total: number) => {
     const qtd = ids.length + 1;
     const pctIgual = qtd > 0 ? (100 / qtd).toFixed(1) : '100';
@@ -197,7 +199,6 @@ export function AddRideModal({
     });
     setValor(valorFormatado);
 
-    // Atualiza os valores em R$ proporcionalmente
     if (selecionados.length > 0) {
       if (splitMode === 'equal') {
         const qtd = selecionados.length + 1;
@@ -226,7 +227,6 @@ export function AddRideModal({
     if (mode === 'equal') {
       inicializarDivisaoIgual(selecionados, valorNumerico);
     } else if (mode === 'percent') {
-      // Sincroniza % a partir dos valores atuais se o total > 0
       if (valorNumerico > 0) {
         const nextPct: Record<string, string> = {};
         let sumPct = 0;
@@ -263,7 +263,6 @@ export function AddRideModal({
     }
   };
 
-  // Quando altera a % de um amigo, ajusta automaticamente a % de "Você" com o restante
   const handleFriendPercentChange = (friendId: string, rawVal: string) => {
     const cleaned = rawVal.replace(',', '.');
     const next = { ...friendPercents, [friendId]: cleaned };
@@ -277,7 +276,6 @@ export function AddRideModal({
     setSelfPercent(String(restante));
   };
 
-  // Quando altera o R$ de um amigo, ajusta automaticamente o R$ de "Você" com o restante
   const handleFriendAmountChange = (friendId: string, rawVal: string) => {
     const cleaned = rawVal.replace(',', '.');
     const next = { ...friendAmounts, [friendId]: cleaned };
@@ -296,7 +294,6 @@ export function AddRideModal({
   const qtdTotalPessoas = selecionados.length + 1;
   const valorPorPessoaIgual = valorNumerico > 0 ? valorNumerico / qtdTotalPessoas : 0;
 
-  // Cálculo de validação da divisão customizada
   const obterValoresCalculados = (): {
     valoresDevidos: Record<string, number>;
     selfAmountOwed: number;
@@ -340,7 +337,6 @@ export function AddRideModal({
       };
     }
 
-    // splitMode === 'amount'
     let somaReais = 0;
     selecionados.forEach((id) => {
       const vlr = Number((parseFloat(friendAmounts[id] || '0') || 0).toFixed(2));
@@ -419,11 +415,17 @@ export function AddRideModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/75 z-[60] flex items-end sm:items-center justify-center transition-opacity">
-      <div className="bg-[#1c1c1e] w-full max-w-md rounded-t-3xl sm:rounded-3xl p-6 animate-slide-up relative overflow-y-auto max-h-[92vh] border border-white/10">
+    <div
+      className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[60] flex items-center justify-center p-4 transition-opacity animate-fade-in"
+      onClick={onClose}
+    >
+      <div
+        className="bg-[#1c1c1e] w-full max-w-md rounded-3xl p-6 animate-slide-up relative overflow-y-auto max-h-[90vh] border border-white/10 shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
         <button
           onClick={onClose}
-          className="absolute top-5 right-5 text-gray-400 hover:text-white"
+          className="absolute top-5 right-5 text-gray-400 hover:text-white p-1 rounded-full hover:bg-white/10 transition-colors"
         >
           <X size={24} />
         </button>

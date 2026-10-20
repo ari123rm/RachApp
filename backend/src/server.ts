@@ -17,7 +17,8 @@ app.use(
     credentials: true,
   })
 );
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', message: 'RachApp API rodando!' });

@@ -220,8 +220,8 @@ async function saveRemoteSnapshotToSQLite(data: {
         if (pendingIds.has(e.id)) continue;
         db.run(
           `INSERT OR REPLACE INTO expenses (
-            id, user_id, group_id, paid_by_friend_id, title, tag, total_amount, self_amount_owed, self_amount_paid, expense_date, synced
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
+            id, user_id, group_id, paid_by_friend_id, title, tag, total_amount, self_amount_owed, self_amount_paid, self_receipt_url, expense_date, synced
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
           [
             e.id,
             e.user_id || data.user?.id || '',
@@ -232,6 +232,7 @@ async function saveRemoteSnapshotToSQLite(data: {
             Number(e.total_amount || 0),
             Number(e.self_amount_owed || 0),
             Number(e.self_amount_paid || 0),
+            e.self_receipt_url || null,
             toIsoDateOnly(e.expense_date),
           ]
         );
@@ -240,9 +241,9 @@ async function saveRemoteSnapshotToSQLite(data: {
           db.run('DELETE FROM expense_participants WHERE expense_id = ?', [e.id]);
           for (const p of e.participants) {
             db.run(
-              `INSERT OR REPLACE INTO expense_participants (expense_id, friend_id, amount_owed, amount_paid)
-               VALUES (?, ?, ?, ?)`,
-              [e.id, p.friend_id, Number(p.amount_owed || 0), Number(p.amount_paid || 0)]
+              `INSERT OR REPLACE INTO expense_participants (expense_id, friend_id, amount_owed, amount_paid, receipt_url)
+               VALUES (?, ?, ?, ?, ?)`,
+              [e.id, p.friend_id, Number(p.amount_owed || 0), Number(p.amount_paid || 0), p.receipt_url || null]
             );
           }
         }
@@ -860,16 +861,21 @@ export const dbService = {
           friend_id: string;
           amount_owed: number;
           amount_paid: number;
-        }>('SELECT friend_id, amount_owed, amount_paid FROM expense_participants WHERE expense_id = ?', [e.id]);
+          receipt_url?: string | null;
+        }>('SELECT friend_id, amount_owed, amount_paid, receipt_url FROM expense_participants WHERE expense_id = ?', [e.id]);
 
         const participantesIds = partRows.map((p) => p.friend_id);
         const pagamentos: Record<string, number> = {};
         const valoresDevidos: Record<string, number> = {};
+        const comprovantes: Record<string, string> = {};
         let allPaid = partRows.length > 0;
 
         for (const p of partRows) {
           pagamentos[p.friend_id] = Number(p.amount_paid || 0);
           valoresDevidos[p.friend_id] = Number(p.amount_owed || 0);
+          if (p.receipt_url) {
+            comprovantes[p.friend_id] = p.receipt_url;
+          }
           if (Number(p.amount_owed) - Number(p.amount_paid) > 0.01) {
             allPaid = false;
           }
@@ -892,6 +898,7 @@ export const dbService = {
           total_amount: Number(e.total_amount),
           selfAmountOwed,
           selfAmountPaid,
+          selfReceiptUrl: e.self_receipt_url || null,
           data: toIsoDateOnly(e.expense_date),
           expense_date: toIsoDateOnly(e.expense_date),
           tag: e.tag || 'Uber',
@@ -903,6 +910,7 @@ export const dbService = {
           isPaied: allPaid,
           pagamentos,
           valoresDevidos,
+          comprovantes,
         });
       }
 
@@ -1030,12 +1038,20 @@ export const dbService = {
       const existing = await queryOne<any>('SELECT * FROM expenses WHERE id = ?', [id]);
       if (!existing) throw new Error('Racha não encontrado.');
 
-      const existingParts = await queryAll<{ friend_id: string; amount_paid: number }>(
-        'SELECT friend_id, amount_paid FROM expense_participants WHERE expense_id = ?',
+      const existingParts = await queryAll<{
+        friend_id: string;
+        amount_paid: number;
+        receipt_url?: string | null;
+      }>(
+        'SELECT friend_id, amount_paid, receipt_url FROM expense_participants WHERE expense_id = ?',
         [id]
       );
       const prevPaidMap = new Map<string, number>();
-      existingParts.forEach((p) => prevPaidMap.set(p.friend_id, Number(p.amount_paid || 0)));
+      const prevReceiptMap = new Map<string, string | null>();
+      existingParts.forEach((p) => {
+        prevPaidMap.set(p.friend_id, Number(p.amount_paid || 0));
+        prevReceiptMap.set(p.friend_id, p.receipt_url || null);
+      });
 
       const uniqueParticipants = Array.from(new Set(dados.participantesIds));
       const totalPeople = uniqueParticipants.length + 1;
@@ -1086,9 +1102,9 @@ export const dbService = {
         pagamentos[friendId] = paidVal;
 
         await runSQL(
-          `INSERT INTO expense_participants (expense_id, friend_id, amount_owed, amount_paid)
-           VALUES (?, ?, ?, ?)`,
-          [id, friendId, owedVal, paidVal],
+          `INSERT INTO expense_participants (expense_id, friend_id, amount_owed, amount_paid, receipt_url)
+           VALUES (?, ?, ?, ?, ?)`,
+          [id, friendId, owedVal, paidVal, prevReceiptMap.get(friendId) || null],
           false
         );
       }
@@ -1623,7 +1639,7 @@ export const dbService = {
     desfazerPagamentoDaCorrida: async (corridaId: string, amigoId: string): Promise<void> => {
       if (amigoId === 'self') {
         await runSQL(
-          `UPDATE expenses SET self_amount_paid = 0 WHERE id = ?`,
+          `UPDATE expenses SET self_amount_paid = 0, self_receipt_url = NULL WHERE id = ?`,
           [corridaId],
           true
         );
@@ -1636,7 +1652,7 @@ export const dbService = {
       }
 
       await runSQL(
-        `UPDATE expense_participants SET amount_paid = 0 WHERE expense_id = ? AND friend_id = ?`,
+        `UPDATE expense_participants SET amount_paid = 0, receipt_url = NULL WHERE expense_id = ? AND friend_id = ?`,
         [corridaId, amigoId],
         true
       );
@@ -1647,35 +1663,63 @@ export const dbService = {
       syncWithBackend(false).catch(() => {});
     },
 
-    definirPagamentoParticipante: async (corridaId: string, amigoId: string, valorPago: number): Promise<void> => {
+    definirPagamentoParticipante: async (
+      corridaId: string,
+      amigoId: string,
+      valorPago: number,
+      receiptUrl?: string | null
+    ): Promise<void> => {
       const rounded = Number(valorPago.toFixed(2));
       if (amigoId === 'self') {
-        await runSQL(
-          `UPDATE expenses SET self_amount_paid = ? WHERE id = ?`,
-          [rounded, corridaId],
-          true
-        );
+        if (receiptUrl !== undefined) {
+          await runSQL(
+            `UPDATE expenses SET self_amount_paid = ?, self_receipt_url = ? WHERE id = ?`,
+            [rounded, receiptUrl, corridaId],
+            true
+          );
+        } else {
+          await runSQL(
+            `UPDATE expenses SET self_amount_paid = ? WHERE id = ?`,
+            [rounded, corridaId],
+            true
+          );
+        }
         await enqueueSync('payment', 'set_participant', corridaId, {
           friendId: 'self',
           amountPaid: rounded,
+          receiptUrl: receiptUrl || null,
         });
         syncWithBackend(false).catch(() => {});
         return;
       }
 
-      await runSQL(
-        `UPDATE expense_participants SET amount_paid = ? WHERE expense_id = ? AND friend_id = ?`,
-        [rounded, corridaId, amigoId],
-        true
-      );
+      if (receiptUrl !== undefined) {
+        await runSQL(
+          `UPDATE expense_participants SET amount_paid = ?, receipt_url = ? WHERE expense_id = ? AND friend_id = ?`,
+          [rounded, receiptUrl, corridaId, amigoId],
+          true
+        );
+      } else {
+        await runSQL(
+          `UPDATE expense_participants SET amount_paid = ? WHERE expense_id = ? AND friend_id = ?`,
+          [rounded, corridaId, amigoId],
+          true
+        );
+      }
       await enqueueSync('payment', 'set_participant', corridaId, {
         friendId: amigoId,
         amountPaid: rounded,
+        receiptUrl: receiptUrl || null,
       });
       syncWithBackend(false).catch(() => {});
     },
 
-    registrarPagamento: async (amigoId: string, valorPago: number, groupId?: string): Promise<void> => {
+    registrarPagamento: async (
+      amigoId: string,
+      valorPago: number,
+      groupId?: string,
+      receiptUrl?: string | null
+    ): Promise<void> => {
       const rows = await queryAll<{
         expense_id: string;
         friend_id: string;
@@ -1700,11 +1744,19 @@ export const dbService = {
         if (faltaPagar > 0.005) {
           const abater = Math.min(faltaPagar, saldoRestante);
           const novoPago = Number((Number(r.amount_paid) + abater).toFixed(2));
-          await runSQL(
-            `UPDATE expense_participants SET amount_paid = ? WHERE expense_id = ? AND friend_id = ?`,
-            [novoPago, r.expense_id, r.friend_id],
-            false
-          );
+          if (receiptUrl) {
+            await runSQL(
+              `UPDATE expense_participants SET amount_paid = ?, receipt_url = ? WHERE expense_id = ? AND friend_id = ?`,
+              [novoPago, receiptUrl, r.expense_id, r.friend_id],
+              false
+            );
+          } else {
+            await runSQL(
+              `UPDATE expense_participants SET amount_paid = ? WHERE expense_id = ? AND friend_id = ?`,
+              [novoPago, r.expense_id, r.friend_id],
+              false
+            );
+          }
           saldoRestante -= abater;
         }
       }
@@ -1739,11 +1791,19 @@ export const dbService = {
           if (faltaPagar > 0.005) {
             const abater = Math.min(faltaPagar, saldoRestante);
             const novoPago = Number((selfPaid + abater).toFixed(2));
-            await runSQL(
-              `UPDATE expenses SET self_amount_paid = ? WHERE id = ?`,
-              [novoPago, sr.id],
-              false
-            );
+            if (receiptUrl) {
+              await runSQL(
+                `UPDATE expenses SET self_amount_paid = ?, self_receipt_url = ? WHERE id = ?`,
+                [novoPago, receiptUrl, sr.id],
+                false
+              );
+            } else {
+              await runSQL(
+                `UPDATE expenses SET self_amount_paid = ? WHERE id = ?`,
+                [novoPago, sr.id],
+                false
+              );
+            }
             saldoRestante -= abater;
           }
         }
@@ -1754,6 +1814,7 @@ export const dbService = {
         debtorId: amigoId,
         amount: Number(valorPago),
         groupId,
+        receiptUrl: receiptUrl || null,
       });
       syncWithBackend(false).catch(() => {});
     },

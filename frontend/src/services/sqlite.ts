@@ -125,6 +125,7 @@ function createSchema(db: Database) {
       total_amount REAL NOT NULL,
       self_amount_owed REAL DEFAULT 0,
       self_amount_paid REAL DEFAULT 0,
+      self_receipt_url TEXT,
       expense_date TEXT NOT NULL,
       synced INTEGER DEFAULT 0
     );
@@ -134,6 +135,7 @@ function createSchema(db: Database) {
       friend_id TEXT NOT NULL,
       amount_owed REAL NOT NULL,
       amount_paid REAL DEFAULT 0,
+      receipt_url TEXT,
       PRIMARY KEY (expense_id, friend_id)
     );
 
@@ -146,6 +148,19 @@ function createSchema(db: Database) {
       created_at TEXT NOT NULL
     );
   `);
+
+  // Migrações incrementais para bancos SQLite locais já existentes
+  try {
+    db.run('ALTER TABLE expenses ADD COLUMN self_receipt_url TEXT');
+  } catch {
+    // Coluna já existe
+  }
+
+  try {
+    db.run('ALTER TABLE expense_participants ADD COLUMN receipt_url TEXT');
+  } catch {
+    // Coluna já existe
+  }
 }
 
 export async function getSQLiteDB(): Promise<Database> {

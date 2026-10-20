@@ -49,6 +49,8 @@ export interface Corrida {
   isPaied?: boolean;
   pagamentos?: Record<string, number>; // { amigoId: valorPago }
   valoresDevidos?: Record<string, number>; // { amigoId: valorDevido }
+  selfReceiptUrl?: string | null;
+  comprovantes?: Record<string, string>; // { amigoId: base64ReceiptUrl }
 }
 
 export interface Transferencia {

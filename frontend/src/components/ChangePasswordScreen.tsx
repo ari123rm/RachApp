@@ -1,7 +1,8 @@
 // src/components/ChangePasswordScreen.tsx
 import { useState } from 'react';
-import { ChevronLeft, Lock, LoaderCircle, CheckCircle2, AlertCircle, KeyRound } from 'lucide-react';
+import { ChevronLeft, Lock, LoaderCircle, CheckCircle2, AlertCircle, KeyRound, X } from 'lucide-react';
 import { dbService } from '../services/database';
+import { useModalBackHandler } from '../utils/modalBackHandler';
 
 interface ChangePasswordScreenProps {
   isOpen: boolean;
@@ -22,6 +23,8 @@ export function ChangePasswordScreen({
   const [isSaving, setIsSaving] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
+
+  useModalBackHandler(isOpen, onClose);
 
   if (!isOpen) return null;
 
@@ -82,157 +85,170 @@ export function ChangePasswordScreen({
   };
 
   return (
-    <div className="fixed inset-0 bg-[#05080f] z-50 flex flex-col animate-slide-up overflow-y-auto">
-      {/* Cabeçalho */}
-      <div className="flex items-center justify-between p-4 border-b border-white/5 sticky top-0 bg-[#05080f]/95 backdrop-blur-md z-10">
-        <button
-          onClick={onClose}
-          className="p-2 text-white hover:bg-gray-800 rounded-full transition-colors"
-        >
-          <ChevronLeft size={28} />
-        </button>
-        <h2 className="text-lg font-semibold text-white">Alterar / Redefinir Senha</h2>
-        <div className="w-10" />
-      </div>
-
-      <div className="p-6 max-w-md w-full mx-auto flex-1 flex flex-col justify-center">
-        <div className="text-center mb-6">
-          <div className="w-16 h-16 bg-[#2DD4BF]/15 text-[#2DD4BF] rounded-3xl mx-auto mb-3 flex items-center justify-center border border-[#2DD4BF]/30">
-            <KeyRound size={30} />
-          </div>
-          <h3 className="text-2xl font-bold text-white">Segurança da Conta</h3>
-          <p className="text-gray-400 text-sm mt-1">
-            {mode === 'change'
-              ? 'Informe sua senha atual para definir uma nova senha.'
-              : 'Redefina sua senha confirmando seu e-mail ou WhatsApp.'}
-          </p>
-        </div>
-
-        {/* Alternador entre Alterar com senha atual ou Redefinir */}
-        <div className="flex bg-[#1c1c1e] p-1 rounded-xl border border-white/5 mb-6">
+    <div
+      className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in"
+      onClick={onClose}
+    >
+      <div
+        className="bg-[#0b0f19] w-full max-w-md rounded-3xl border border-white/10 shadow-2xl flex flex-col max-h-[90vh] overflow-hidden animate-slide-up"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Cabeçalho */}
+        <div className="flex items-center justify-between p-4 border-b border-white/10 bg-[#0b0f19]/95 backdrop-blur-md shrink-0">
           <button
-            type="button"
-            onClick={() => {
-              setMode('change');
-              setErrorMsg('');
-            }}
-            className={`flex-1 py-2 rounded-lg text-xs font-bold transition-colors ${
-              mode === 'change'
-                ? 'bg-[#2DD4BF] text-[#05080f]'
-                : 'text-gray-400 hover:text-white'
-            }`}
+            onClick={onClose}
+            className="p-2 text-white hover:bg-gray-800 rounded-full transition-colors"
           >
-            Sei minha senha atual
+            <ChevronLeft size={26} />
           </button>
+          <h2 className="text-base font-semibold text-white">Alterar / Redefinir Senha</h2>
           <button
-            type="button"
-            onClick={() => {
-              setMode('reset');
-              setErrorMsg('');
-            }}
-            className={`flex-1 py-2 rounded-lg text-xs font-bold transition-colors ${
-              mode === 'reset'
-                ? 'bg-[#2DD4BF] text-[#05080f]'
-                : 'text-gray-400 hover:text-white'
-            }`}
+            onClick={onClose}
+            className="p-2 text-gray-400 hover:text-white rounded-full transition-colors"
           >
-            Esqueci a senha atual
+            <X size={20} />
           </button>
         </div>
 
-        {errorMsg && (
-          <div className="mb-4 bg-red-500/10 border border-red-500/30 text-red-400 rounded-xl p-3.5 flex items-center gap-2.5 text-sm">
-            <AlertCircle size={18} className="shrink-0" />
-            <span>{errorMsg}</span>
-          </div>
-        )}
-
-        {successMsg && (
-          <div className="mb-4 bg-[#34C759]/15 border border-[#34C759]/30 text-[#34C759] rounded-xl p-3.5 flex items-center gap-2.5 text-sm">
-            <CheckCircle2 size={18} className="shrink-0" />
-            <span>{successMsg}</span>
-          </div>
-        )}
-
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {mode === 'change' ? (
-            <div>
-              <label className="block text-gray-400 text-xs uppercase font-bold mb-1.5">
-                Senha Atual
-              </label>
-              <div className="bg-[#1c1c1e] rounded-xl p-4 flex items-center text-white border border-white/5 focus-within:border-[#2DD4BF]">
-                <Lock size={18} className="text-gray-400 mr-3 shrink-0" />
-                <input
-                  type="password"
-                  placeholder="Digite sua senha atual"
-                  value={senhaAtual}
-                  onChange={(e) => setSenhaAtual(e.target.value)}
-                  className="bg-transparent w-full outline-none text-white text-sm"
-                />
-              </div>
+        <div className="p-6 overflow-y-auto flex-1">
+          <div className="text-center mb-5">
+            <div className="w-14 h-14 bg-[#2DD4BF]/15 text-[#2DD4BF] rounded-3xl mx-auto mb-3 flex items-center justify-center border border-[#2DD4BF]/30">
+              <KeyRound size={26} />
             </div>
-          ) : (
-            <div>
-              <label className="block text-gray-400 text-xs uppercase font-bold mb-1.5">
-                Seu E-mail ou WhatsApp
-              </label>
-              <div className="bg-[#1c1c1e] rounded-xl p-4 flex items-center text-white border border-white/5 focus-within:border-[#2DD4BF]">
-                <Lock size={18} className="text-gray-400 mr-3 shrink-0" />
-                <input
-                  type="text"
-                  placeholder="Confirme seu e-mail ou WhatsApp"
-                  value={identificador}
-                  onChange={(e) => setIdentificador(e.target.value)}
-                  className="bg-transparent w-full outline-none text-white text-sm"
-                />
-              </div>
+            <h3 className="text-xl font-bold text-white">Segurança da Conta</h3>
+            <p className="text-gray-400 text-xs mt-1">
+              {mode === 'change'
+                ? 'Informe sua senha atual para definir uma nova senha.'
+                : 'Redefina sua senha confirmando seu e-mail ou WhatsApp.'}
+            </p>
+          </div>
+
+          {/* Alternador entre Alterar com senha atual ou Redefinir */}
+          <div className="flex bg-[#1c1c1e] p-1 rounded-xl border border-white/5 mb-5">
+            <button
+              type="button"
+              onClick={() => {
+                setMode('change');
+                setErrorMsg('');
+              }}
+              className={`flex-1 py-2 rounded-lg text-xs font-bold transition-colors ${
+                mode === 'change'
+                  ? 'bg-[#2DD4BF] text-[#05080f]'
+                  : 'text-gray-400 hover:text-white'
+              }`}
+            >
+              Sei minha senha atual
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setMode('reset');
+                setErrorMsg('');
+              }}
+              className={`flex-1 py-2 rounded-lg text-xs font-bold transition-colors ${
+                mode === 'reset'
+                  ? 'bg-[#2DD4BF] text-[#05080f]'
+                  : 'text-gray-400 hover:text-white'
+              }`}
+            >
+              Esqueci a senha atual
+            </button>
+          </div>
+
+          {errorMsg && (
+            <div className="mb-4 bg-red-500/10 border border-red-500/30 text-red-400 rounded-xl p-3.5 flex items-center gap-2.5 text-sm">
+              <AlertCircle size={18} className="shrink-0" />
+              <span>{errorMsg}</span>
             </div>
           )}
 
-          <div>
-            <label className="block text-gray-400 text-xs uppercase font-bold mb-1.5">
-              Nova Senha
-            </label>
-            <div className="bg-[#1c1c1e] rounded-xl p-4 flex items-center text-white border border-white/5 focus-within:border-[#2DD4BF]">
-              <Lock size={18} className="text-gray-400 mr-3 shrink-0" />
-              <input
-                type="password"
-                placeholder="Digite a nova senha"
-                value={novaSenha}
-                onChange={(e) => setNovaSenha(e.target.value)}
-                className="bg-transparent w-full outline-none text-white text-sm"
-              />
+          {successMsg && (
+            <div className="mb-4 bg-[#34C759]/15 border border-[#34C759]/30 text-[#34C759] rounded-xl p-3.5 flex items-center gap-2.5 text-sm">
+              <CheckCircle2 size={18} className="shrink-0" />
+              <span>{successMsg}</span>
             </div>
-          </div>
+          )}
 
-          <div>
-            <label className="block text-gray-400 text-xs uppercase font-bold mb-1.5">
-              Confirmar Nova Senha
-            </label>
-            <div className="bg-[#1c1c1e] rounded-xl p-4 flex items-center text-white border border-white/5 focus-within:border-[#2DD4BF]">
-              <Lock size={18} className="text-gray-400 mr-3 shrink-0" />
-              <input
-                type="password"
-                placeholder="Repita a nova senha"
-                value={confirmarSenha}
-                onChange={(e) => setConfirmarSenha(e.target.value)}
-                className="bg-transparent w-full outline-none text-white text-sm"
-              />
-            </div>
-          </div>
-
-          <button
-            type="submit"
-            disabled={isSaving}
-            className="w-full bg-[#2DD4BF] hover:bg-[#25b5a3] text-[#05080f] font-bold py-4 rounded-xl mt-4 flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
-          >
-            {isSaving ? (
-              <LoaderCircle className="animate-spin" size={20} />
+          <form onSubmit={handleSubmit} className="space-y-4">
+            {mode === 'change' ? (
+              <div>
+                <label className="block text-gray-400 text-xs uppercase font-bold mb-1.5">
+                  Senha Atual
+                </label>
+                <div className="bg-[#1c1c1e] rounded-xl p-3.5 flex items-center text-white border border-white/5 focus-within:border-[#2DD4BF]">
+                  <Lock size={18} className="text-gray-400 mr-3 shrink-0" />
+                  <input
+                    type="password"
+                    placeholder="Digite sua senha atual"
+                    value={senhaAtual}
+                    onChange={(e) => setSenhaAtual(e.target.value)}
+                    className="bg-transparent w-full outline-none text-white text-sm"
+                  />
+                </div>
+              </div>
             ) : (
-              'Confirmar Nova Senha'
+              <div>
+                <label className="block text-gray-400 text-xs uppercase font-bold mb-1.5">
+                  Seu E-mail ou WhatsApp
+                </label>
+                <div className="bg-[#1c1c1e] rounded-xl p-3.5 flex items-center text-white border border-white/5 focus-within:border-[#2DD4BF]">
+                  <Lock size={18} className="text-gray-400 mr-3 shrink-0" />
+                  <input
+                    type="text"
+                    placeholder="Confirme seu e-mail ou WhatsApp"
+                    value={identificador}
+                    onChange={(e) => setIdentificador(e.target.value)}
+                    className="bg-transparent w-full outline-none text-white text-sm"
+                  />
+                </div>
+              </div>
             )}
-          </button>
-        </form>
+
+            <div>
+              <label className="block text-gray-400 text-xs uppercase font-bold mb-1.5">
+                Nova Senha
+              </label>
+              <div className="bg-[#1c1c1e] rounded-xl p-3.5 flex items-center text-white border border-white/5 focus-within:border-[#2DD4BF]">
+                <Lock size={18} className="text-gray-400 mr-3 shrink-0" />
+                <input
+                  type="password"
+                  placeholder="Digite a nova senha"
+                  value={novaSenha}
+                  onChange={(e) => setNovaSenha(e.target.value)}
+                  className="bg-transparent w-full outline-none text-white text-sm"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-gray-400 text-xs uppercase font-bold mb-1.5">
+                Confirmar Nova Senha
+              </label>
+              <div className="bg-[#1c1c1e] rounded-xl p-3.5 flex items-center text-white border border-white/5 focus-within:border-[#2DD4BF]">
+                <Lock size={18} className="text-gray-400 mr-3 shrink-0" />
+                <input
+                  type="password"
+                  placeholder="Repita a nova senha"
+                  value={confirmarSenha}
+                  onChange={(e) => setConfirmarSenha(e.target.value)}
+                  className="bg-transparent w-full outline-none text-white text-sm"
+                />
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              disabled={isSaving}
+              className="w-full bg-[#2DD4BF] hover:bg-[#25b5a3] text-[#05080f] font-bold py-4 rounded-xl mt-2 flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
+            >
+              {isSaving ? (
+                <LoaderCircle className="animate-spin" size={20} />
+              ) : (
+                'Confirmar Nova Senha'
+              )}
+            </button>
+          </form>
+        </div>
       </div>
     </div>
   );

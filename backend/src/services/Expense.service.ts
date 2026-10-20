@@ -75,6 +75,7 @@ export class ExpenseService {
         friend_id: ownerLocalFriend.id,
         amount_owed: ownerOwed,
         amount_paid: ownerPaid,
+        receipt_url: exp.self_receipt_url || null,
         friend: ownerLocalFriend,
       },
     ];
@@ -89,6 +90,7 @@ export class ExpenseService {
             friend_id: localF.id,
             amount_owed: Number(p.amount_owed),
             amount_paid: Number(p.amount_paid),
+            receipt_url: p.receipt_url || null,
             friend: localF,
           });
         }
@@ -103,6 +105,7 @@ export class ExpenseService {
       paidByFriend: transformedPaidByFriend,
       self_amount_owed: myOwed,
       self_amount_paid: myPaid,
+      self_receipt_url: myPart?.receipt_url || null,
       participants: transformedParticipants,
     };
   }
@@ -346,8 +349,10 @@ export class ExpenseService {
       data.paidByFriendId !== undefined ? data.paidByFriendId || null : existing.paid_by_friend_id;
 
     const existingPaidMap = new Map<string, number>();
-    existing.participants.forEach((p) => {
+    const existingReceiptMap = new Map<string, string | null>();
+    existing.participants.forEach((p: any) => {
       existingPaidMap.set(p.friend_id, Number(p.amount_paid));
+      existingReceiptMap.set(p.friend_id, p.receipt_url || null);
     });
 
     const parsedDate = data.expenseDate ? new Date(data.expenseDate) : existing.expense_date;
@@ -383,6 +388,7 @@ export class ExpenseService {
               friend_id: friendId,
               amount_owed: owedForFriend,
               amount_paid: amountPaid,
+              receipt_url: existingReceiptMap.get(friendId) || null,
             };
           }),
         },
@@ -422,14 +428,18 @@ export class ExpenseService {
   }
 
   // 5. Desfazer ou definir pagamento de um participante numa corrida específica
+  // Regras:
+  // - Quem pagou a conta ("lesado"/credor) pode confirmar ou desfazer o pagamento de qualquer participante sem precisar de comprovante.
+  // - Quem deve (devedor) SÓ pode informar o pagamento da sua própria parte e MEDIANTE comprovante de pagamento (receiptUrl).
   static async setParticipantPayment(
     userId: string,
     expenseId: string,
     friendId: string,
-    amountPaid?: number
+    amountPaid?: number,
+    receiptUrl?: string | null
   ) {
     const { reverseFriendIds, myFriends } = await FriendService.syncReverseLinks(userId);
-    const expense = await prisma.expense.findFirst({
+    const expense: any = await prisma.expense.findFirst({
       where: {
         id: expenseId,
         OR: [
@@ -445,12 +455,15 @@ export class ExpenseService {
       include: {
         owner: { select: { id: true, name: true, phone: true } },
         participants: { include: { friend: true } },
+        paidByFriend: true,
       },
     });
     if (!expense) throw new Error('Racha não encontrado.');
 
     // Caso 1: A despesa foi criada pelo próprio userId
     if (expense.user_id === userId) {
+      const userIsCreditor = !expense.paid_by_friend_id;
+
       if (friendId === 'self') {
         const totalParts = expense.participants.length + 1;
         const selfOwed =
@@ -459,13 +472,30 @@ export class ExpenseService {
             : Number(expense.total_amount) / totalParts;
         const target =
           amountPaid !== undefined ? Math.min(selfOwed, Math.max(0, Number(amountPaid))) : 0;
+
+        if (!userIsCreditor) {
+          if (target <= 0) {
+            throw new Error('Apenas quem pagou a conta pode desfazer o pagamento.');
+          }
+          if (!receiptUrl && !expense.self_receipt_url) {
+            throw new Error('É obrigatório anexar o comprovante de pagamento para informar que pagou.');
+          }
+        }
+
         return prisma.expense.update({
           where: { id: expenseId },
-          data: { self_amount_paid: Number(target.toFixed(2)) },
+          data: {
+            self_amount_paid: Number(target.toFixed(2)),
+            self_receipt_url: target <= 0 ? null : receiptUrl || expense.self_receipt_url || null,
+          } as any,
         });
       }
 
-      const part = expense.participants.find((p) => p.friend_id === friendId);
+      if (!userIsCreditor) {
+        throw new Error('Apenas quem pagou a conta pode confirmar ou alterar o pagamento de outros participantes.');
+      }
+
+      const part = expense.participants.find((p: any) => p.friend_id === friendId);
       if (!part) throw new Error('Participante não encontrado neste racha.');
 
       const targetAmount =
@@ -482,12 +512,16 @@ export class ExpenseService {
         },
         data: {
           amount_paid: targetAmount,
-        },
+          receipt_url: targetAmount <= 0 ? null : receiptUrl || part.receipt_url || null,
+        } as any,
       });
     }
 
     // Caso 2: A despesa foi criada por outro usuário (exp.owner) e compartilhada com userId
-    const myPart = expense.participants.find((p) => reverseFriendIds.includes(p.friend_id));
+    const iAmCreditor = Boolean(
+      expense.paid_by_friend_id && reverseFriendIds.includes(expense.paid_by_friend_id)
+    );
+    const myPart = expense.participants.find((p: any) => reverseFriendIds.includes(p.friend_id));
     const localFriendTarget = myFriends.find((f) => f.id === friendId);
     const isTargetTheExpenseOwner =
       localFriendTarget &&
@@ -503,6 +537,15 @@ export class ExpenseService {
           ? Math.min(Number(myPart.amount_owed), Math.max(0, Number(amountPaid)))
           : 0;
 
+      if (!iAmCreditor) {
+        if (targetAmount <= 0) {
+          throw new Error('Apenas quem pagou a conta pode desfazer o pagamento.');
+        }
+        if (!receiptUrl && !myPart.receipt_url) {
+          throw new Error('É obrigatório anexar o comprovante de pagamento para informar que pagou.');
+        }
+      }
+
       return prisma.expenseParticipant.update({
         where: {
           expense_id_friend_id: {
@@ -512,8 +555,13 @@ export class ExpenseService {
         },
         data: {
           amount_paid: Number(targetAmount.toFixed(2)),
-        },
+          receipt_url: targetAmount <= 0 ? null : receiptUrl || myPart.receipt_url || null,
+        } as any,
       });
+    }
+
+    if (!iAmCreditor) {
+      throw new Error('Apenas quem pagou a conta pode confirmar ou alterar o pagamento de outros participantes.');
     }
 
     // Se EU fui o pagador na despesa criada pelo meu amigo, e estou quitando a parte dele (owner)
@@ -530,13 +578,14 @@ export class ExpenseService {
         where: { id: expenseId },
         data: {
           self_amount_paid: Number(targetAmount.toFixed(2)),
-        },
+          self_receipt_url: targetAmount <= 0 ? null : receiptUrl || expense.self_receipt_url || null,
+        } as any,
       });
     }
 
-    // Caso seja um 3º participante
+    // Caso seja um 3º participante (e eu sou o credor)
     const otherPart = expense.participants.find(
-      (p) =>
+      (p: any) =>
         p.friend_id === friendId ||
         (localFriendTarget &&
           p.friend &&
@@ -559,7 +608,8 @@ export class ExpenseService {
       },
       data: {
         amount_paid: Number(targetAmount.toFixed(2)),
-      },
+        receipt_url: targetAmount <= 0 ? null : receiptUrl || otherPart.receipt_url || null,
+      } as any,
     });
   }
 
@@ -794,7 +844,8 @@ export class ExpenseService {
     creditorId: string,
     debtorFriendId: string,
     amount: number,
-    groupId?: string
+    groupId?: string,
+    receiptUrl?: string | null
   ) {
     const allExpenses = await this.listExpenses(creditorId);
     const filtered = allExpenses
@@ -821,7 +872,8 @@ export class ExpenseService {
           creditorId,
           expense.id,
           debtorFriendId,
-          Number((paid + amountToPayHere).toFixed(2))
+          Number((paid + amountToPayHere).toFixed(2)),
+          receiptUrl
         );
         remainingAmount -= amountToPayHere;
       }
@@ -846,7 +898,8 @@ export class ExpenseService {
           creditorId,
           expense.id,
           'self',
-          Number((selfPaid + amountToPayHere).toFixed(2))
+          Number((selfPaid + amountToPayHere).toFixed(2)),
+          receiptUrl
         );
         remainingAmount -= amountToPayHere;
       }

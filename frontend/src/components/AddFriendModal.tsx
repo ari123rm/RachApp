@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { X, User, Phone, QrCode } from 'lucide-react';
 import { dbService } from '../services/database';
 import { formatPhoneBR, isValidPhoneBR, stripCountryCode } from '../utils/phoneFormatter';
+import { useModalBackHandler } from '../utils/modalBackHandler';
 import type { Amigo } from '../types';
 
 interface AddFriendModalProps {
@@ -29,6 +30,8 @@ export function AddFriendModal({ isOpen, onClose, onSuccess, friendToEdit }: Add
   const [corSelecionada, setCorSelecionada] = useState(CORES_PALETA[0]);
   const [erro, setErro] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+
+  useModalBackHandler(isOpen, onClose);
 
   const isEditing = !!friendToEdit;
 
@@ -102,11 +105,17 @@ export function AddFriendModal({ isOpen, onClose, onSuccess, friendToEdit }: Add
   };
 
   return (
-    <div className="fixed inset-0 bg-black/75 z-[70] flex items-end sm:items-center justify-center transition-opacity">
-      <div className="bg-[#1c1c1e] w-full max-w-md rounded-t-3xl sm:rounded-3xl p-6 animate-slide-up relative overflow-y-auto max-h-[90vh] border border-white/10">
+    <div
+      className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[70] flex items-center justify-center p-4 transition-opacity animate-fade-in"
+      onClick={onClose}
+    >
+      <div
+        className="bg-[#1c1c1e] w-full max-w-md rounded-3xl p-6 animate-slide-up relative overflow-y-auto max-h-[90vh] border border-white/10 shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
         <button
           onClick={onClose}
-          className="absolute top-5 right-5 text-gray-400 hover:text-white"
+          className="absolute top-5 right-5 text-gray-400 hover:text-white p-1 rounded-full hover:bg-white/10 transition-colors"
         >
           <X size={24} />
         </button>

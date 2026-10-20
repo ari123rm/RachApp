@@ -13,6 +13,7 @@ import {
   Trash2,
   DollarSign,
   Users,
+  Upload,
 } from 'lucide-react';
 import { dbService } from '../services/database';
 import moneyConverter from '../utils/moneyConverter';
@@ -20,8 +21,10 @@ import { AddRideModal } from './AddRideModal';
 import { AddGroupModal } from './AddGroupModal';
 import { AddFriendModal } from './AddFriendModal';
 import { PixModal } from './PixModal';
+import { PayWithReceiptModal } from './ReceiptModals';
 import { RideDetailsModal } from './RideDetailsModal';
 import { formatPhoneBR } from '../utils/phoneFormatter';
+import { useModalBackHandler } from '../utils/modalBackHandler';
 import type { Amigo, Corrida, Grupo, Transferencia } from '../types';
 
 interface GroupDetailsProps {
@@ -46,6 +49,20 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
   const [isCreateFriendOpen, setIsCreateFriendOpen] = useState(false);
   const [corridaSelecionada, setCorridaSelecionada] = useState<Corrida | null>(null);
 
+  const [payMemberTarget, setPayMemberTarget] = useState<{
+    isOpen: boolean;
+    friendId: string;
+    friendName: string;
+    pixKey: string;
+    amount: number;
+  }>({
+    isOpen: false,
+    friendId: '',
+    friendName: '',
+    pixKey: '',
+    amount: 0,
+  });
+
   const [pixModalData, setPixModalData] = useState<{
     isOpen: boolean;
     pixKey: string;
@@ -61,6 +78,8 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
     amount: 0,
     description: '',
   });
+
+  useModalBackHandler(isOpen, onClose);
 
   const carregarDetalhes = async () => {
     if (!grupoId) return;
@@ -121,6 +140,7 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
     }
   };
 
+  // Quando o membro te deve (você é o lesado), você pode confirmar recebimento sem comprovante
   const handleQuitarMembroNoGrupo = async (friendId: string, amount: number, friendName: string) => {
     if (!grupo) return;
     if (!window.confirm(`Confirmar recebimento de R$ ${moneyConverter(amount)} de ${friendName} neste grupo?`)) {
@@ -133,6 +153,19 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
     } catch (err) {
       alert('Erro ao registrar pagamento.');
     }
+  };
+
+  // Quando Você deve ao membro no grupo, confirma enviando comprovante
+  const handleConfirmPayMemberWithReceipt = async (amount: number, receiptBase64: string) => {
+    if (!grupo || !payMemberTarget.friendId) return;
+    await dbService.financeiro.registrarPagamento(
+      payMemberTarget.friendId,
+      amount,
+      grupo.id,
+      receiptBase64
+    );
+    await carregarDetalhes();
+    if (onChanged) onChanged();
   };
 
   const handleCobrarGrupo = async () => {
@@ -170,6 +203,18 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
     const myPix = freshConfig.pix_key || freshConfig.pix || myConfig.pix || '';
     const myName = freshConfig.nome || freshConfig.name || myConfig.nome || 'Você';
 
+    // Se a transferência parte de "Você" para um amigo, abre o modal de Pagar com Comprovante!
+    if (t.fromName === 'Você') {
+      setPayMemberTarget({
+        isOpen: true,
+        friendId: t.toId,
+        friendName: t.toName,
+        pixKey: t.toPixKey || '',
+        amount: t.amount,
+      });
+      return;
+    }
+
     const isToMe = t.toName === 'Você';
     const pixKey = isToMe ? myPix : t.toPixKey || '';
     const recipient = isToMe ? myName : t.toName;
@@ -196,369 +241,404 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
   const userNet = Number(grupo?.userNetBalance || 0);
 
   return (
-    <div className="fixed inset-0 bg-[#05080f] z-50 flex flex-col animate-slide-up overflow-y-auto pb-10">
-      {/* Cabeçalho */}
-      <div className="flex items-center justify-between p-4 border-b border-white/5 sticky top-0 bg-[#05080f]/95 backdrop-blur-md z-10">
-        <button
-          onClick={onClose}
-          className="p-2 text-white hover:bg-gray-800 rounded-full transition-colors"
-        >
-          <ChevronLeft size={28} />
-        </button>
-        <h2 className="text-lg font-semibold text-white">Detalhes Do Grupo</h2>
-        <div className="flex items-center gap-1">
+    <div
+      className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4 animate-fade-in"
+      onClick={onClose}
+    >
+      <div
+        className="bg-[#0b0f19] w-full max-w-md rounded-3xl border border-white/10 shadow-2xl flex flex-col max-h-[90vh] overflow-hidden animate-slide-up"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Cabeçalho */}
+        <div className="flex items-center justify-between p-4 border-b border-white/10 bg-[#0b0f19]/95 backdrop-blur-md shrink-0">
           <button
-            onClick={() => setIsEditGroupOpen(true)}
-            className="p-2 text-gray-300 hover:bg-white/10 hover:text-white rounded-full transition-colors"
-            title="Editar Grupo"
+            onClick={onClose}
+            className="p-2 text-white hover:bg-gray-800 rounded-full transition-colors"
           >
-            <Pencil size={20} />
+            <ChevronLeft size={26} />
           </button>
-          <button
-            onClick={handleDeleteGroup}
-            className="p-2 text-red-500 hover:bg-red-500/20 hover:text-red-400 rounded-full transition-colors"
-            title="Excluir Grupo"
-          >
-            <Trash2 size={22} />
-          </button>
-        </div>
-      </div>
-
-      {isLoading || !grupo ? (
-        <div className="flex flex-col items-center justify-center flex-1 py-20">
-          <LoaderCircle size={40} className="animate-spin text-[#2DD4BF]" />
-        </div>
-      ) : (
-        <div className="px-5 flex-1 mt-4 space-y-6">
-          {/* Card Principal do Grupo */}
-          <div className="bg-[#141923] rounded-3xl p-5 border border-white/10 shadow-xl">
-            <div className="flex justify-between items-center mb-4">
-              <div className="flex items-center">
-                <div className="flex -space-x-2">
-                  <div className="w-8 h-8 rounded-full bg-[#2DD4BF] text-[#05080f] font-black text-xs flex items-center justify-center border-2 border-[#141923]">
-                    V
-                  </div>
-                  {memberBalances.slice(0, 4).map((m) => (
-                    <div
-                      key={m.friendId}
-                      className={`w-8 h-8 rounded-full ${m.color} text-white font-bold text-xs flex items-center justify-center border-2 border-[#141923]`}
-                    >
-                      {m.name[0]?.toUpperCase()}
-                    </div>
-                  ))}
-                </div>
-                <span className="text-xs text-gray-400 ml-2.5 font-medium">
-                  {memberBalances.length + 1} participantes
-                </span>
-              </div>
-
-              <span className="text-[10px] font-bold bg-[#2DD4BF]/15 text-[#2DD4BF] px-2.5 py-1 rounded-full">
-                • ATIVO
-              </span>
-            </div>
-
-            <p className="text-xs text-gray-400 mb-1">
-              Seu saldo em <strong className="text-white">{grupo.name}</strong>
-            </p>
-            <div className="flex items-baseline gap-2 mb-5">
-              <span
-                className={`text-3xl font-black ${
-                  userNet >= 0 ? 'text-[#2DD4BF]' : 'text-red-400'
-                }`}
-              >
-                R$ {moneyConverter(Math.abs(userNet))}
-              </span>
-              <span className="text-xs text-gray-400 font-semibold">
-                {userNet > 0.01 ? 'a receber' : userNet < -0.01 ? 'a pagar' : 'tudo quitado'}
-              </span>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <button
-                onClick={() => setIsAddRideOpen(true)}
-                className="bg-[#2DD4BF] hover:bg-[#25b5a3] text-[#05080f] font-bold py-3 rounded-2xl text-sm flex items-center justify-center gap-1.5 transition-transform active:scale-95"
-              >
-                <Plus size={18} strokeWidth={2.5} /> Novo Racha
-              </button>
-              <button
-                onClick={handleCobrarGrupo}
-                className="bg-[#1c2230] hover:bg-[#252d3f] text-white border border-white/10 font-bold py-3 rounded-2xl text-sm flex items-center justify-center gap-2 transition-transform active:scale-95"
-              >
-                <QrCode size={16} className="text-[#2DD4BF]" /> Cobrar
-              </button>
-            </div>
+          <h2 className="text-base font-semibold text-white">Detalhes Do Grupo</h2>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => setIsEditGroupOpen(true)}
+              className="p-2 text-gray-300 hover:bg-white/10 hover:text-white rounded-full transition-colors"
+              title="Editar Grupo"
+            >
+              <Pencil size={18} />
+            </button>
+            <button
+              onClick={handleDeleteGroup}
+              className="p-2 text-red-500 hover:bg-red-500/20 hover:text-red-400 rounded-full transition-colors"
+              title="Excluir Grupo"
+            >
+              <Trash2 size={20} />
+            </button>
           </div>
+        </div>
 
-          {/* Membros e Saldos Individuais */}
-          <div>
-            <div className="flex justify-between items-center mb-3">
-              <div className="flex items-center gap-2">
-                <h4 className="text-white font-bold text-base">Membros</h4>
-                <span className="text-[10px] text-gray-400 uppercase font-bold tracking-wider bg-white/5 px-2 py-0.5 rounded-full">
-                  {pendenciasCount} {pendenciasCount === 1 ? 'PENDÊNCIA' : 'PENDÊNCIAS'}
+        {isLoading || !grupo ? (
+          <div className="flex flex-col items-center justify-center flex-1 py-20">
+            <LoaderCircle size={40} className="animate-spin text-[#2DD4BF]" />
+          </div>
+        ) : (
+          <div className="p-5 overflow-y-auto flex-1 space-y-6">
+            {/* Card Principal do Grupo */}
+            <div className="bg-[#141923] rounded-3xl p-5 border border-white/10 shadow-xl">
+              <div className="flex justify-between items-center mb-4">
+                <div className="flex items-center">
+                  <div className="flex -space-x-2">
+                    <div className="w-8 h-8 rounded-full bg-[#2DD4BF] text-[#05080f] font-black text-xs flex items-center justify-center border-2 border-[#141923]">
+                      V
+                    </div>
+                    {memberBalances.slice(0, 4).map((m) => (
+                      <div
+                        key={m.friendId}
+                        className={`w-8 h-8 rounded-full ${m.color} text-white font-bold text-xs flex items-center justify-center border-2 border-[#141923]`}
+                      >
+                        {m.name[0]?.toUpperCase()}
+                      </div>
+                    ))}
+                  </div>
+                  <span className="text-xs text-gray-400 ml-2.5 font-medium">
+                    {memberBalances.length + 1} participantes
+                  </span>
+                </div>
+
+                <span className="text-[10px] font-bold bg-[#2DD4BF]/15 text-[#2DD4BF] px-2.5 py-1 rounded-full">
+                  • ATIVO
                 </span>
               </div>
 
-              <button
-                onClick={() => setShowAddMemberSection(!showAddMemberSection)}
-                className="text-xs bg-[#2DD4BF]/15 hover:bg-[#2DD4BF]/25 text-[#2DD4BF] px-3 py-1.5 rounded-full font-bold flex items-center gap-1 transition-colors"
-              >
-                <UserPlus size={14} /> Adicionar Amigo
-              </button>
+              <p className="text-xs text-gray-400 mb-1">
+                Seu saldo em <strong className="text-white">{grupo.name}</strong>
+              </p>
+              <div className="flex items-baseline gap-2 mb-5">
+                <span
+                  className={`text-3xl font-black ${
+                    userNet >= 0 ? 'text-[#2DD4BF]' : 'text-red-400'
+                  }`}
+                >
+                  R$ {moneyConverter(Math.abs(userNet))}
+                </span>
+                <span className="text-xs text-gray-400 font-semibold">
+                  {userNet > 0.01 ? 'a receber' : userNet < -0.01 ? 'a pagar' : 'tudo quitado'}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  onClick={() => setIsAddRideOpen(true)}
+                  className="bg-[#2DD4BF] hover:bg-[#25b5a3] text-[#05080f] font-bold py-3 rounded-2xl text-sm flex items-center justify-center gap-1.5 transition-transform active:scale-95"
+                >
+                  <Plus size={18} strokeWidth={2.5} /> Novo Racha
+                </button>
+                <button
+                  onClick={handleCobrarGrupo}
+                  className="bg-[#1c2230] hover:bg-[#252d3f] text-white border border-white/10 font-bold py-3 rounded-2xl text-sm flex items-center justify-center gap-2 transition-transform active:scale-95"
+                >
+                  <QrCode size={16} className="text-[#2DD4BF]" /> Cobrar
+                </button>
+              </div>
             </div>
 
-            {/* Painel de Adição de Amigos (Seleção de amigos cadastrados + Criar Novo Amigo) */}
-            {showAddMemberSection && (
-              <div className="mb-4 bg-[#141923] rounded-2xl p-4 border border-[#2DD4BF]/30 space-y-3 animate-fade-in">
-                <div className="flex justify-between items-center">
-                  <p className="text-xs font-bold text-gray-300 uppercase tracking-wider">
-                    Selecionar dos seus Amigos
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => setIsCreateFriendOpen(true)}
-                    className="text-xs text-[#2DD4BF] font-bold flex items-center gap-1 hover:underline"
-                  >
-                    <Plus size={14} /> Criar Novo Amigo
-                  </button>
+            {/* Membros e Saldos Individuais */}
+            <div>
+              <div className="flex justify-between items-center mb-3">
+                <div className="flex items-center gap-2">
+                  <h4 className="text-white font-bold text-base">Membros</h4>
+                  <span className="text-[10px] text-gray-400 uppercase font-bold tracking-wider bg-white/5 px-2 py-0.5 rounded-full">
+                    {pendenciasCount} {pendenciasCount === 1 ? 'PENDÊNCIA' : 'PENDÊNCIAS'}
+                  </span>
                 </div>
 
-                {amigosForaDoGrupo.length === 0 ? (
-                  <div className="bg-[#1c1c1e] rounded-xl p-3 text-center">
-                    <p className="text-xs text-gray-400 mb-2">
-                      Todos os seus amigos cadastrados já estão neste grupo!
+                <button
+                  onClick={() => setShowAddMemberSection(!showAddMemberSection)}
+                  className="text-xs bg-[#2DD4BF]/15 hover:bg-[#2DD4BF]/25 text-[#2DD4BF] px-3 py-1.5 rounded-full font-bold flex items-center gap-1 transition-colors"
+                >
+                  <UserPlus size={14} /> Adicionar Amigo
+                </button>
+              </div>
+
+              {showAddMemberSection && (
+                <div className="mb-4 bg-[#141923] rounded-2xl p-4 border border-[#2DD4BF]/30 space-y-3 animate-fade-in">
+                  <div className="flex justify-between items-center">
+                    <p className="text-xs font-bold text-gray-300 uppercase tracking-wider">
+                      Selecionar dos seus Amigos
                     </p>
                     <button
                       type="button"
                       onClick={() => setIsCreateFriendOpen(true)}
-                      className="bg-[#2DD4BF] text-[#05080f] px-4 py-2 rounded-xl text-xs font-bold inline-flex items-center gap-1.5"
+                      className="text-xs text-[#2DD4BF] font-bold flex items-center gap-1 hover:underline"
                     >
-                      <UserPlus size={14} /> Cadastrar Novo Amigo
+                      <Plus size={14} /> Criar Novo Amigo
+                    </button>
+                  </div>
+
+                  {amigosForaDoGrupo.length === 0 ? (
+                    <div className="bg-[#1c1c1e] rounded-xl p-3 text-center">
+                      <p className="text-xs text-gray-400 mb-2">
+                        Todos os seus amigos cadastrados já estão neste grupo!
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => setIsCreateFriendOpen(true)}
+                        className="bg-[#2DD4BF] text-[#05080f] px-4 py-2 rounded-xl text-xs font-bold inline-flex items-center gap-1.5"
+                      >
+                        <UserPlus size={14} /> Cadastrar Novo Amigo
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                      {amigosForaDoGrupo.map((amigo) => {
+                        const nomeAmigo = amigo.nome || amigo.name || 'Amigo';
+                        const corAmigo = amigo.cor || amigo.color || 'bg-sky-500';
+                        const tel = formatPhoneBR(amigo.telefone || amigo.phone || '');
+                        const adding = isAddingMemberId === amigo.id;
+                        return (
+                          <div
+                            key={amigo.id}
+                            className="bg-[#1c1c1e] p-2.5 rounded-xl flex items-center justify-between border border-white/5"
+                          >
+                            <div className="flex items-center gap-2.5">
+                              <div
+                                className={`w-8 h-8 rounded-full ${corAmigo} flex items-center justify-center font-bold text-white text-xs`}
+                              >
+                                {nomeAmigo[0]?.toUpperCase()}
+                              </div>
+                              <div>
+                                <p className="text-xs font-bold text-white">{nomeAmigo}</p>
+                                {tel && <p className="text-[10px] text-gray-500">{tel}</p>}
+                              </div>
+                            </div>
+                            <button
+                              onClick={() => handleSelectExistingFriend(amigo.id)}
+                              disabled={adding}
+                              className="bg-[#2DD4BF]/20 hover:bg-[#2DD4BF] text-[#2DD4BF] hover:text-[#05080f] px-3 py-1.5 rounded-lg text-xs font-bold transition-colors flex items-center gap-1"
+                            >
+                              {adding ? (
+                                <LoaderCircle size={13} className="animate-spin" />
+                              ) : (
+                                <>
+                                  <Plus size={13} /> Incluir
+                                </>
+                              )}
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div className="space-y-2.5">
+                {memberBalances.length === 0 ? (
+                  <div className="bg-[#1c1c1e] p-5 rounded-2xl border border-white/5 text-center">
+                    <Users size={24} className="text-gray-600 mx-auto mb-2" />
+                    <p className="text-gray-400 text-xs mb-3">
+                      Nenhum amigo adicionado a este grupo ainda.
+                    </p>
+                    <button
+                      onClick={() => setShowAddMemberSection(true)}
+                      className="text-xs text-[#2DD4BF] font-bold hover:underline"
+                    >
+                      + Selecionar ou cadastrar amigos
                     </button>
                   </div>
                 ) : (
-                  <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
-                    {amigosForaDoGrupo.map((amigo) => {
-                      const nomeAmigo = amigo.nome || amigo.name || 'Amigo';
-                      const corAmigo = amigo.cor || amigo.color || 'bg-sky-500';
-                      const tel = formatPhoneBR(amigo.telefone || amigo.phone || '');
-                      const adding = isAddingMemberId === amigo.id;
-                      return (
-                        <div
-                          key={amigo.id}
-                          className="bg-[#1c1c1e] p-2.5 rounded-xl flex items-center justify-between border border-white/5"
-                        >
-                          <div className="flex items-center gap-2.5">
-                            <div
-                              className={`w-8 h-8 rounded-full ${corAmigo} flex items-center justify-center font-bold text-white text-xs`}
-                            >
-                              {nomeAmigo[0]?.toUpperCase()}
-                            </div>
-                            <div>
-                              <p className="text-xs font-bold text-white">{nomeAmigo}</p>
-                              {tel && <p className="text-[10px] text-gray-500">{tel}</p>}
-                            </div>
-                          </div>
-                          <button
-                            onClick={() => handleSelectExistingFriend(amigo.id)}
-                            disabled={adding}
-                            className="bg-[#2DD4BF]/20 hover:bg-[#2DD4BF] text-[#2DD4BF] hover:text-[#05080f] px-3 py-1.5 rounded-lg text-xs font-bold transition-colors flex items-center gap-1"
+                  memberBalances.map((m) => {
+                    const deveVoce = m.owesYou > 0.01;
+                    const voceDeve = m.owesYou < -0.01;
+                    return (
+                      <div
+                        key={m.friendId}
+                        className="bg-[#1c1c1e] p-3.5 rounded-2xl border border-white/5 flex items-center justify-between"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div
+                            className={`w-10 h-10 rounded-full ${m.color} flex items-center justify-center font-bold text-white text-sm`}
                           >
-                            {adding ? (
-                              <LoaderCircle size={13} className="animate-spin" />
-                            ) : (
-                              <>
-                                <Plus size={13} /> Incluir
-                              </>
-                            )}
-                          </button>
+                            {m.name[0]?.toUpperCase()}
+                          </div>
+                          <div>
+                            <p className="font-semibold text-white text-sm">{m.name}</p>
+                            <p className="text-[11px] text-gray-500">
+                              {m.pendingCount > 0
+                                ? 'Dividindo despesas do grupo'
+                                : 'Sem pendências abertas'}
+                            </p>
+                          </div>
                         </div>
-                      );
-                    })}
-                  </div>
+
+                        <div className="text-right flex items-center gap-2">
+                          <div>
+                            {deveVoce ? (
+                              <>
+                                <p className="text-xs font-bold text-[#2DD4BF]">
+                                  Deve R$ {moneyConverter(m.owesYou)}
+                                </p>
+                                <p className="text-[10px] text-gray-500">
+                                  {m.pendingCount}{' '}
+                                  {m.pendingCount === 1 ? 'conta pendente' : 'contas pendentes'}
+                                </p>
+                              </>
+                            ) : voceDeve ? (
+                              <p className="text-xs font-bold text-amber-400">
+                                Você deve R$ {moneyConverter(Math.abs(m.owesYou))}
+                              </p>
+                            ) : (
+                              <span className="text-xs text-[#2DD4BF] flex items-center gap-1 font-medium">
+                                <CheckCircle2 size={13} /> Tudo pago
+                              </span>
+                            )}
+                          </div>
+
+                          {deveVoce && (
+                            <button
+                              onClick={() => handleQuitarMembroNoGrupo(m.friendId, m.owesYou, m.name)}
+                              className="p-2 bg-[#2DD4BF]/15 text-[#2DD4BF] hover:bg-[#2DD4BF]/25 rounded-xl transition-colors"
+                              title="Confirmar que este membro te pagou"
+                            >
+                              <DollarSign size={15} />
+                            </button>
+                          )}
+
+                          {voceDeve && (
+                            <button
+                              onClick={() =>
+                                setPayMemberTarget({
+                                  isOpen: true,
+                                  friendId: m.friendId,
+                                  friendName: m.name,
+                                  pixKey: m.pix_key || '',
+                                  amount: Math.abs(m.owesYou),
+                                })
+                              }
+                              className="px-2.5 py-1.5 bg-amber-500/20 text-amber-300 hover:bg-amber-500/30 rounded-xl text-[11px] font-bold flex items-center gap-1 transition-colors"
+                              title="Pagar mediante comprovante"
+                            >
+                              <Upload size={12} /> Pagar
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })
                 )}
+              </div>
+            </div>
+
+            {/* Algoritmo de Minimização de Transferências Cruzadas */}
+            {grupo.transfers && grupo.transfers.length > 0 && (
+              <div className="bg-[#141923] rounded-2xl p-4 border border-[#2DD4BF]/20">
+                <div className="flex justify-between items-center mb-3">
+                  <h4 className="text-white font-bold text-sm flex items-center gap-2">
+                    <QrCode size={16} className="text-[#2DD4BF]" />
+                    Transferências Otimizadas (Pix)
+                  </h4>
+                  <span className="text-[10px] bg-[#2DD4BF]/15 text-[#2DD4BF] px-2 py-0.5 rounded-full font-bold">
+                    {grupo.transfers.length} {grupo.transfers.length === 1 ? 'repasse' : 'repasses'}
+                  </span>
+                </div>
+                <div className="space-y-2">
+                  {grupo.transfers.map((t, idx) => (
+                    <div
+                      key={idx}
+                      className="bg-[#1c1c1e] p-3 rounded-xl flex items-center justify-between border border-white/5"
+                    >
+                      <div className="flex items-center gap-2 text-xs text-white font-medium">
+                        <span className="font-bold text-red-400">{t.fromName}</span>
+                        <ArrowRight size={14} className="text-gray-500" />
+                        <span className="font-bold text-[#2DD4BF]">{t.toName}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-bold text-white">
+                          R$ {moneyConverter(t.amount)}
+                        </span>
+                        <button
+                          onClick={() => handleOpenTransferPix(t)}
+                          className="bg-[#2DD4BF]/20 text-[#2DD4BF] hover:bg-[#2DD4BF]/30 px-2.5 py-1 rounded-lg text-[11px] font-bold"
+                        >
+                          {t.fromName === 'Você' ? 'Pagar' : 'Pix'}
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
 
-            <div className="space-y-2.5">
-              {memberBalances.length === 0 ? (
-                <div className="bg-[#1c1c1e] p-5 rounded-2xl border border-white/5 text-center">
-                  <Users size={24} className="text-gray-600 mx-auto mb-2" />
-                  <p className="text-gray-400 text-xs mb-3">
-                    Nenhum amigo adicionado a este grupo ainda.
+            {/* Rachas Recentes no Grupo */}
+            <div>
+              <div className="flex justify-between items-center mb-3">
+                <h4 className="text-white font-bold text-base">Rachas Recentes</h4>
+                <span className="text-xs text-[#2DD4BF] font-medium">
+                  {grupo.expenses?.length || 0} rachas
+                </span>
+              </div>
+
+              {!grupo.expenses || grupo.expenses.length === 0 ? (
+                <div className="bg-[#1c1c1e] p-6 rounded-2xl border border-white/5 text-center">
+                  <p className="text-gray-500 text-sm italic">
+                    Nenhuma despesa registrada neste grupo. Clique em "+ Novo Racha" acima!
                   </p>
-                  <button
-                    onClick={() => setShowAddMemberSection(true)}
-                    className="text-xs text-[#2DD4BF] font-bold hover:underline"
-                  >
-                    + Selecionar ou cadastrar amigos
-                  </button>
                 </div>
               ) : (
-                memberBalances.map((m) => {
-                  const deveVoce = m.owesYou > 0.01;
-                  const voceDeve = m.owesYou < -0.01;
-                  return (
-                    <div
-                      key={m.friendId}
-                      className="bg-[#1c1c1e] p-3.5 rounded-2xl border border-white/5 flex items-center justify-between"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div
-                          className={`w-10 h-10 rounded-full ${m.color} flex items-center justify-center font-bold text-white text-sm`}
-                        >
-                          {m.name[0]?.toUpperCase()}
+                <div className="space-y-2.5">
+                  {grupo.expenses.map((expense: any) => {
+                    const totalParts = (expense.participants?.length || 0) + 1;
+                    const suaParte =
+                      Number(expense.self_amount_owed) > 0
+                        ? Number(expense.self_amount_owed)
+                        : Number(expense.total_amount || 0) / totalParts;
+                    const corridaCompleta = todasCorridas.find((c) => c.id === expense.id);
+
+                    return (
+                      <div
+                        key={expense.id}
+                        onClick={() => {
+                          if (corridaCompleta) setCorridaSelecionada(corridaCompleta);
+                        }}
+                        className="bg-[#1c1c1e] hover:bg-[#2c2c2e] p-4 rounded-2xl border border-white/5 flex justify-between items-center cursor-pointer transition-colors"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center text-[#2DD4BF]">
+                            <Receipt size={18} />
+                          </div>
+                          <div>
+                            <h5 className="text-white font-semibold text-sm">{expense.title}</h5>
+                            <p className="text-xs text-gray-500 mt-0.5">
+                              {expense.expense_date?.split('T')[0]} • Dividido por {totalParts}
+                            </p>
+                          </div>
                         </div>
-                        <div>
-                          <p className="font-semibold text-white text-sm">{m.name}</p>
-                          <p className="text-[11px] text-gray-500">
-                            {m.pendingCount > 0
-                              ? 'Dividindo despesas do grupo'
-                              : 'Sem pendências abertas'}
+                        <div className="text-right">
+                          <p className="text-sm font-bold text-white">
+                            R$ {moneyConverter(suaParte)}
                           </p>
+                          <p className="text-[10px] text-gray-500">sua parte</p>
                         </div>
                       </div>
-
-                      <div className="text-right flex items-center gap-2">
-                        <div>
-                          {deveVoce ? (
-                            <>
-                              <p className="text-xs font-bold text-[#2DD4BF]">
-                                Deve R$ {moneyConverter(m.owesYou)}
-                              </p>
-                              <p className="text-[10px] text-gray-500">
-                                {m.pendingCount}{' '}
-                                {m.pendingCount === 1 ? 'conta pendente' : 'contas pendentes'}
-                              </p>
-                            </>
-                          ) : voceDeve ? (
-                            <>
-                              <p className="text-xs font-bold text-red-400">
-                                Você deve R$ {moneyConverter(Math.abs(m.owesYou))}
-                              </p>
-                            </>
-                          ) : (
-                            <span className="text-xs text-[#2DD4BF] flex items-center gap-1 font-medium">
-                              <CheckCircle2 size={13} /> Tudo pago
-                            </span>
-                          )}
-                        </div>
-
-                        {deveVoce && (
-                          <button
-                            onClick={() => handleQuitarMembroNoGrupo(m.friendId, m.owesYou, m.name)}
-                            className="p-2 bg-[#2DD4BF]/15 text-[#2DD4BF] hover:bg-[#2DD4BF]/25 rounded-xl transition-colors"
-                            title="Registrar pagamento deste membro"
-                          >
-                            <DollarSign size={15} />
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })
+                    );
+                  })}
+                </div>
               )}
             </div>
           </div>
+        )}
+      </div>
 
-          {/* Algoritmo de Minimização de Transferências Cruzadas */}
-          {grupo.transfers && grupo.transfers.length > 0 && (
-            <div className="bg-[#141923] rounded-2xl p-4 border border-[#2DD4BF]/20">
-              <div className="flex justify-between items-center mb-3">
-                <h4 className="text-white font-bold text-sm flex items-center gap-2">
-                  <QrCode size={16} className="text-[#2DD4BF]" />
-                  Transferências Otimizadas (Pix)
-                </h4>
-                <span className="text-[10px] bg-[#2DD4BF]/15 text-[#2DD4BF] px-2 py-0.5 rounded-full font-bold">
-                  {grupo.transfers.length} {grupo.transfers.length === 1 ? 'repasse' : 'repasses'}
-                </span>
-              </div>
-              <div className="space-y-2">
-                {grupo.transfers.map((t, idx) => (
-                  <div
-                    key={idx}
-                    className="bg-[#1c1c1e] p-3 rounded-xl flex items-center justify-between border border-white/5"
-                  >
-                    <div className="flex items-center gap-2 text-xs text-white font-medium">
-                      <span className="font-bold text-red-400">{t.fromName}</span>
-                      <ArrowRight size={14} className="text-gray-500" />
-                      <span className="font-bold text-[#2DD4BF]">{t.toName}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-bold text-white">
-                        R$ {moneyConverter(t.amount)}
-                      </span>
-                      <button
-                        onClick={() => handleOpenTransferPix(t)}
-                        className="bg-[#2DD4BF]/20 text-[#2DD4BF] hover:bg-[#2DD4BF]/30 px-2.5 py-1 rounded-lg text-[11px] font-bold"
-                      >
-                        Pix
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Rachas Recentes no Grupo */}
-          <div>
-            <div className="flex justify-between items-center mb-3">
-              <h4 className="text-white font-bold text-base">Rachas Recentes</h4>
-              <span className="text-xs text-[#2DD4BF] font-medium">
-                {grupo.expenses?.length || 0} rachas
-              </span>
-            </div>
-
-            {!grupo.expenses || grupo.expenses.length === 0 ? (
-              <div className="bg-[#1c1c1e] p-6 rounded-2xl border border-white/5 text-center">
-                <p className="text-gray-500 text-sm italic">
-                  Nenhuma despesa registrada neste grupo. Clique em "+ Novo Racha" acima!
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-2.5">
-                {grupo.expenses.map((expense: any) => {
-                  const totalParts = (expense.participants?.length || 0) + 1;
-                  const suaParte =
-                    Number(expense.self_amount_owed) > 0
-                      ? Number(expense.self_amount_owed)
-                      : Number(expense.total_amount || 0) / totalParts;
-                  const corridaCompleta = todasCorridas.find((c) => c.id === expense.id);
-
-                  return (
-                    <div
-                      key={expense.id}
-                      onClick={() => {
-                        if (corridaCompleta) setCorridaSelecionada(corridaCompleta);
-                      }}
-                      className="bg-[#1c1c1e] hover:bg-[#2c2c2e] p-4 rounded-2xl border border-white/5 flex justify-between items-center cursor-pointer transition-colors"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center text-[#2DD4BF]">
-                          <Receipt size={18} />
-                        </div>
-                        <div>
-                          <h5 className="text-white font-semibold text-sm">{expense.title}</h5>
-                          <p className="text-xs text-gray-500 mt-0.5">
-                            {expense.expense_date?.split('T')[0]} • Dividido por {totalParts}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-sm font-bold text-white">
-                          R$ {moneyConverter(suaParte)}
-                        </p>
-                        <p className="text-[10px] text-gray-500">sua parte</p>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+      {/* Modal de Pagar Membro com Comprovante */}
+      <PayWithReceiptModal
+        isOpen={payMemberTarget.isOpen}
+        onClose={() => setPayMemberTarget((prev) => ({ ...prev, isOpen: false }))}
+        recipientName={payMemberTarget.friendName}
+        pixKey={payMemberTarget.pixKey}
+        defaultAmount={payMemberTarget.amount}
+        allowCustomAmount={false}
+        description={`Grupo ${grupo?.name || 'RachApp'}`}
+        onConfirm={handleConfirmPayMemberWithReceipt}
+      />
 
       {/* Modal Adicionar Racha dentro do Grupo */}
       <AddRideModal

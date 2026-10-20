@@ -75,6 +75,7 @@ model Expense {
   total_amount      Decimal  @db.Decimal(10, 2)
   self_amount_owed  Decimal  @default(0.00) @db.Decimal(10, 2)
   self_amount_paid  Decimal  @default(0.00) @db.Decimal(10, 2)
+  self_receipt_url  String?  @db.Text
   expense_date      DateTime @default(now())
 
   owner        User                 @relation("ExpenseOwner", fields: [user_id], references: [id], onDelete: Cascade)
@@ -88,6 +89,7 @@ model ExpenseParticipant {
   friend_id   String
   amount_owed Decimal @db.Decimal(10, 2)
   amount_paid Decimal @default(0.00) @db.Decimal(10, 2)
+  receipt_url String? @db.Text
 
   expense     Expense @relation(fields: [expense_id], references: [id], onDelete: Cascade)
   friend      Friend  @relation(fields: [friend_id], references: [id], onDelete: Cascade)
