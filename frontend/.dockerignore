@@ -1,0 +1,12 @@
+node_modules
+dist
+android
+ios
+.env
+.env.*
+*.log
+*.apk
+*.aab
+.git
+.gitignore
+Dockerfile

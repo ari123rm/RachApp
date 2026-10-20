@@ -1,120 +1,72 @@
-name: Build Android APK
+name: Deploy Backend + PostgreSQL na VPS (Docker)
 
 on:
   push:
     branches:
       - main
+    paths:
+      - 'backend/**'
+      - 'docker-compose.yml'
+      - '.github/workflows/deploy.yml'
   workflow_dispatch:
 
-permissions:
-  contents: write
-
 jobs:
-  build-apk:
-    name: Gerar APK (React + Capacitor)
+  deploy-vps:
+    name: Subir Backend e Banco na VPS via SSH
     runs-on: ubuntu-latest
-
-    defaults:
-      run:
-        working-directory: frontend
 
     steps:
       - name: Checkout do Repositório
         uses: actions/checkout@v4
 
-      - name: Configurar Node.js 22
-        uses: actions/setup-node@v4
+      - name: Enviar arquivos do Backend e Docker Compose para a VPS (SCP)
+        uses: appleboy/scp-action@v0.1.7
         with:
-          node-version: '22'
-          cache: 'npm'
-          cache-dependency-path: frontend/package-lock.json
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_PORT || 22 }}
+          source: "docker-compose.yml,backend"
+          target: "~/rachapp"
+          overwrite: true
 
-      - name: Configurar Java JDK 21 (exigido pelo Capacitor 8 / AGP 8)
-        uses: actions/setup-java@v4
+      - name: Configurar .env e subir containers Docker na VPS via SSH
+        uses: appleboy/ssh-action@v1.0.3
         with:
-          distribution: 'temurin'
-          java-version: '21'
-          cache: 'gradle'
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_PORT || 22 }}
+          script: |
+            set -e
+            mkdir -p ~/rachapp
+            cd ~/rachapp
 
-      - name: Configurar Android SDK
-        uses: android-actions/setup-android@v3
+            # Garante que o Docker esteja instalado na VPS
+            if ! command -v docker &> /dev/null; then
+              curl -fsSL https://get.docker.com | sh
+            fi
 
-      - name: Instalar dependências do Frontend
-        run: npm install --legacy-peer-deps
+            # Cria/atualiza o arquivo .env na VPS a partir dos GitHub Secrets
+            cat <<EOF > .env
+            POSTGRES_USER=${{ secrets.POSTGRES_USER || 'postgres' }}
+            POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD || 'postgres' }}
+            POSTGRES_DB=${{ secrets.POSTGRES_DB || 'rachapp' }}
+            DB_PORT=${{ secrets.DB_PORT || '5432' }}
+            PORT=${{ secrets.PORT || '5000' }}
+            JWT_SECRET=${{ secrets.JWT_SECRET }}
+            ALLOWED_ORIGINS=*
+            EOF
 
-      - name: Compilar Frontend Web (Vite + SQLite WASM)
-        env:
-          VITE_API_URL: ${{ secrets.VITE_API_URL || vars.VITE_API_URL || '' }}
-        run: npm run build
+            # Constrói e sobe o PostgreSQL + Backend em background
+            if docker compose version &> /dev/null; then
+              docker compose up -d --build --remove-orphans
+            else
+              docker-compose up -d --build --remove-orphans
+            fi
 
-      - name: Inicializar e Sincronizar Plataforma Android (Capacitor)
-        run: |
-          if [ ! -d "android" ]; then
-            npx cap add android
-          fi
-          npx cap sync android
+            # Limpa imagens antigas sem uso para economizar disco na VPS
+            docker image prune -f
 
-      - name: Habilitar tráfego HTTP/HTTPS (Cleartext Traffic) no AndroidManifest
-        run: |
-          MANIFEST="android/app/src/main/AndroidManifest.xml"
-          if [ -f "$MANIFEST" ] && ! grep -q "usesCleartextTraffic" "$MANIFEST"; then
-            sed -i 's/<application/<application android:usesCleartextTraffic="true"/g' "$MANIFEST"
-          fi
-
-      - name: Compilar APKs (Debug e Release) via Gradle
-        run: |
-          chmod +x android/gradlew
-          cd android
-          ./gradlew assembleDebug assembleRelease --no-daemon
-
-      - name: Assinar APK Release e preparar arquivos finais
-        run: |
-          mkdir -p ../apk-output
-
-          # Copia o APK Debug (já assinado pelo Android SDK e pronto para instalar)
-          cp android/app/build/outputs/apk/debug/app-debug.apk ../apk-output/RachApp-debug.apk
-
-          # Assina o APK Release para permitir instalação direta no celular
-          UNSIGNED_APK="android/app/build/outputs/apk/release/app-release-unsigned.apk"
-          if [ -f "$UNSIGNED_APK" ]; then
-            keytool -genkey -v \
-              -keystore release-key.jks \
-              -keyalg RSA \
-              -keysize 2048 \
-              -validity 10000 \
-              -alias rachapp \
-              -storepass rachapp123 \
-              -keypass rachapp123 \
-              -dname "CN=RachApp, OU=Mobile, O=RachApp, L=Fortaleza, S=CE, C=BR"
-
-            BUILD_TOOLS_DIR=$(ls -d $ANDROID_HOME/build-tools/* | sort -V | tail -n 1)
-            "$BUILD_TOOLS_DIR/zipalign" -v -p 4 "$UNSIGNED_APK" app-release-aligned.apk
-            "$BUILD_TOOLS_DIR/apksigner" sign \
-              --ks release-key.jks \
-              --ks-key-alias rachapp \
-              --ks-pass pass:rachapp123 \
-              --key-pass pass:rachapp123 \
-              --out ../apk-output/RachApp-release.apk \
-              app-release-aligned.apk
-          fi
-
-      - name: Publicar APKs nos Artifacts do GitHub Actions
-        uses: actions/upload-artifact@v4
-        with:
-          name: RachApp-APK-${{ github.sha }}
-          path: apk-output/*.apk
-          if-no-files-found: error
-          retention-days: 30
-
-      - name: Publicar Release Automática com o APK
-        if: github.ref == 'refs/heads/main'
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: apk-build-${{ github.run_number }}
-          name: "RachApp APK - Build #${{ github.run_number }}"
-          body: |
-            APK gerado automaticamente a partir do commit `${{ github.sha }}` na branch `main`.
-            - **RachApp-release.apk**: Versão otimizada e assinada (recomendada para instalação).
-            - **RachApp-debug.apk**: Versão de depuração.
-          files: apk-output/*.apk
-          prerelease: false
+            echo "✅ Deploy concluído com sucesso! Containers em execução:"
+            docker ps --filter "name=rachapp"
