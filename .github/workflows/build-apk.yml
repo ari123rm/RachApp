@@ -109,14 +109,16 @@ jobs:
           retention-days: 30
 
       - name: Publicar Release Automática com o APK
-        if: github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: apk-build-${{ github.run_number }}
-          name: "RachApp APK - Build #${{ github.run_number }}"
+          token: ${{ secrets.GITHUB_TOKEN }}
+          tag_name: v0.1.${{ github.run_number }}
+          name: "RachApp APK - v0.1.${{ github.run_number }} (${{ github.ref_name }})"
           body: |
-            APK gerado automaticamente a partir do commit `${{ github.sha }}` na branch `main`.
-            - **RachApp-release.apk**: Versão otimizada e assinada (recomendada para instalação).
+            APK gerado automaticamente a partir do commit `${{ github.sha }}` na branch `${{ github.ref_name }}`.
+            - **RachApp-release.apk**: Versão otimizada e assinada (recomendada para instalar no celular).
             - **RachApp-debug.apk**: Versão de depuração.
           files: apk-output/*.apk
+          draft: false
           prerelease: false
+          make_latest: true
