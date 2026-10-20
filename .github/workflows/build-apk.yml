@@ -112,42 +112,35 @@ jobs:
             sed -i 's/<application/<application android:usesCleartextTraffic="true" android:networkSecurityConfig="@xml\/network_security_config"/g' "$MANIFEST"
           fi
 
-      - name: Compilar APKs (Debug e Release) via Gradle
+      - name: Atualizar versionCode e versionName do Android automaticamente
+        run: |
+          VERSION_CODE=$((100 + ${{ github.run_number }}))
+          VERSION_NAME="0.1.${{ github.run_number }}"
+          sed -i "s/versionCode [0-9]\+/versionCode $VERSION_CODE/g" android/app/build.gradle
+          sed -i "s/versionName \"[^\"]*\"/versionName \"$VERSION_NAME\"/g" android/app/build.gradle
+          echo "✅ Versão do APK definida para versionName=$VERSION_NAME (versionCode=$VERSION_CODE)"
+
+      - name: Compilar APK Release via Gradle
         run: |
           chmod +x android/gradlew
           cd android
-          ./gradlew assembleDebug assembleRelease --no-daemon
+          ./gradlew assembleRelease --no-daemon
 
-      - name: Assinar APK Release e preparar arquivos finais
+      - name: Assinar APK com Keystore Fixa (permite atualizar sem desinstalar)
         run: |
           mkdir -p ../apk-output
 
-          # Copia o APK Debug (já assinado pelo Android SDK e pronto para instalar)
-          cp android/app/build/outputs/apk/debug/app-debug.apk ../apk-output/RachApp-debug.apk
-
-          # Assina o APK Release para permitir instalação direta no celular
           UNSIGNED_APK="android/app/build/outputs/apk/release/app-release-unsigned.apk"
-          if [ -f "$UNSIGNED_APK" ]; then
-            keytool -genkey -v \
-              -keystore release-key.jks \
-              -keyalg RSA \
-              -keysize 2048 \
-              -validity 10000 \
-              -alias rachapp \
-              -storepass rachapp123 \
-              -keypass rachapp123 \
-              -dname "CN=RachApp, OU=Mobile, O=RachApp, L=Fortaleza, S=CE, C=BR"
+          BUILD_TOOLS_DIR=$(ls -d $ANDROID_HOME/build-tools/* | sort -V | tail -n 1)
 
-            BUILD_TOOLS_DIR=$(ls -d $ANDROID_HOME/build-tools/* | sort -V | tail -n 1)
-            "$BUILD_TOOLS_DIR/zipalign" -v -p 4 "$UNSIGNED_APK" app-release-aligned.apk
-            "$BUILD_TOOLS_DIR/apksigner" sign \
-              --ks release-key.jks \
-              --ks-key-alias rachapp \
-              --ks-pass pass:rachapp123 \
-              --key-pass pass:rachapp123 \
-              --out ../apk-output/RachApp-release.apk \
-              app-release-aligned.apk
-          fi
+          "$BUILD_TOOLS_DIR/zipalign" -v -p 4 "$UNSIGNED_APK" app-release-aligned.apk
+          "$BUILD_TOOLS_DIR/apksigner" sign \
+            --ks rachapp-keystore.jks \
+            --ks-key-alias rachapp \
+            --ks-pass pass:rachapp123 \
+            --key-pass pass:rachapp123 \
+            --out ../apk-output/RachApp-release.apk \
+            app-release-aligned.apk
 
       - name: Publicar APKs nos Artifacts do GitHub Actions
         uses: actions/upload-artifact@v4

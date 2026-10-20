@@ -21,6 +21,7 @@ ios/
 *.aab
 *.keystore
 *.jks
+!rachapp-keystore.jks
 
 # Logs
 logs/
