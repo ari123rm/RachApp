@@ -44,10 +44,18 @@ jobs:
       - name: Instalar dependências do Frontend
         run: npm install --legacy-peer-deps
 
-      - name: Compilar Frontend Web (Vite + SQLite WASM)
+      - name: Injetar VITE_API_URL e Compilar Frontend Web (Vite + SQLite WASM)
         env:
-          VITE_API_URL: ${{ secrets.VITE_API_URL }}
-        run: npm run build
+          RAW_API_URL: ${{ secrets.VITE_API_URL || vars.VITE_API_URL }}
+        run: |
+          if [ -n "$RAW_API_URL" ]; then
+            echo "VITE_API_URL=$RAW_API_URL" > .env.production
+            echo "VITE_API_URL=$RAW_API_URL" > .env
+            echo "✅ VITE_API_URL injetada no build do APK"
+          else
+            echo "⚠️ AVISO: Secret VITE_API_URL não encontrado! Configure VITE_API_URL nos Secrets do repositório."
+          fi
+          npm run build
 
       - name: Inicializar e Sincronizar Plataforma Android (Capacitor)
         run: |
@@ -56,11 +64,50 @@ jobs:
           fi
           npx cap sync android
 
-      - name: Habilitar tráfego HTTP/HTTPS (Cleartext Traffic) no AndroidManifest
+      - name: Aplicar ícone (src/assets/icon.png) e Splash Screen no APK
         run: |
+          mkdir -p assets
+          cp src/assets/icon.png assets/icon.png
+          cp src/assets/icon.png assets/icon-only.png
+          cp src/assets/icon.png assets/icon-foreground.png
+          cp src/assets/splash.png assets/icon-background.png
+          cp src/assets/splash.png assets/splash.png
+          cp src/assets/splash.png assets/splash-dark.png
+
+          # Gera todos os tamanhos de ícone e splash para Android via @capacitor/assets
+          npx --yes @capacitor/assets generate --android \
+            --iconBackgroundColor '#05080f' \
+            --iconBackgroundColorDark '#05080f' \
+            --splashBackgroundColor '#05080f' \
+            --splashBackgroundColorDark '#05080f' || true
+
+          # Garante substituição direta nos diretórios mipmap caso necessário
+          for dir in android/app/src/main/res/mipmap-*; do
+            if [ -d "$dir" ]; then
+              cp -f src/assets/icon.png "$dir/ic_launcher.png" 2>/dev/null || true
+              cp -f src/assets/icon.png "$dir/ic_launcher_round.png" 2>/dev/null || true
+              cp -f src/assets/icon.png "$dir/ic_launcher_foreground.png" 2>/dev/null || true
+            fi
+          done
+
+      - name: Habilitar tráfego HTTP/HTTPS (Cleartext + Network Security Config) no Android
+        run: |
+          mkdir -p android/app/src/main/res/xml
+          cat << 'EOF' > android/app/src/main/res/xml/network_security_config.xml
+          <?xml version="1.0" encoding="utf-8"?>
+          <network-security-config>
+              <base-config cleartextTrafficPermitted="true">
+                  <trust-anchors>
+                      <certificates src="system" />
+                      <certificates src="user" />
+                  </trust-anchors>
+              </base-config>
+          </network-security-config>
+          EOF
+
           MANIFEST="android/app/src/main/AndroidManifest.xml"
           if [ -f "$MANIFEST" ] && ! grep -q "usesCleartextTraffic" "$MANIFEST"; then
-            sed -i 's/<application/<application android:usesCleartextTraffic="true"/g' "$MANIFEST"
+            sed -i 's/<application/<application android:usesCleartextTraffic="true" android:networkSecurityConfig="@xml\/network_security_config"/g' "$MANIFEST"
           fi
 
       - name: Compilar APKs (Debug e Release) via Gradle
