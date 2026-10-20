@@ -491,8 +491,15 @@ export const dbService = {
       return data;
     },
 
-    resetPassword: async (identifier: string, newPassword: string) => {
-      const { data } = await api.post('/auth/reset-password', { identifier, newPassword });
+    resetPassword: async (
+      identifierOrData: string | { identifier: string; newPassword: string },
+      newPassword?: string
+    ) => {
+      const payload =
+        typeof identifierOrData === 'string'
+          ? { identifier: identifierOrData, newPassword: newPassword || '' }
+          : identifierOrData;
+      const { data } = await api.post('/auth/reset-password', payload);
       return data;
     },
 

@@ -1,10 +1,11 @@
-name: Deploy Backend + PostgreSQL na VPS (Docker)
+name: Deploy Backend + PostgreSQL na VPS (Self-Hosted)
 
 on:
   push:
     branches:
       - main
       - feature/backend
+      - feature/full-integration
     paths:
       - 'backend/**'
       - 'docker-compose.yml'
@@ -13,61 +14,34 @@ on:
 
 jobs:
   deploy-vps:
-    name: Subir Backend e Banco na VPS via SSH
-    runs-on: ubuntu-latest
+    name: Subir Backend e Banco no Runner Self-Hosted
+    runs-on: self-hosted
 
     steps:
       - name: Checkout do Repositório
         uses: actions/checkout@v4
 
-      - name: Enviar arquivos do Backend e Docker Compose para a VPS (SCP)
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER }}
-          key: ${{ secrets.VPS_SSH_KEY }}
-          port: ${{ secrets.VPS_PORT || 22 }}
-          source: "docker-compose.yml,backend"
-          target: "~/rachapp"
-          overwrite: true
+      - name: Gerar .env e subir containers Docker localmente na VPS
+        run: |
+          set -e
 
-      - name: Configurar .env e subir containers Docker na VPS via SSH
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER }}
-          key: ${{ secrets.VPS_SSH_KEY }}
-          port: ${{ secrets.VPS_PORT || 22 }}
-          script: |
-            set -e
-            mkdir -p ~/rachapp
-            cd ~/rachapp
+          cat <<EOF > .env
+          POSTGRES_USER=${{ secrets.POSTGRES_USER || 'postgres' }}
+          POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD || 'postgres' }}
+          POSTGRES_DB=${{ secrets.POSTGRES_DB || 'rachapp' }}
+          DB_PORT=${{ secrets.DB_PORT || '5432' }}
+          PORT=${{ secrets.PORT || '5000' }}
+          JWT_SECRET=${{ secrets.JWT_SECRET || 'rachapp_secret_key_prod' }}
+          ALLOWED_ORIGINS=*
+          EOF
 
-            # Garante que o Docker esteja instalado na VPS
-            if ! command -v docker &> /dev/null; then
-              curl -fsSL https://get.docker.com | sh
-            fi
+          if docker compose version &> /dev/null; then
+            docker compose up -d --build --remove-orphans
+          else
+            docker-compose up -d --build --remove-orphans
+          fi
 
-            # Cria/atualiza o arquivo .env na VPS a partir dos GitHub Secrets
-            cat <<EOF > .env
-            POSTGRES_USER=${{ secrets.POSTGRES_USER || 'postgres' }}
-            POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD || 'postgres' }}
-            POSTGRES_DB=${{ secrets.POSTGRES_DB || 'rachapp' }}
-            DB_PORT=${{ secrets.DB_PORT || '5432' }}
-            PORT=${{ secrets.PORT || '5000' }}
-            JWT_SECRET=${{ secrets.JWT_SECRET }}
-            ALLOWED_ORIGINS=*
-            EOF
+          docker image prune -f
 
-            # Constrói e sobe o PostgreSQL + Backend em background
-            if docker compose version &> /dev/null; then
-              docker compose up -d --build --remove-orphans
-            else
-              docker-compose up -d --build --remove-orphans
-            fi
-
-            # Limpa imagens antigas sem uso para economizar disco na VPS
-            docker image prune -f
-
-            echo "✅ Deploy concluído com sucesso! Containers em execução:"
-            docker ps --filter "name=rachapp"
+          echo "✅ Containers em execução na VPS:"
+          docker ps --filter "name=rachapp"
