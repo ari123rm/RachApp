@@ -301,7 +301,6 @@ export function FriendDetailsModal({
   const totalEleDeve = Math.max(totalEleDeveFromCorridas, rawDividaFromAmigo);
   const totalVoceDeve = Math.max(totalVoceDeveFromCorridas, rawVoceDeveFromAmigo);
 
-  const saldoLiquido = Number((totalEleDeve - totalVoceDeve).toFixed(2));
   const voceDeveNoSaldo = totalVoceDeve > totalEleDeve + 0.005;
   const eleDeveNoSaldo = totalEleDeve > totalVoceDeve + 0.005;
   const valorDestaque = voceDeveNoSaldo
