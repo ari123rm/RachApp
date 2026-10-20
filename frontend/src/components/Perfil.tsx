@@ -4,7 +4,7 @@ import {
   User,
   QrCode,
   Lock,
-  Trash2,
+  LogOut,
   Save,
   LoaderCircle,
   ShieldCheck,
@@ -80,9 +80,15 @@ export function Perfil({ onDataChange }: PerfilProps) {
   };
 
   const handleSairApp = async () => {
-    if (window.confirm('Deseja sair da sua conta?')) {
-      await dbService.auth.logout();
-      onDataChange();
+    if (window.confirm('Deseja realmente sair da sua conta?')) {
+      try {
+        await dbService.auth.logout();
+      } catch (err) {
+        console.error('Erro ao efetuar logout:', err);
+      } finally {
+        localStorage.clear();
+        onDataChange();
+      }
     }
   };
 
@@ -241,9 +247,9 @@ export function Perfil({ onDataChange }: PerfilProps) {
       <section className="pt-2">
         <button
           onClick={handleSairApp}
-          className="w-full border border-red-500/20 bg-red-500/10 text-red-500 hover:bg-red-500/20 font-medium py-3.5 rounded-xl flex items-center justify-center gap-2 transition-colors"
+          className="w-full border border-red-500/25 bg-red-500/10 text-red-400 hover:bg-red-500/20 font-bold py-3.5 rounded-2xl flex items-center justify-center gap-2 transition-transform active:scale-98 shadow-sm"
         >
-          <Trash2 size={18} /> Sair da Conta
+          <LogOut size={18} /> Sair da Conta
         </button>
       </section>
 

@@ -7,10 +7,11 @@ interface RideProps {
   titulo: string;
   valorTotal: string;
   participantes: { id: number; nome: string; cor: string }[];
-  onClick?: () => void; // 🟢 NOVO: Função de clique opcional
+  isPaied?: boolean;
+  onClick?: () => void;
 }
 
-export function RideCard({ data, tag, titulo, valorTotal, participantes, onClick}: RideProps) {
+export function RideCard({ data, tag, titulo, valorTotal, participantes, isPaied, onClick }: RideProps) {
   return (
     <div className="bg-[#1c1c1e] rounded-2xl p-4 flex justify-between items-center mb-3 shadow-sm border border-white/5" onClick={onClick}>
       
@@ -38,11 +39,16 @@ export function RideCard({ data, tag, titulo, valorTotal, participantes, onClick
         </div>
       </div>
 
-      {/* Lado Direito: Valor */}
-      <div className="ml-4">
+      {/* Lado Direito: Valor e Status */}
+      <div className="ml-4 text-right">
         <div className="bg-[#2DD4BF]/20 text-[#2DD4BF] px-3 py-1.5 rounded-lg font-semibold text-sm">
           R$ {valorTotal}
         </div>
+        {isPaied !== undefined && (
+          <span className={`text-[10px] font-bold block mt-1 ${isPaied ? 'text-[#34C759]' : 'text-yellow-400'}`}>
+            {isPaied ? 'Quitado' : 'Pendente'}
+          </span>
+        )}
       </div>
 
     </div>

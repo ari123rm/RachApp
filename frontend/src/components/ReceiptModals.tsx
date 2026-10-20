@@ -10,6 +10,7 @@ import {
   LoaderCircle,
   Image as ImageIcon,
   Trash2,
+  Share2,
 } from 'lucide-react';
 import moneyConverter from '../utils/moneyConverter';
 import { generatePixCopiaECola, generatePixQRCodeDataUrl } from '../utils/pixGenerator';
@@ -31,6 +32,29 @@ export function ReceiptViewerModal({
   useModalBackHandler(isOpen, onClose);
 
   if (!isOpen || !receiptUrl) return null;
+
+  const handleShareWhatsApp = async () => {
+    try {
+      if (receiptUrl && receiptUrl.startsWith('data:image')) {
+        const res = await fetch(receiptUrl);
+        const blob = await res.blob();
+        const file = new File([blob], 'comprovante-rachapp.png', { type: blob.type || 'image/png' });
+        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+          await navigator.share({
+            files: [file],
+            title: 'Comprovante RachApp',
+            text: 'Segue meu comprovante de pagamento pelo RachApp!',
+          });
+          return;
+        }
+      }
+    } catch (err) {
+      console.log('Fallback para link WhatsApp:', err);
+    }
+
+    const msg = encodeURIComponent(`Olá! Segue meu comprovante de pagamento pelo RachApp: ${title}`);
+    window.open(`https://api.whatsapp.com/send?text=${msg}`, '_blank');
+  };
 
   return (
     <div
@@ -64,12 +88,21 @@ export function ReceiptViewerModal({
           />
         </div>
 
-        <button
-          onClick={onClose}
-          className="w-full mt-4 bg-[#2c2c2e] hover:bg-[#3a3a3c] text-white font-bold py-3 rounded-xl transition-colors text-sm"
-        >
-          Fechar
-        </button>
+        <div className="grid grid-cols-2 gap-2 mt-4">
+          <button
+            type="button"
+            onClick={handleShareWhatsApp}
+            className="bg-[#25D366] hover:bg-[#1ebd5a] text-white font-bold py-3 rounded-xl transition-all active:scale-95 text-xs flex items-center justify-center gap-1.5 shadow-md"
+          >
+            <Share2 size={15} /> Compartilhar no WhatsApp
+          </button>
+          <button
+            onClick={onClose}
+            className="bg-[#2c2c2e] hover:bg-[#3a3a3c] text-white font-bold py-3 rounded-xl transition-colors text-xs"
+          >
+            Fechar
+          </button>
+        </div>
       </div>
     </div>
   );

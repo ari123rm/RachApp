@@ -15,6 +15,7 @@ import {
   UsersRound,
   FileCheck2,
   Upload,
+  CheckCircle2,
 } from 'lucide-react';
 import { dbService } from '../services/database';
 import moneyConverter from '../utils/moneyConverter';
@@ -541,7 +542,14 @@ export function FriendDetailsModal({
             >
               {nome[0]?.toUpperCase()}
             </div>
-            <h3 className="text-xl font-bold text-white">{nome}</h3>
+            <div className="flex items-center justify-center gap-1.5">
+              <h3 className="text-xl font-bold text-white">{nome}</h3>
+              {Boolean(baseAmigo?.is_verified || baseAmigo?.has_account) && (
+                <span title="Usuário cadastrado no Rachapp" className="inline-flex items-center text-teal-400">
+                  <CheckCircle2 size={18} className="fill-[#2DD4BF] text-[#05080f]" />
+                </span>
+              )}
+            </div>
 
             <div className="flex flex-wrap items-center justify-center gap-2 mt-1.5">
               {telefone && (
@@ -558,7 +566,7 @@ export function FriendDetailsModal({
 
             <div
               className={`text-4xl font-black mt-4 mb-1 ${
-                voceDeveNoSaldo ? 'text-amber-400' : 'text-[#2DD4BF]'
+                voceDeveNoSaldo ? 'text-red-400' : eleDeveNoSaldo ? 'text-yellow-400' : 'text-[#2DD4BF]'
               }`}
             >
               R$ {moneyConverter(valorDestaque)}

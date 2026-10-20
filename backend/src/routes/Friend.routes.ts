@@ -8,6 +8,9 @@ const router = Router();
 router.use(authMiddleware);
 
 router.get('/', FriendController.list);
+router.get('/requests', FriendController.listRequests);
+router.post('/requests/accept', FriendController.acceptRequest);
+router.post('/requests/reject', FriendController.rejectRequest);
 router.post('/', FriendController.create);
 router.put('/:id', FriendController.update);
 router.patch('/:id/favorite', FriendController.toggleFavorite);

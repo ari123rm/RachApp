@@ -28,6 +28,8 @@ export interface Amigo {
   voceDeve?: string | number;
   voceDeveNumerico?: number;
   pendingExpensesCount?: number;
+  is_verified?: boolean;
+  has_account?: boolean;
 }
 
 export interface Corrida {
@@ -53,6 +55,16 @@ export interface Corrida {
   valoresDevidos?: Record<string, number>; // { amigoId: valorDevido }
   selfReceiptUrl?: string | null;
   comprovantes?: Record<string, string>; // { amigoId: base64ReceiptUrl }
+  isOwner?: boolean;
+}
+
+export interface FriendRequest {
+  id: string;
+  requesterId: string;
+  name: string;
+  phone?: string | null;
+  pix_key?: string | null;
+  created_at?: string;
 }
 
 export interface Transferencia {

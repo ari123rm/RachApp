@@ -1,5 +1,5 @@
 // src/components/RideDetailsModal.tsx
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   ChevronLeft,
   Receipt,
@@ -21,23 +21,42 @@ import { useModalBackHandler } from '../utils/modalBackHandler';
 
 interface RideDetailsProps {
   ride?: Corrida;
-  participantes: any[];
+  participantes?: any[];
   isOpen: boolean;
   onClose: () => void;
   onDelete: (id: string) => void;
   onUpdated?: () => void;
+  update?: () => void;
 }
 
 export function RideDetailsModal({
   ride,
-  participantes,
+  participantes: initialParticipantes = [],
   isOpen,
   onClose,
   onDelete,
   onUpdated,
+  update,
 }: RideDetailsProps) {
+  const [localParticipantes, setLocalParticipantes] = useState<any[]>(initialParticipantes);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isPaySelfOpen, setIsPaySelfOpen] = useState(false);
+
+  useEffect(() => {
+    if (initialParticipantes && initialParticipantes.length > 0) {
+      setLocalParticipantes(initialParticipantes);
+    } else if (ride?.participantesIds && ride.participantesIds.length > 0) {
+      dbService.amigos.getAll().then((todos) => {
+        setLocalParticipantes(todos.filter((a) => ride.participantesIds.includes(a.id)));
+      });
+    }
+  }, [ride, initialParticipantes]);
+
+  const participantes = localParticipantes;
+  const triggerUpdate = () => {
+    if (onUpdated) onUpdated();
+    if (update) update();
+  };
   const [receiptToView, setReceiptToView] = useState<{
     isOpen: boolean;
     url: string | null;
@@ -98,7 +117,7 @@ export function RideDetailsModal({
         amigoId,
         jaPago ? 0 : valorParte
       );
-      if (onUpdated) onUpdated();
+      triggerUpdate();
     } catch (err) {
       console.error('Erro ao atualizar pagamento:', err);
     }
@@ -112,7 +131,7 @@ export function RideDetailsModal({
       amount,
       receiptBase64
     );
-    if (onUpdated) onUpdated();
+    triggerUpdate();
   };
 
   return (
@@ -136,13 +155,15 @@ export function RideDetailsModal({
           <h2 className="text-base font-semibold text-white">Detalhes do Racha</h2>
 
           <div className="flex items-center gap-1">
-            <button
-              onClick={() => setIsEditOpen(true)}
-              className="p-2 text-gray-300 hover:bg-white/10 hover:text-white rounded-full transition-colors"
-              title="Editar Racha"
-            >
-              <Pencil size={18} />
-            </button>
+            {ride.isOwner !== false && (
+              <button
+                onClick={() => setIsEditOpen(true)}
+                className="p-2 text-gray-300 hover:bg-white/10 hover:text-white rounded-full transition-colors"
+                title="Editar Racha (Apenas Criador)"
+              >
+                <Pencil size={18} />
+              </button>
+            )}
             <button
               onClick={() => {
                 onDelete(ride.id);
@@ -252,25 +273,33 @@ export function RideDetailsModal({
                         {!isFriendPayer &&
                           (voceEhPagador ? (
                             <button
+                              type="button"
                               onClick={() =>
                                 handleCreditorTogglePaid(p.id, isQuitado, valorParte)
                               }
-                              className={`text-[11px] font-semibold mt-0.5 flex items-center gap-1 ${
-                                isQuitado ? 'text-[#34C759]' : 'text-amber-400 hover:underline'
+                              className={`mt-1.5 px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all active:scale-95 border ${
+                                isQuitado
+                                  ? 'bg-[#34C759]/20 text-[#34C759] border-[#34C759]/40 hover:bg-[#34C759]/30'
+                                  : 'bg-yellow-500/20 text-yellow-300 border-yellow-500/40 hover:bg-yellow-500/30'
                               }`}
+                              title={isQuitado ? 'Clique para desmarcar' : 'Clique para marcar como pago'}
                             >
                               {isQuitado ? (
                                 <>
-                                  <Check size={12} /> Pago (clique p/ desfazer)
+                                  <Check size={13} className="stroke-[3]" />
+                                  <span>Pago (desfazer)</span>
                                 </>
                               ) : (
-                                '• Pendente (clique p/ quitar)'
+                                <>
+                                  <span className="w-2 h-2 rounded-full bg-yellow-400 animate-pulse" />
+                                  <span>Marcar como Pago</span>
+                                </>
                               )}
                             </button>
                           ) : (
                             <span
-                              className={`text-[11px] font-semibold mt-0.5 flex items-center gap-1 ${
-                                isQuitado ? 'text-[#34C759]' : 'text-amber-400'
+                              className={`text-[11px] font-semibold mt-1 flex items-center gap-1 ${
+                                isQuitado ? 'text-[#34C759]' : 'text-yellow-400'
                               }`}
                             >
                               {isQuitado ? (
@@ -381,7 +410,7 @@ export function RideDetailsModal({
         onClose={() => setIsEditOpen(false)}
         onSuccess={() => {
           setIsEditOpen(false);
-          if (onUpdated) onUpdated();
+          triggerUpdate();
         }}
       />
     </div>

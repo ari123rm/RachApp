@@ -1,8 +1,9 @@
 // src/components/Home.tsx
 import { useState, useEffect } from 'react';
-import { ArrowUpRight, LoaderCircle, TrendingUp, TrendingDown, RefreshCw } from 'lucide-react';
+import { ArrowUpRight, LoaderCircle, TrendingUp, TrendingDown, RefreshCw, Scale } from 'lucide-react';
 import { dbService } from '../services/database';
 import { FriendDetailsModal } from './FriendDetailsModal';
+import { AlertSlashIcon } from './AlertSlashIcon';
 import moneyConverter from '../utils/moneyConverter';
 import type { SyncStatus } from '../types';
 
@@ -128,7 +129,7 @@ export function Home({ onDataChange }: { onDataChange?: () => void }) {
         </div>
       </header>
 
-      {/* Card Principal: Total Pago (Figura 2 do Artigo) */}
+      {/* Card Principal: Total Pago e Saldo Real Consolidado */}
       <div className="bg-gradient-to-br from-[#1A2b4c] via-[#241b3d] to-[#3B1F42] rounded-3xl p-6 shadow-2xl relative overflow-hidden border border-white/5">
         <div className="relative z-10">
           <div className="flex justify-between items-start">
@@ -146,36 +147,68 @@ export function Home({ onDataChange }: { onDataChange?: () => void }) {
               dashboard.totalAPagar > 0.01 ? 'grid-cols-2' : 'grid-cols-1'
             }`}
           >
+            {/* Quem deve ao usuário (Devedores) -> Amarelo */}
             <div className="bg-white/10 backdrop-blur-md rounded-2xl p-3 flex items-center gap-2.5 border border-white/10">
-              <div className="w-8 h-8 bg-[#2DD4BF] rounded-full flex items-center justify-center text-[#05080f] shrink-0">
+              <div className="w-8 h-8 bg-yellow-400 rounded-full flex items-center justify-center text-[#05080f] shrink-0 font-black">
                 <TrendingUp size={17} />
               </div>
               <div className="min-w-0">
-                <p className="text-[10px] text-gray-400 uppercase font-bold tracking-wider truncate">
-                  A receber
+                <p className="text-[10px] text-yellow-300 uppercase font-bold tracking-wider truncate">
+                  A receber (te devem)
                 </p>
-                <p className="text-white font-bold text-sm truncate">
+                <p className="text-yellow-400 font-bold text-sm truncate">
                   R$ {moneyConverter(Number(dashboard.totalAReceber || 0))}
                 </p>
               </div>
             </div>
 
+            {/* Quando o usuário estiver devendo -> Vermelho */}
             {dashboard.totalAPagar > 0.01 && (
               <div className="bg-white/10 backdrop-blur-md rounded-2xl p-3 flex items-center gap-2.5 border border-white/10">
-                <div className="w-8 h-8 bg-amber-400 rounded-full flex items-center justify-center text-[#05080f] shrink-0">
+                <div className="w-8 h-8 bg-red-500 rounded-full flex items-center justify-center text-white shrink-0 font-black">
                   <TrendingDown size={17} />
                 </div>
                 <div className="min-w-0">
-                  <p className="text-[10px] text-gray-400 uppercase font-bold tracking-wider truncate">
-                    A pagar
+                  <p className="text-[10px] text-red-400 uppercase font-bold tracking-wider truncate">
+                    A pagar (você deve)
                   </p>
-                  <p className="text-amber-300 font-bold text-sm truncate">
+                  <p className="text-red-400 font-bold text-sm truncate">
                     R$ {moneyConverter(Number(dashboard.totalAPagar || 0))}
                   </p>
                 </div>
               </div>
             )}
           </div>
+
+          {/* Matemática da Tela Inicial: Saldo Real Consolidado */}
+          {(() => {
+            const saldoReal = Number(((dashboard.totalAReceber || 0) - (dashboard.totalAPagar || 0)).toFixed(2));
+            const usuarioEstaDevendo = saldoReal < -0.01;
+            const usuarioTemAReceber = saldoReal > 0.01;
+            return (
+              <div className="mt-4 pt-3.5 border-t border-white/10 flex items-center justify-between">
+                <div className="flex items-center gap-1.5 text-xs text-gray-300 font-medium">
+                  <Scale size={15} className="text-[#2DD4BF]" />
+                  <span>Saldo Real do Usuário:</span>
+                </div>
+                <div
+                  className={`px-3 py-1 rounded-full text-xs font-black shadow-sm ${
+                    usuarioEstaDevendo
+                      ? 'bg-red-500/20 text-red-400 border border-red-500/40'
+                      : usuarioTemAReceber
+                      ? 'bg-yellow-500/20 text-yellow-300 border border-yellow-500/40'
+                      : 'bg-[#2DD4BF]/20 text-[#2DD4BF] border border-[#2DD4BF]/40'
+                  }`}
+                >
+                  {usuarioEstaDevendo
+                    ? `- R$ ${moneyConverter(Math.abs(saldoReal))} (Você deve)`
+                    : usuarioTemAReceber
+                    ? `+ R$ ${moneyConverter(saldoReal)} (A receber)`
+                    : 'R$ 0,00 (Contas quitadas)'}
+                </div>
+              </div>
+            );
+          })()}
         </div>
       </div>
 
@@ -192,8 +225,10 @@ export function Home({ onDataChange }: { onDataChange?: () => void }) {
         </div>
 
         {dashboard.amigosDevedores.length === 0 ? (
-          <div className="bg-[#1c1c1e] p-6 rounded-3xl border border-white/5 text-center">
-            <p className="text-gray-500 text-sm italic">Nenhuma dívida pendente. ✌️</p>
+          <div className="bg-[#1c1c1e] p-6 rounded-3xl border border-white/5 text-center flex flex-col items-center justify-center gap-2">
+            <AlertSlashIcon size={28} className="text-[#2DD4BF]" />
+            <p className="text-gray-300 font-semibold text-sm">Nenhuma dívida pendente</p>
+            <p className="text-gray-500 text-xs">Todas as contas estão em dia. ✌️</p>
           </div>
         ) : (
           <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide">
@@ -231,12 +266,13 @@ export function Home({ onDataChange }: { onDataChange?: () => void }) {
                         {nome[0]?.toUpperCase()}
                       </span>
                     </div>
+                    {/* Alerta: Vermelho se você estiver devendo, Amarelo se o amigo te deve (devedor) */}
                     <div
                       className={`absolute -top-1 -right-1 w-5 h-5 ${
-                        isVoceDeve ? 'bg-amber-500' : 'bg-red-500'
+                        isVoceDeve ? 'bg-red-500' : 'bg-yellow-500'
                       } rounded-full border-2 border-[#05080f] flex items-center justify-center`}
                     >
-                      <span className="text-[10px] font-bold text-white">!</span>
+                      <span className="text-[10px] font-bold text-[#05080f]">!</span>
                     </div>
                   </div>
                   <div className="text-center">
@@ -245,11 +281,14 @@ export function Home({ onDataChange }: { onDataChange?: () => void }) {
                     </p>
                     <p
                       className={`text-[11px] font-bold ${
-                        isVoceDeve ? 'text-amber-400' : 'text-red-400'
+                        isVoceDeve ? 'text-red-400' : 'text-yellow-400'
                       }`}
                     >
                       R$ {moneyConverter(valorExibido)}
                     </p>
+                    <span className="text-[9px] text-gray-500 block">
+                      {isVoceDeve ? 'você deve' : 'te deve'}
+                    </span>
                   </div>
                 </div>
               );

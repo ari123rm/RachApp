@@ -288,44 +288,9 @@ export class ExpenseService {
       throw new Error('Racha não encontrado.');
     }
 
-    // Se a despesa pertence a outro usuário e está sendo editada por um participante, atualiza campos básicos e valores correspondentes
+    // PERMISSÃO: Somente o criador do racha tem permissão para editá-lo
     if (existing.user_id !== userId) {
-      const totalAmount =
-        data.totalAmount !== undefined ? Number(data.totalAmount) : Number(existing.total_amount);
-      const parsedDate = data.expenseDate ? new Date(data.expenseDate) : existing.expense_date;
-      const myPart = existing.participants.find((p) => reverseFriendIds.includes(p.friend_id));
-
-      if (myPart && data.selfAmountOwed !== undefined) {
-        await prisma.expenseParticipant.update({
-          where: {
-            expense_id_friend_id: {
-              expense_id: expenseId,
-              friend_id: myPart.friend_id,
-            },
-          },
-          data: {
-            amount_owed: Number(Number(data.selfAmountOwed).toFixed(2)),
-          },
-        });
-      }
-
-      const updatedRaw = await prisma.expense.update({
-        where: { id: expenseId },
-        data: {
-          ...(data.title !== undefined ? { title: data.title.trim() } : {}),
-          ...(data.tag !== undefined ? { tag: data.tag.trim() } : {}),
-          total_amount: totalAmount,
-          expense_date: isNaN(parsedDate.getTime()) ? existing.expense_date : parsedDate,
-        },
-        include: {
-          owner: { select: { id: true, name: true, phone: true, pix_key: true } },
-          participants: { include: { friend: true } },
-          group: { select: { id: true, name: true } },
-          paidByFriend: true,
-        },
-      });
-
-      return this.transformExpenseForUser(updatedRaw, userId, reverseContext);
+      throw new Error('Apenas o criador do racha tem permissão para editá-lo.');
     }
 
     const totalAmount =
@@ -783,7 +748,7 @@ export class ExpenseService {
     };
   }
 
-  // 7. Algoritmo de Minimização de Transferências Cruzadas
+  // 7. Algoritmo de Minimização de Transferências Cruzadas (Melhor Rota com Casamento Exato)
   private static simplifyDebts(
     balances: Record<string, number>,
     entityMeta: Record<
@@ -799,12 +764,39 @@ export class ExpenseService {
       else if (balance > 0.01) creditors.push({ key, amount: balance });
     }
 
+    const transfers: Transfer[] = [];
+
+    // 1º Passo: Casamento Exato Direto (se A deve 50 e C tem 50 a receber, quitar em 1 transação)
+    for (let d = debtors.length - 1; d >= 0; d--) {
+      const debtor = debtors[d];
+      const matchIdx = creditors.findIndex((c) => Math.abs(c.amount - debtor.amount) < 0.01);
+      if (matchIdx !== -1) {
+        const creditor = creditors[matchIdx];
+        const fromMeta = entityMeta[debtor.key] || { id: debtor.key, name: 'Participante', color: 'bg-gray-600' };
+        const toMeta = entityMeta[creditor.key] || { id: creditor.key, name: 'Credor', color: 'bg-teal-500' };
+        transfers.push({
+          fromId: fromMeta.id,
+          fromName: fromMeta.isOwner ? 'Você' : fromMeta.name,
+          fromPhone: fromMeta.phone,
+          fromColor: fromMeta.color,
+          toId: toMeta.id,
+          toName: toMeta.isOwner ? 'Você' : toMeta.name,
+          toPhone: toMeta.phone,
+          toPixKey: toMeta.pix_key,
+          toColor: toMeta.color,
+          amount: Number(debtor.amount.toFixed(2)),
+        });
+        debtors.splice(d, 1);
+        creditors.splice(matchIdx, 1);
+      }
+    }
+
+    // 2º Passo: Guloso para os valores residuais
     debtors.sort((a, b) => b.amount - a.amount);
     creditors.sort((a, b) => b.amount - a.amount);
 
     let i = 0;
     let j = 0;
-    const transfers: Transfer[] = [];
 
     while (i < debtors.length && j < creditors.length) {
       const debtor = debtors[i];

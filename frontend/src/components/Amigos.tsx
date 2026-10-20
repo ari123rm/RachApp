@@ -1,34 +1,42 @@
 // src/components/Amigos.tsx
 import { useState, useEffect } from 'react';
-import { Search, Star, LoaderCircle, UserPlus, ChevronRight } from 'lucide-react';
+import {
+  Search,
+  Star,
+  LoaderCircle,
+  UserPlus,
+  UserCheck,
+  UserX,
+  CheckCircle2,
+  Phone,
+  QrCode,
+  Inbox,
+} from 'lucide-react';
 import { FriendCard } from './FriendCard';
 import { FriendDetailsModal } from './FriendDetailsModal';
 import { AddFriendModal } from './AddFriendModal';
-import { AddGroupModal } from './AddGroupModal';
-import { GroupDetailsModal } from './GroupDetailsModal';
 import { dbService } from '../services/database';
 import moneyConverter from '../utils/moneyConverter';
-import type { Grupo } from '../types';
+import { formatPhoneBR } from '../utils/phoneFormatter';
 
 export function Amigos({ onDataChange }: { onDataChange?: () => void }) {
-  const [subTab, setSubTab] = useState<'amigos' | 'grupos'>('amigos');
+  const [subTab, setSubTab] = useState<'amigos' | 'solicitacoes'>('amigos');
   const [busca, setBusca] = useState('');
   const [amigoSelecionado, setAmigoSelecionado] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   const [amigos, setAmigos] = useState<any[]>([]);
-  const [grupos, setGrupos] = useState<Grupo[]>([]);
+  const [solicitacoes, setSolicitacoes] = useState<any[]>([]);
+  const [processandoId, setProcessandoId] = useState<string | null>(null);
 
   const [isAddFriendOpen, setIsAddFriendOpen] = useState(false);
-  const [isAddGroupOpen, setIsAddGroupOpen] = useState(false);
-  const [grupoSelecionadoId, setGrupoSelecionadoId] = useState<string | null>(null);
 
   const carregarDados = async () => {
     setIsLoading(true);
     try {
-      const [dadosAmigos, dadosGrupos] = await Promise.all([
+      const [dadosAmigos, pedidos] = await Promise.all([
         dbService.amigos.getAll(),
-        dbService.grupos.getAll(),
+        dbService.amigos.getRequests().catch(() => []),
       ]);
 
       const amigosComValores = await Promise.all(
@@ -44,6 +52,8 @@ export function Amigos({ onDataChange }: { onDataChange?: () => void }) {
             nome: amigo.nome || amigo.name || 'Amigo',
             cor: amigo.cor || amigo.color || 'bg-sky-500',
             favorito: amigo.favorito ?? amigo.is_favorite ?? false,
+            is_verified: !!(amigo.is_verified || amigo.has_account),
+            has_account: !!(amigo.is_verified || amigo.has_account),
             divida: dividaFormatada,
             dividaNumerica: valorDevido,
             voceDeveNumerico: Number(amigo.voceDeveNumerico || 0),
@@ -52,9 +62,9 @@ export function Amigos({ onDataChange }: { onDataChange?: () => void }) {
       );
 
       setAmigos(amigosComValores);
-      setGrupos(dadosGrupos);
+      setSolicitacoes(pedidos || []);
     } catch (error) {
-      console.error('Erro ao buscar amigos e grupos:', error);
+      console.error('Erro ao buscar amigos e solicitações:', error);
     } finally {
       setIsLoading(false);
     }
@@ -94,6 +104,32 @@ export function Amigos({ onDataChange }: { onDataChange?: () => void }) {
     }
   };
 
+  const handleAceitarSolicitacao = async (pedido: any) => {
+    setProcessandoId(pedido.requesterId || pedido.id);
+    try {
+      await dbService.amigos.acceptRequest(pedido.requesterId || pedido.id);
+      alert(`Você e ${pedido.name} agora são amigos!`);
+      await carregarDados();
+      if (onDataChange) onDataChange();
+    } catch (err: any) {
+      alert(err.message || 'Erro ao aceitar solicitação.');
+    } finally {
+      setProcessandoId(null);
+    }
+  };
+
+  const handleRecusarSolicitacao = async (pedido: any) => {
+    setProcessandoId(pedido.requesterId || pedido.id);
+    try {
+      await dbService.amigos.rejectRequest(pedido.requesterId || pedido.id);
+      setSolicitacoes((prev) => prev.filter((p) => (p.requesterId || p.id) !== (pedido.requesterId || pedido.id)));
+    } catch (err: any) {
+      alert(err.message || 'Erro ao recusar solicitação.');
+    } finally {
+      setProcessandoId(null);
+    }
+  };
+
   const amigosFiltrados = amigos.filter((a) =>
     (a.nome || a.name || '').toLowerCase().includes(busca.toLowerCase())
   );
@@ -115,7 +151,7 @@ export function Amigos({ onDataChange }: { onDataChange?: () => void }) {
           <h1 className="text-3xl font-bold text-white">Amigos</h1>
         </div>
 
-        {/* Barra de alternância Amigos / Grupos + Botão Novo (Figura 3 do Artigo) */}
+        {/* Abas: Meus Amigos / Aceitar Amizades (Convites) + Botão Novo */}
         <div className="flex items-center justify-between gap-2">
           <div className="bg-[#1c1c1e] p-1 rounded-full flex items-center border border-white/5 flex-1">
             <button
@@ -126,24 +162,27 @@ export function Amigos({ onDataChange }: { onDataChange?: () => void }) {
                   : 'text-gray-400 hover:text-white'
               }`}
             >
-              Amigos
+              Meus Amigos
             </button>
             <button
-              onClick={() => setSubTab('grupos')}
-              className={`flex-1 py-2 rounded-full text-xs font-bold transition-colors ${
-                subTab === 'grupos'
+              onClick={() => setSubTab('solicitacoes')}
+              className={`flex-1 py-2 rounded-full text-xs font-bold transition-colors flex items-center justify-center gap-1.5 ${
+                subTab === 'solicitacoes'
                   ? 'bg-[#2DD4BF] text-[#05080f]'
                   : 'text-gray-400 hover:text-white'
               }`}
             >
-              Grupos
+              <span>Aceitar Amizades</span>
+              {solicitacoes.length > 0 && (
+                <span className="w-5 h-5 rounded-full bg-red-500 text-white text-[10px] flex items-center justify-center font-black">
+                  {solicitacoes.length}
+                </span>
+              )}
             </button>
           </div>
 
           <button
-            onClick={() =>
-              subTab === 'amigos' ? setIsAddFriendOpen(true) : setIsAddGroupOpen(true)
-            }
+            onClick={() => setIsAddFriendOpen(true)}
             className="bg-[#1c1c1e] hover:bg-[#2c2c2e] text-[#2DD4BF] border border-[#2DD4BF]/30 px-4 py-2.5 rounded-full text-xs font-bold flex items-center gap-1.5 shrink-0"
           >
             <UserPlus size={15} /> Novo
@@ -166,7 +205,7 @@ export function Amigos({ onDataChange }: { onDataChange?: () => void }) {
 
       {subTab === 'amigos' ? (
         <>
-          {/* FAVORITOS */}
+          {/* FAVORITOS COM SELO DE VERIFICAÇÃO */}
           {busca === '' && favoritos.length > 0 && (
             <section>
               <div className="flex justify-between items-end mb-4">
@@ -191,9 +230,14 @@ export function Amigos({ onDataChange }: { onDataChange?: () => void }) {
                         <Star size={16} className="text-yellow-500 fill-yellow-500" />
                       </div>
                     </div>
-                    <span className="text-sm font-medium text-gray-300 truncate w-full text-center">
-                      {amigo.nome.split(' ')[0]}
-                    </span>
+                    <div className="flex items-center justify-center gap-1 w-full">
+                      <span className="text-sm font-medium text-gray-300 truncate text-center">
+                        {amigo.nome.split(' ')[0]}
+                      </span>
+                      {amigo.is_verified && (
+                        <CheckCircle2 size={13} className="fill-[#2DD4BF] text-[#05080f] shrink-0" />
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>
@@ -208,7 +252,15 @@ export function Amigos({ onDataChange }: { onDataChange?: () => void }) {
 
             <div className="space-y-3">
               {amigosFiltrados.length === 0 ? (
-                <p className="text-gray-500 text-center py-6">Nenhum amigo encontrado.</p>
+                <div className="bg-[#1c1c1e] p-8 rounded-3xl text-center border border-white/5">
+                  <p className="text-gray-400 mb-3">Nenhum amigo encontrado.</p>
+                  <button
+                    onClick={() => setIsAddFriendOpen(true)}
+                    className="text-[#2DD4BF] font-bold text-sm hover:underline"
+                  >
+                    + Adicionar um novo amigo
+                  </button>
+                </div>
               ) : (
                 amigosFiltrados.map((amigo) => (
                   <FriendCard
@@ -223,58 +275,71 @@ export function Amigos({ onDataChange }: { onDataChange?: () => void }) {
           </section>
         </>
       ) : (
-        /* ABA GRUPOS (Figura 3) */
+        /* ABA DEDICADA: ACEITAR AMIZADES (SISTEMA DE CONVITES) */
         <section className="pb-10 space-y-3">
-          {grupos.length === 0 ? (
-            <div className="bg-[#1c1c1e] p-8 rounded-3xl text-center border border-white/5">
-              <p className="text-gray-400 mb-3">Você ainda não faz parte de nenhum grupo.</p>
-              <button
-                onClick={() => setIsAddGroupOpen(true)}
-                className="text-[#2DD4BF] font-bold text-sm hover:underline"
-              >
-                + Criar novo grupo
-              </button>
+          <div className="bg-[#1c1c1e] p-4 rounded-2xl border border-white/5 mb-4">
+            <p className="text-xs text-gray-300">
+              Aqui você gerencia convites e solicitações de pessoas que adicionaram seu telefone no Rachapp. Ao aceitar, o contato passa a fazer parte da sua lista de amigos.
+            </p>
+          </div>
+
+          {solicitacoes.length === 0 ? (
+            <div className="bg-[#1c1c1e] p-8 rounded-3xl text-center border border-white/5 flex flex-col items-center justify-center gap-2">
+              <Inbox size={32} className="text-gray-500 mb-1" />
+              <p className="text-white font-bold text-sm">Nenhuma solicitação pendente</p>
+              <p className="text-gray-500 text-xs max-w-xs">
+                Quando outros usuários te convidarem pelo seu número de telefone, o convite aparecerá aqui para você aceitar.
+              </p>
             </div>
           ) : (
-            grupos.map((grupo) => {
-              const friendMembers = (grupo.members || []).filter((m) => m.friend);
-              const totalMembers = grupo._count?.members || friendMembers.length + 1;
-              const visibleFriends = friendMembers.slice(0, 3);
-              const extraCount = Math.max(0, friendMembers.length - 3);
+            solicitacoes.map((pedido) => {
+              const reqId = pedido.requesterId || pedido.id;
+              const isBusy = processandoId === reqId;
 
               return (
                 <div
-                  key={grupo.id}
-                  onClick={() => setGrupoSelecionadoId(grupo.id)}
-                  className="bg-[#1c1c1e] rounded-2xl p-4 flex items-center justify-between border border-white/5 cursor-pointer hover:bg-[#2c2c2e] transition-colors"
+                  key={reqId}
+                  className="bg-[#1c1c1e] rounded-2xl p-4 flex items-center justify-between border border-white/5"
                 >
-                  <div>
-                    <h3 className="text-white font-bold text-base">{grupo.name}</h3>
-                    <p className="text-xs text-gray-500 mt-0.5 mb-2.5">
-                      {totalMembers} {totalMembers === 1 ? 'participante' : 'participantes'}
-                    </p>
-                    <div className="flex -space-x-2">
-                      <div className="w-7 h-7 rounded-full bg-[#2DD4BF] text-[#05080f] font-black text-[10px] flex items-center justify-center border-2 border-[#1c1c1e]">
-                        V
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-12 h-12 rounded-full bg-teal-500 flex items-center justify-center font-black text-white text-lg shrink-0">
+                      {(pedido.name || 'U')[0].toUpperCase()}
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-semibold text-white text-base truncate">{pedido.name}</span>
+                        <CheckCircle2 size={15} className="fill-[#2DD4BF] text-[#05080f] shrink-0" />
                       </div>
-                      {visibleFriends.map((m, idx) => (
-                        <div
-                          key={m.friend?.id || idx}
-                          className={`w-7 h-7 rounded-full ${
-                            m.friend?.color || 'bg-sky-500'
-                          } text-white font-bold text-[10px] flex items-center justify-center border-2 border-[#1c1c1e]`}
-                        >
-                          {(m.friend?.name || 'A')[0].toUpperCase()}
-                        </div>
-                      ))}
-                      {extraCount > 0 && (
-                        <div className="w-7 h-7 rounded-full bg-gray-700 text-gray-200 font-bold text-[10px] flex items-center justify-center border-2 border-[#1c1c1e]">
-                          +{extraCount}
-                        </div>
+                      {pedido.phone && (
+                        <p className="text-xs text-gray-400 flex items-center gap-1 mt-0.5">
+                          <Phone size={11} className="text-gray-500" /> {formatPhoneBR(pedido.phone)}
+                        </p>
+                      )}
+                      {pedido.pix_key && (
+                        <p className="text-xs text-gray-400 flex items-center gap-1 truncate max-w-[150px]">
+                          <QrCode size={11} className="text-[#2DD4BF]" /> Pix: {pedido.pix_key}
+                        </p>
                       )}
                     </div>
                   </div>
-                  <ChevronRight size={20} className="text-gray-500" />
+
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      disabled={isBusy}
+                      onClick={() => handleAceitarSolicitacao(pedido)}
+                      className="bg-[#2DD4BF] hover:bg-[#25b5a3] text-[#05080f] px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1 transition-transform active:scale-95 disabled:opacity-50"
+                    >
+                      <UserCheck size={14} /> Aceitar
+                    </button>
+                    <button
+                      disabled={isBusy}
+                      onClick={() => handleRecusarSolicitacao(pedido)}
+                      className="bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white px-2.5 py-2 rounded-xl text-xs font-medium transition-colors disabled:opacity-50"
+                      title="Recusar"
+                    >
+                      <UserX size={14} />
+                    </button>
+                  </div>
                 </div>
               );
             })
@@ -300,28 +365,6 @@ export function Amigos({ onDataChange }: { onDataChange?: () => void }) {
         isOpen={isAddFriendOpen}
         onClose={() => setIsAddFriendOpen(false)}
         onSuccess={() => {
-          carregarDados();
-          if (onDataChange) onDataChange();
-        }}
-      />
-
-      <AddGroupModal
-        isOpen={isAddGroupOpen}
-        onClose={() => setIsAddGroupOpen(false)}
-        onSuccess={() => {
-          carregarDados();
-          if (onDataChange) onDataChange();
-        }}
-      />
-
-      <GroupDetailsModal
-        grupoId={grupoSelecionadoId}
-        isOpen={!!grupoSelecionadoId}
-        onClose={() => {
-          setGrupoSelecionadoId(null);
-          carregarDados();
-        }}
-        onChanged={() => {
           carregarDados();
           if (onDataChange) onDataChange();
         }}

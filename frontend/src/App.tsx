@@ -25,8 +25,44 @@ function App() {
   const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
   const [dataVersion, setDataVersion] = useState(0);
   const lastSyncedRef = useRef<string | null>(null);
+  const touchStartRef = useRef<{ x: number; y: number; time: number } | null>(null);
 
   const refreshData = () => setDataVersion((prev) => prev + 1);
+
+  // Navegação fluida por Scroll/Swipe horizontal entre as páginas do app
+  const handleTouchStart = (e: React.TouchEvent) => {
+    const target = e.target as HTMLElement | null;
+    if (target?.closest('.overflow-x-auto, input, textarea, select')) {
+      touchStartRef.current = null;
+      return;
+    }
+    const touch = e.touches[0];
+    touchStartRef.current = { x: touch.clientX, y: touch.clientY, time: Date.now() };
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (!touchStartRef.current) return;
+    const touch = e.changedTouches[0];
+    const deltaX = touch.clientX - touchStartRef.current.x;
+    const deltaY = touch.clientY - touchStartRef.current.y;
+    const elapsed = Date.now() - touchStartRef.current.time;
+    touchStartRef.current = null;
+
+    const hasOpenModal = document.querySelector('.fixed.z-50, .fixed.z-\\[60\\], .fixed.z-\\[70\\], .fixed.z-\\[80\\]');
+    if (hasOpenModal || isRideModalOpen || isFriendModalOpen || isGroupModalOpen) return;
+
+    if (elapsed < 600 && Math.abs(deltaX) > 60 && Math.abs(deltaX) > Math.abs(deltaY) * 1.5) {
+      const tabs = ['home', 'viagens', 'amigos', 'grupos', 'perfil'];
+      const currentIndex = tabs.indexOf(activeTab);
+      if (currentIndex === -1) return;
+
+      if (deltaX < 0 && currentIndex < tabs.length - 1) {
+        setActiveTab(tabs[currentIndex + 1]);
+      } else if (deltaX > 0 && currentIndex > 0) {
+        setActiveTab(tabs[currentIndex - 1]);
+      }
+    }
+  };
 
   // Inicializa o banco SQLite local e verifica se há sessão ativa
   useEffect(() => {
@@ -125,7 +161,11 @@ function App() {
   }
 
   return (
-    <div className="min-h-screen bg-[#05080f] text-white font-sans relative pb-20">
+    <div
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
+      className="min-h-screen bg-[#05080f] text-white font-sans relative pb-20 select-none"
+    >
       <main className="p-4 max-w-lg mx-auto">
         {activeTab === 'home' && <Home key={`home-${dataVersion}`} onDataChange={refreshData} />}
         {activeTab === 'viagens' && (

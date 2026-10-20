@@ -315,7 +315,7 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
               <div className="flex items-baseline gap-2 mb-5">
                 <span
                   className={`text-3xl font-black ${
-                    userNet >= 0 ? 'text-[#2DD4BF]' : 'text-red-400'
+                    userNet < -0.01 ? 'text-red-400' : userNet > 0.01 ? 'text-yellow-400' : 'text-[#2DD4BF]'
                   }`}
                 >
                   R$ {moneyConverter(Math.abs(userNet))}

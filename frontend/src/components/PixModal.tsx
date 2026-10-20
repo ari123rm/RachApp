@@ -175,17 +175,26 @@ export function PixModal({
               </div>
 
               {copiaECola && (
-                <div className="bg-[#2c2c2e] rounded-xl p-3 flex items-center justify-between gap-2">
-                  <div className="overflow-hidden">
-                    <p className="text-[10px] text-gray-400 uppercase font-bold">Pix Copia e Cola</p>
-                    <p className="text-xs text-gray-300 font-mono truncate">{copiaECola}</p>
+                <div className="space-y-2">
+                  <div className="bg-[#2c2c2e] rounded-xl p-3 flex items-center justify-between gap-2">
+                    <div className="overflow-hidden">
+                      <p className="text-[10px] text-gray-400 uppercase font-bold">Código Pix Copia e Cola</p>
+                      <p className="text-xs text-gray-300 font-mono truncate">{copiaECola}</p>
+                    </div>
+                    <button
+                      onClick={handleCopyCode}
+                      className="bg-[#2DD4BF] text-[#05080f] hover:bg-[#25b5a3] px-3.5 py-2 rounded-lg text-xs font-bold flex items-center gap-1.5 shrink-0 transition-transform active:scale-95 shadow-sm"
+                    >
+                      {copiedCode ? <Check size={14} /> : <Copy size={14} />}
+                      {copiedCode ? 'Copiado!' : 'Copiar'}
+                    </button>
                   </div>
                   <button
                     onClick={handleCopyCode}
-                    className="bg-[#2DD4BF] text-[#05080f] hover:bg-[#25b5a3] px-3 py-2 rounded-lg text-xs font-bold flex items-center gap-1.5 shrink-0"
+                    className="w-full bg-[#2DD4BF]/15 text-[#2DD4BF] hover:bg-[#2DD4BF]/25 font-bold py-2.5 rounded-xl text-xs flex items-center justify-center gap-2 border border-[#2DD4BF]/30 transition-colors"
                   >
-                    {copiedCode ? <Check size={14} /> : <Copy size={14} />}
-                    {copiedCode ? 'Copiado!' : 'Copia e Cola'}
+                    {copiedCode ? <Check size={15} /> : <Copy size={15} />}
+                    {copiedCode ? 'Código Pix Copiado com Sucesso!' : 'Copiar Código Pix'}
                   </button>
                 </div>
               )}

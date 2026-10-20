@@ -1,5 +1,5 @@
 // src/components/FriendCard.tsx
-import { Star, QrCode, Phone } from 'lucide-react';
+import { Star, QrCode, Phone, CheckCircle2 } from 'lucide-react';
 import { formatPhoneBR } from '../utils/phoneFormatter';
 import moneyConverter from '../utils/moneyConverter';
 
@@ -15,6 +15,7 @@ export function FriendCard({ amigo, onClick, onToggleFavorito }: FriendCardProps
   const favorito = amigo.favorito ?? amigo.is_favorite ?? false;
   const pixKey = amigo.pix_key || amigo.pix || '';
   const telefone = amigo.telefone || amigo.phone || '';
+  const isVerified = Boolean(amigo.is_verified || amigo.has_account);
 
   const dividaNum = Number(amigo.dividaNumerica ?? 0);
   const voceDeveNum = Number(amigo.voceDeveNumerico ?? 0);
@@ -33,7 +34,14 @@ export function FriendCard({ amigo, onClick, onToggleFavorito }: FriendCardProps
           {nome[0]?.toUpperCase()}
         </div>
         <div className="min-w-0">
-          <span className="font-semibold text-white text-base block truncate">{nome}</span>
+          <div className="flex items-center gap-1.5 min-w-0">
+            <span className="font-semibold text-white text-base truncate">{nome}</span>
+            {isVerified && (
+              <span title="Usuário cadastrado no Rachapp" className="inline-flex items-center text-teal-400 shrink-0">
+                <CheckCircle2 size={16} className="fill-[#2DD4BF] text-[#05080f]" />
+              </span>
+            )}
+          </div>
           <div className="flex flex-wrap items-center gap-2 mt-0.5">
             {telefone && (
               <span className="text-[11px] text-gray-400 flex items-center gap-1">
@@ -49,11 +57,11 @@ export function FriendCard({ amigo, onClick, onToggleFavorito }: FriendCardProps
         </div>
       </div>
 
-      {/* Lado Direito: Dívida e Estrela */}
+      {/* Lado Direito: Dívida (Amarela para devedor / Vermelha se você deve) e Estrela */}
       <div className="flex items-center gap-3 shrink-0">
         {saldoLiquido > 0.01 && (
           <div className="text-right">
-            <span className="font-bold text-[#FF453A] text-sm block">
+            <span className="font-bold text-yellow-400 text-sm block">
               R$ {moneyConverter(saldoLiquido)}
             </span>
             <span className="text-[10px] text-gray-500">te deve</span>
@@ -61,7 +69,7 @@ export function FriendCard({ amigo, onClick, onToggleFavorito }: FriendCardProps
         )}
         {saldoLiquido < -0.01 && (
           <div className="text-right">
-            <span className="font-bold text-amber-400 text-sm block">
+            <span className="font-bold text-red-400 text-sm block">
               R$ {moneyConverter(Math.abs(saldoLiquido))}
             </span>
             <span className="text-[10px] text-gray-500">você deve</span>

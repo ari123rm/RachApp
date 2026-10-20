@@ -63,18 +63,17 @@ export class FriendService {
         return existing;
       }
 
-      const created = await prisma.friend.create({
-        data: {
-          user_id: userId,
-          name: ownerUser.name.trim() || 'Amigo',
-          phone: normOwnerPhone || null,
-          pix_key: cleanOwnerPix,
-          color: 'bg-teal-500',
-          is_favorite: false,
-        },
-      });
-      myFriends.push(created);
-      return created;
+      // ISOLAMENTO DE GRUPOS: Membros/donos de grupo que não são amigos NÃO são inseridos em Friend
+      return {
+        id: ownerUser.id,
+        user_id: userId,
+        name: ownerUser.name.trim() || 'Criador do Grupo',
+        phone: normOwnerPhone || null,
+        pix_key: cleanOwnerPix,
+        color: 'bg-teal-500',
+        is_favorite: false,
+        is_group_only: true,
+      } as any;
     };
 
     const ensureLocalFriendForForeign = async (foreignFriend: {
@@ -108,18 +107,17 @@ export class FriendService {
         return existing;
       }
 
-      const created = await prisma.friend.create({
-        data: {
-          user_id: userId,
-          name: foreignFriend.name.trim() || 'Amigo',
-          phone: normPhone || null,
-          pix_key: cleanForeignPix,
-          color: foreignFriend.color || 'bg-sky-500',
-          is_favorite: false,
-        },
-      });
-      myFriends.push(created);
-      return created;
+      // ISOLAMENTO DE GRUPOS: Membros de grupo que não são amigos NÃO são inseridos em Friend
+      return {
+        id: foreignFriend.id,
+        user_id: userId,
+        name: foreignFriend.name.trim() || 'Membro do Grupo',
+        phone: normPhone || null,
+        pix_key: cleanForeignPix,
+        color: foreignFriend.color || 'bg-sky-500',
+        is_favorite: false,
+        is_group_only: true,
+      } as any;
     };
 
     if (!currentUser || !currentUser.phone) {
@@ -150,12 +148,8 @@ export class FriendService {
     );
     const reverseFriendIds = reverseFriends.map((f) => f.id);
 
-    // Garante que todo usuário que me adicionou pelo meu número também esteja na minha lista de amigos
-    for (const rf of reverseFriends) {
-      if (rf.user && rf.user.id !== userId) {
-        await ensureLocalFriendForOwner(rf.user);
-      }
-    }
+    // NOTA: As solicitações reversas ficam visíveis na aba dedicada "Aceitar Amizades",
+    // em vez de criar automaticamente registros de amigos na lista principal sem consentimento.
 
     return {
       currentUser,
@@ -273,7 +267,23 @@ export class FriendService {
       select: { id: true, name: true, phone: true, pix_key: true },
     });
 
-    return friends.map((friend) => {
+    // Deduplicação em memória para garantir que não haja amigos duplicados na lista
+    const uniqueFriendsMap = new Map<string, typeof friends[0]>();
+    for (const f of friends) {
+      const normP = normalizePhoneBackend(f.phone);
+      const dedupeKey = normP ? `phone_${normP}` : `name_${f.name.trim().toLowerCase()}`;
+      if (!uniqueFriendsMap.has(dedupeKey)) {
+        uniqueFriendsMap.set(dedupeKey, f);
+      } else {
+        const existing = uniqueFriendsMap.get(dedupeKey)!;
+        if (f.is_favorite && !existing.is_favorite) {
+          uniqueFriendsMap.set(dedupeKey, f);
+        }
+      }
+    }
+    const deduplicatedFriends = Array.from(uniqueFriendsMap.values());
+
+    return deduplicatedFriends.map((friend) => {
       let divida = 0; // Quanto o amigo deve para Você
       let voceDeve = 0; // Quanto Você deve para o amigo
 
@@ -298,6 +308,11 @@ export class FriendService {
         }
       }
 
+      // Selo de verificação: verifica se o usuário possui conta cadastrada no Rachapp
+      const hasAccount = friend.phone
+        ? allUsers.some((u) => u.id !== userId && phonesMatch(u.phone, friend.phone))
+        : false;
+
       // Prioriza a chave Pix que o próprio amigo cadastrou na conta dele
       let effectivePixKey = (friend.pix_key || '').trim();
       if (friend.phone) {
@@ -313,12 +328,102 @@ export class FriendService {
       const { expenses, ...friendData } = friend;
       return {
         ...friendData,
+        is_verified: hasAccount,
+        has_account: hasAccount,
         pix_key: effectivePixKey,
         registered_pix_key: effectivePixKey,
         divida: Number(divida.toFixed(2)),
         voceDeve: Number(voceDeve.toFixed(2)),
       };
     });
+  }
+
+  // ==========================================
+  // SISTEMA DE CONVITES / ACEITAR AMIZADES
+  // ==========================================
+  static async getPendingRequests(userId: string) {
+    const currentUser = await prisma.user.findUnique({ where: { id: userId } });
+    if (!currentUser || !currentUser.phone) return [];
+
+    const myFriends = await prisma.friend.findMany({ where: { user_id: userId } });
+    const myFriendPhones = new Set(
+      myFriends.map((f) => normalizePhoneBackend(f.phone)).filter(Boolean)
+    );
+
+    const otherFriendsWithPhone = await prisma.friend.findMany({
+      where: {
+        user_id: { not: userId },
+        phone: { not: null },
+      },
+      include: {
+        user: {
+          select: { id: true, name: true, phone: true, pix_key: true },
+        },
+      },
+    });
+
+    const requests: any[] = [];
+    const seenUserIds = new Set<string>();
+
+    for (const rf of otherFriendsWithPhone) {
+      if (!rf.user || rf.user.id === userId) continue;
+      if (seenUserIds.has(rf.user.id)) continue;
+
+      if (phonesMatch(rf.phone, currentUser.phone)) {
+        const requesterNormPhone = normalizePhoneBackend(rf.user.phone);
+        if (!myFriendPhones.has(requesterNormPhone)) {
+          seenUserIds.add(rf.user.id);
+          requests.push({
+            id: rf.id,
+            requesterId: rf.user.id,
+            name: rf.user.name,
+            phone: rf.user.phone,
+            pix_key: rf.user.pix_key,
+            created_at: rf.user.id,
+          });
+        }
+      }
+    }
+
+    return requests;
+  }
+
+  static async acceptFriendRequest(userId: string, requesterUserId: string) {
+    const requester = await prisma.user.findUnique({
+      where: { id: requesterUserId },
+      select: { id: true, name: true, phone: true, pix_key: true },
+    });
+    if (!requester) throw new Error('Usuário solicitante não encontrado.');
+
+    const normPhone = normalizePhoneBackend(requester.phone);
+    let existing = await prisma.friend.findFirst({
+      where: {
+        user_id: userId,
+        OR: [
+          ...(normPhone ? [{ phone: normPhone }] : []),
+          { name: requester.name },
+        ],
+      },
+    });
+
+    if (!existing) {
+      existing = await prisma.friend.create({
+        data: {
+          user_id: userId,
+          name: requester.name,
+          phone: normPhone || null,
+          pix_key: requester.pix_key || null,
+          color: 'bg-teal-500',
+          is_favorite: false,
+        },
+      });
+    }
+
+    return existing;
+  }
+
+  static async rejectFriendRequest(userId: string, requesterUserId: string) {
+    return { success: true };
   }
 
   static async update(

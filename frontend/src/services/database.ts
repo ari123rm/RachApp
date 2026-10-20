@@ -374,12 +374,39 @@ function simplifyDebtsLocal(
     else if (balance > 0.01) creditors.push({ key, amount: balance });
   }
 
+  const transfers: Transferencia[] = [];
+
+  // 1º Passo: Casamento Direto Exato (A deve X e C tem X a receber -> rota mais direta possível)
+  for (let d = debtors.length - 1; d >= 0; d--) {
+    const debtor = debtors[d];
+    const matchIdx = creditors.findIndex((c) => Math.abs(c.amount - debtor.amount) < 0.01);
+    if (matchIdx !== -1) {
+      const creditor = creditors[matchIdx];
+      const fromMeta = entityMeta[debtor.key] || { id: debtor.key, name: 'Participante', color: 'bg-gray-600' };
+      const toMeta = entityMeta[creditor.key] || { id: creditor.key, name: 'Credor', color: 'bg-teal-500' };
+      transfers.push({
+        fromId: fromMeta.id,
+        fromName: fromMeta.isOwner ? 'Você' : fromMeta.name,
+        fromPhone: fromMeta.phone,
+        fromColor: fromMeta.color,
+        toId: toMeta.id,
+        toName: toMeta.isOwner ? 'Você' : toMeta.name,
+        toPhone: toMeta.phone,
+        toPixKey: toMeta.pix_key,
+        toColor: toMeta.color,
+        amount: Number(debtor.amount.toFixed(2)),
+      });
+      debtors.splice(d, 1);
+      creditors.splice(matchIdx, 1);
+    }
+  }
+
+  // 2º Passo: Guloso para os saldos restantes
   debtors.sort((a, b) => b.amount - a.amount);
   creditors.sort((a, b) => b.amount - a.amount);
 
   let i = 0;
   let j = 0;
-  const transfers: Transferencia[] = [];
 
   while (i < debtors.length && j < creditors.length) {
     const debtor = debtors[i];
@@ -696,13 +723,68 @@ export const dbService = {
           color: r.color || 'bg-sky-500',
           favorito: !!r.is_favorite,
           is_favorite: !!r.is_favorite,
+          is_verified: !!(r.is_verified || r.has_account || (r.phone && String(r.phone).length >= 10)),
+          has_account: !!(r.is_verified || r.has_account || (r.phone && String(r.phone).length >= 10)),
           dividaNumerica: Number(dividaNum.toFixed(2)),
           voceDeveNumerico: Number(voceDeveNum.toFixed(2)),
           pendingExpensesCount: pendingCount,
         });
       }
 
-      return amigos;
+      // Deduplicação de amigos (garante que não haja amigos duplicados na listagem)
+      const amigosUnicosMap = new Map<string, Amigo>();
+      for (const a of amigos) {
+        const normP = stripCountryCode(a.telefone || a.phone || '');
+        const key = normP ? `phone_${normP}` : `name_${(a.nome || a.name || '').trim().toLowerCase()}`;
+        if (!amigosUnicosMap.has(key)) {
+          amigosUnicosMap.set(key, a);
+        } else {
+          const prim = amigosUnicosMap.get(key)!;
+          prim.dividaNumerica = Number(((prim.dividaNumerica || 0) + (a.dividaNumerica || 0)).toFixed(2));
+          prim.voceDeveNumerico = Number(((prim.voceDeveNumerico || 0) + (a.voceDeveNumerico || 0)).toFixed(2));
+          prim.pendingExpensesCount = (prim.pendingExpensesCount || 0) + (a.pendingExpensesCount || 0);
+          if (a.favorito) prim.favorito = true;
+          if (a.is_favorite) prim.is_favorite = true;
+          if (a.is_verified) {
+            prim.is_verified = true;
+            prim.has_account = true;
+          }
+          if (!prim.pix_key && a.pix_key) {
+            prim.pix_key = a.pix_key;
+            prim.pix = a.pix_key;
+          }
+        }
+      }
+
+      return Array.from(amigosUnicosMap.values());
+    },
+
+    getRequests: async (): Promise<any[]> => {
+      try {
+        const resp = await api.get('/friends/requests');
+        return resp.data || [];
+      } catch {
+        return [];
+      }
+    },
+
+    acceptRequest: async (requesterId: string) => {
+      try {
+        const resp = await api.post('/friends/requests/accept', { requesterId });
+        await syncWithBackend(true);
+        return resp.data;
+      } catch (err: any) {
+        throw new Error(err?.response?.data?.error || 'Erro ao aceitar amizade.');
+      }
+    },
+
+    rejectRequest: async (requesterId: string) => {
+      try {
+        const resp = await api.post('/friends/requests/reject', { requesterId });
+        return resp.data;
+      } catch (err: any) {
+        throw new Error(err?.response?.data?.error || 'Erro ao recusar amizade.');
+      }
     },
 
     create: async (novoAmigo: {
@@ -847,6 +929,9 @@ export const dbService = {
   // ==========================================
   corridas: {
     getAll: async (): Promise<Corrida[]> => {
+      const session = await queryOne<any>('SELECT user_id FROM auth_session WHERE id = 1');
+      const currentUserId = session?.user_id;
+
       const expRows = await queryAll<any>(
         `SELECT e.*, g.name as group_name, f.name as payer_friend_name, f.phone as payer_friend_phone, f.pix_key as payer_friend_pix
          FROM expenses e
@@ -913,6 +998,7 @@ export const dbService = {
           pagamentos,
           valoresDevidos,
           comprovantes,
+          isOwner: !e.user_id || !currentUserId || e.user_id === currentUserId,
         });
       }
 
@@ -1599,10 +1685,13 @@ export const dbService = {
         }
       }
 
+      const saldoReal = Number((totalAReceber - totalAPagar).toFixed(2));
+
       return {
         totalGasto,
         totalAReceber: Number(totalAReceber.toFixed(2)),
         totalAPagar: Number(totalAPagar.toFixed(2)),
+        saldoReal,
         amigosDevedores,
       };
     },
