@@ -1,0 +1,170 @@
+name: Build Android APK
+
+on:
+  push:
+    branches:
+      - main
+      - feature/backend
+      - feature/full-integration
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-apk:
+    name: Gerar APK (React + Capacitor)
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - name: Checkout do Repositório
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Configurar Java JDK 21 (exigido pelo Capacitor 8 / AGP 8)
+        uses: actions/setup-java@v5
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Aceitar Licenças do Android SDK
+        run: |
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
+
+      - name: Instalar dependências do Frontend
+        run: npm install --legacy-peer-deps
+
+      - name: Injetar VITE_API_URL e Compilar Frontend Web (Vite + SQLite WASM)
+        env:
+          RAW_API_URL: ${{ secrets.VITE_API_URL || vars.VITE_API_URL }}
+        run: |
+          if [ -n "$RAW_API_URL" ]; then
+            echo "VITE_API_URL=$RAW_API_URL" > .env.production
+            echo "VITE_API_URL=$RAW_API_URL" > .env
+            echo "✅ VITE_API_URL injetada no build do APK"
+          else
+            echo "⚠️ AVISO: Secret VITE_API_URL não encontrado! Configure VITE_API_URL nos Secrets do repositório."
+          fi
+          npm run build
+
+      - name: Inicializar e Sincronizar Plataforma Android (Capacitor)
+        run: |
+          if [ ! -d "android" ]; then
+            npx cap add android
+          fi
+          npx cap sync android
+
+      - name: Aplicar ícone (src/assets/icon.png) e Splash Screen no APK
+        run: |
+          mkdir -p assets
+          cp src/assets/icon.png assets/icon.png
+          cp src/assets/icon.png assets/icon-only.png
+          cp src/assets/icon.png assets/icon-foreground.png
+          cp src/assets/splash.png assets/icon-background.png
+          cp src/assets/splash.png assets/splash.png
+          cp src/assets/splash.png assets/splash-dark.png
+
+          # Gera todos os tamanhos de ícone e splash para Android via @capacitor/assets
+          npx --yes @capacitor/assets generate --android \
+            --iconBackgroundColor '#05080f' \
+            --iconBackgroundColorDark '#05080f' \
+            --splashBackgroundColor '#05080f' \
+            --splashBackgroundColorDark '#05080f' || true
+
+          # Garante substituição direta apenas nos diretórios de densidade PNG (sem tocar no mipmap-anydpi-v26 que contém XML)
+          for density in mipmap-mdpi mipmap-hdpi mipmap-xhdpi mipmap-xxhdpi mipmap-xxxhdpi; do
+            dir="android/app/src/main/res/$density"
+            if [ -d "$dir" ]; then
+              cp -f src/assets/icon.png "$dir/ic_launcher.png" 2>/dev/null || true
+              cp -f src/assets/icon.png "$dir/ic_launcher_round.png" 2>/dev/null || true
+              cp -f src/assets/icon.png "$dir/ic_launcher_foreground.png" 2>/dev/null || true
+            fi
+          done
+          rm -f android/app/src/main/res/mipmap-anydpi-v26/*.png 2>/dev/null || true
+
+      - name: Habilitar tráfego HTTP/HTTPS e Intents do WhatsApp no AndroidManifest
+        run: |
+          mkdir -p android/app/src/main/res/xml
+          cat << 'EOF' > android/app/src/main/res/xml/network_security_config.xml
+          <?xml version="1.0" encoding="utf-8"?>
+          <network-security-config>
+              <base-config cleartextTrafficPermitted="true">
+                  <trust-anchors>
+                      <certificates src="system" />
+                      <certificates src="user" />
+                  </trust-anchors>
+              </base-config>
+          </network-security-config>
+          EOF
+
+          MANIFEST="android/app/src/main/AndroidManifest.xml"
+          if [ -f "$MANIFEST" ] && ! grep -q "usesCleartextTraffic" "$MANIFEST"; then
+            sed -i 's/<application/<application android:usesCleartextTraffic="true" android:networkSecurityConfig="@xml\/network_security_config"/g' "$MANIFEST"
+          fi
+
+          if [ -f "$MANIFEST" ] && ! grep -q "com.whatsapp" "$MANIFEST"; then
+            sed -i 's/<\/manifest>/<queries><package android:name="com.whatsapp" \/><package android:name="com.whatsapp.w4b" \/><intent><action android:name="android.intent.action.VIEW" \/><data android:scheme="whatsapp" \/><\/intent><intent><action android:name="android.intent.action.VIEW" \/><data android:scheme="https" \/><\/intent><\/queries><\/manifest>/g' "$MANIFEST"
+          fi
+
+      - name: Atualizar versionCode e versionName do Android automaticamente
+        run: |
+          VERSION_CODE=$((100 + ${{ github.run_number }}))
+          VERSION_NAME="0.1.${{ github.run_number }}"
+          sed -i "s/versionCode [0-9]\+/versionCode $VERSION_CODE/g" android/app/build.gradle
+          sed -i "s/versionName \"[^\"]*\"/versionName \"$VERSION_NAME\"/g" android/app/build.gradle
+          echo "✅ Versão do APK definida para versionName=$VERSION_NAME (versionCode=$VERSION_CODE)"
+
+      - name: Compilar APK Release via Gradle
+        run: |
+          chmod +x android/gradlew
+          cd android
+          ./gradlew assembleRelease --no-daemon
+
+      - name: Assinar APK com Keystore Fixa (permite atualizar sem desinstalar)
+        run: |
+          mkdir -p ../apk-output
+
+          UNSIGNED_APK="android/app/build/outputs/apk/release/app-release-unsigned.apk"
+          BUILD_TOOLS_DIR=$(ls -d $ANDROID_HOME/build-tools/* | sort -V | tail -n 1)
+
+          "$BUILD_TOOLS_DIR/zipalign" -v -p 4 "$UNSIGNED_APK" app-release-aligned.apk
+          "$BUILD_TOOLS_DIR/apksigner" sign \
+            --ks rachapp-keystore.jks \
+            --ks-key-alias rachapp \
+            --ks-pass pass:rachapp123 \
+            --key-pass pass:rachapp123 \
+            --out ../apk-output/RachApp-release.apk \
+            app-release-aligned.apk
+
+      - name: Publicar APKs nos Artifacts do GitHub Actions
+        uses: actions/upload-artifact@v4
+        with:
+          name: RachApp-APK-${{ github.sha }}
+          path: apk-output/*.apk
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publicar Release Automática com o APK
+        uses: softprops/action-gh-release@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          tag_name: v0.1.${{ github.run_number }}
+          name: "RachApp APK - v0.1.${{ github.run_number }} (${{ github.ref_name }})"
+          body: |
+            APK gerado automaticamente a partir do commit `${{ github.sha }}` na branch `${{ github.ref_name }}`.
+            - **RachApp-release.apk**: Versão otimizada e assinada (recomendada para instalar no celular).
+            - **RachApp-debug.apk**: Versão de depuração.
+          files: apk-output/*.apk
+          draft: false
+          prerelease: false
+          make_latest: true

@@ -1,0 +1,441 @@
+// src/components/RideDetailsModal.tsx
+import { useState, useEffect } from 'react';
+import {
+  ChevronLeft,
+  Receipt,
+  Calendar,
+  Users,
+  Trash2,
+  Pencil,
+  Check,
+  UsersRound,
+  Upload,
+  FileCheck2,
+} from 'lucide-react';
+import type { Corrida } from '../types';
+import moneyConverter from '../utils/moneyConverter';
+import { AddRideModal } from './AddRideModal';
+import { PayWithReceiptModal, ReceiptViewerModal } from './ReceiptModals';
+import { dbService } from '../services/database';
+import { useModalBackHandler } from '../utils/modalBackHandler';
+
+interface RideDetailsProps {
+  ride?: Corrida;
+  participantes?: any[];
+  isOpen: boolean;
+  onClose: () => void;
+  onDelete: (id: string) => void;
+  onUpdated?: () => void;
+  update?: () => void;
+}
+
+export function RideDetailsModal({
+  ride,
+  participantes: initialParticipantes = [],
+  isOpen,
+  onClose,
+  onDelete,
+  onUpdated,
+  update,
+}: RideDetailsProps) {
+  const [localParticipantes, setLocalParticipantes] = useState<any[]>(initialParticipantes);
+  const [isEditOpen, setIsEditOpen] = useState(false);
+  const [isPaySelfOpen, setIsPaySelfOpen] = useState(false);
+
+  useEffect(() => {
+    if (initialParticipantes && initialParticipantes.length > 0) {
+      setLocalParticipantes(initialParticipantes);
+    } else if (ride?.participantesIds && ride.participantesIds.length > 0) {
+      dbService.amigos.getAll().then((todos) => {
+        const found = todos.filter((a) => a && a.id && ride.participantesIds.includes(a.id));
+        if (found.length > 0) {
+          setLocalParticipantes(found);
+        } else {
+          setLocalParticipantes(
+            ride.participantesIds.map((id, idx) => ({
+              id,
+              nome: `Amigo ${idx + 1}`,
+              cor: 'bg-sky-500',
+            }))
+          );
+        }
+      });
+    }
+  }, [ride, initialParticipantes]);
+
+  const participantes =
+    localParticipantes && localParticipantes.length > 0
+      ? localParticipantes
+      : (ride?.participantesIds || []).map((id, idx) => ({
+          id,
+          nome: `Amigo ${idx + 1}`,
+          cor: 'bg-sky-500',
+        }));
+  const triggerUpdate = () => {
+    if (onUpdated) onUpdated();
+    if (update) update();
+  };
+  const [receiptToView, setReceiptToView] = useState<{
+    isOpen: boolean;
+    url: string | null;
+    title: string;
+  }>({
+    isOpen: false,
+    url: null,
+    title: '',
+  });
+
+  useModalBackHandler(isOpen, onClose);
+
+  if (!isOpen || !ride) return null;
+
+  const valorNumerico = Number(ride.valorTotal || 0);
+  const totalPessoas = (ride.participantesIds?.length || participantes.length) + 1;
+  const valorDivididoPadrao = totalPessoas > 0 ? valorNumerico / totalPessoas : valorNumerico;
+
+  const obterParteAmigo = (amigoId: string): number => {
+    if (ride.valoresDevidos && ride.valoresDevidos[amigoId] !== undefined) {
+      return Number(ride.valoresDevidos[amigoId]);
+    }
+    return valorDivididoPadrao;
+  };
+
+  const minhaParte =
+    ride.selfAmountOwed !== undefined ? Number(ride.selfAmountOwed) : valorDivididoPadrao;
+  const meuValorPago = Number(ride.selfAmountPaid || 0);
+
+  const formatarDataBR = (iso: any) => {
+    if (!iso) return '';
+    try {
+      const str = String(iso).split('T')[0];
+      const parts = str.split('-');
+      if (parts.length !== 3) return str;
+      return `${parts[2]}/${parts[1]}/${parts[0]}`;
+    } catch {
+      return '';
+    }
+  };
+
+  const voceEhPagador = !ride.paidByFriendId;
+  const isSelfQuitado = voceEhPagador || meuValorPago >= minhaParte - 0.01;
+  const pagadorAmigo = participantes.find((p: any) => p && p.id === ride.paidByFriendId);
+  const pagadorNome = pagadorAmigo?.nome || pagadorAmigo?.name || ride.paidByName || 'Amigo';
+  const pagadorPix =
+    ride.payerPixKey?.trim() ||
+    pagadorAmigo?.registered_pix_key?.trim() ||
+    pagadorAmigo?.pix_key?.trim() ||
+    pagadorAmigo?.pix?.trim() ||
+    '';
+
+  // Apenas o pagador (credor/"lesado") pode marcar/desmarcar diretamente sem comprovante
+  const handleCreditorTogglePaid = async (
+    amigoId: string,
+    jaPago: boolean,
+    valorParte: number
+  ) => {
+    if (!voceEhPagador) return;
+    try {
+      await dbService.financeiro.definirPagamentoParticipante(
+        ride.id,
+        amigoId,
+        jaPago ? 0 : valorParte
+      );
+      triggerUpdate();
+    } catch (err) {
+      console.error('Erro ao atualizar pagamento:', err);
+    }
+  };
+
+  // Devedor ("Você", quando um amigo pagou a conta) envia o comprovante para dar baixa na sua parte
+  const handleDebtorConfirmSelfPayment = async (amount: number, receiptBase64: string) => {
+    await dbService.financeiro.definirPagamentoParticipante(
+      ride.id,
+      'self',
+      amount,
+      receiptBase64
+    );
+    triggerUpdate();
+  };
+
+  return (
+    <div
+      className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4 animate-fade-in"
+      onClick={onClose}
+    >
+      <div
+        className="bg-[#0b0f19] w-full max-w-md rounded-3xl border border-white/10 shadow-2xl flex flex-col max-h-[90vh] overflow-hidden animate-slide-up"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Cabeçalho com Editar e Excluir */}
+        <div className="flex items-center justify-between p-4 border-b border-white/10 bg-[#0b0f19]/95 backdrop-blur-md shrink-0">
+          <button
+            onClick={onClose}
+            className="p-2 text-white hover:bg-gray-800 rounded-full transition-colors"
+          >
+            <ChevronLeft size={26} />
+          </button>
+
+          <h2 className="text-base font-semibold text-white">Detalhes do Racha</h2>
+
+          <div className="flex items-center gap-1">
+            {ride.isOwner !== false && (
+              <button
+                onClick={() => setIsEditOpen(true)}
+                className="p-2 text-gray-300 hover:bg-white/10 hover:text-white rounded-full transition-colors"
+                title="Editar Racha (Apenas Criador)"
+              >
+                <Pencil size={18} />
+              </button>
+            )}
+            <button
+              onClick={() => {
+                onDelete(ride.id);
+                onClose();
+              }}
+              className="p-2 text-red-500 hover:bg-red-500/20 hover:text-red-400 rounded-full transition-colors"
+              title="Excluir Racha"
+            >
+              <Trash2 size={20} />
+            </button>
+          </div>
+        </div>
+
+        <div className="p-5 space-y-5 overflow-y-auto flex-1">
+          {/* Card de Resumo (Valor e Título) */}
+          <div className="bg-gradient-to-br from-[#1c1c1e] to-[#2c2c2e] p-5 rounded-3xl text-center shadow-lg border border-white/5">
+            <p className="text-gray-400 text-xs uppercase font-bold tracking-wider mb-1">
+              {ride.tag || 'UBER'}
+            </p>
+            <h3 className="text-xl font-bold text-white mb-2">{ride.titulo}</h3>
+
+            {ride.groupName && (
+              <div className="inline-flex items-center gap-1.5 bg-blue-500/20 text-blue-400 text-xs font-semibold px-3 py-1 rounded-full mb-2">
+                <UsersRound size={13} /> {ride.groupName}
+              </div>
+            )}
+
+            <p className="text-gray-500 text-xs uppercase font-bold">Valor Total</p>
+            <div className="text-3xl font-black text-[#2DD4BF] mt-1">
+              R$ {moneyConverter(valorNumerico)}
+            </div>
+          </div>
+
+          {/* Informações Extras */}
+          <div className="bg-[#1c1c1e] rounded-2xl p-4 space-y-3 border border-white/5">
+            <div className="flex items-center text-gray-300">
+              <Calendar size={17} className="text-gray-500 mr-3" />
+              <span className="text-sm">
+                Data: <strong className="text-white ml-1">{formatarDataBR(ride.data)}</strong>
+              </span>
+            </div>
+            <div className="flex items-center text-gray-300">
+              <Receipt size={17} className="text-gray-500 mr-3" />
+              <span className="text-sm">
+                Categoria: <strong className="text-white ml-1">{ride.tag || 'Uber'}</strong>
+              </span>
+            </div>
+          </div>
+
+          {/* Divisão da Conta */}
+          <div>
+            <div className="flex items-center justify-between mb-3 text-gray-300">
+              <div className="flex items-center">
+                <Users size={17} className="text-gray-500 mr-2" />
+                <h3 className="font-semibold text-sm">Divisão ({totalPessoas} pessoas)</h3>
+              </div>
+            </div>
+
+            <div className="space-y-2.5">
+              {participantes.map((p: any, idx: number) => {
+                const nome = p?.nome || p?.name || 'Amigo';
+                const cor = p?.cor || p?.color || 'bg-sky-500';
+                const valorParte = obterParteAmigo(p?.id);
+                const pctParte =
+                  valorNumerico > 0 ? ((valorParte / valorNumerico) * 100).toFixed(1) : '0';
+                const valorPago = (p?.id && ride.pagamentos?.[p.id]) || 0;
+                const isFriendPayer = Boolean(p?.id && ride.paidByFriendId === p.id);
+                const isQuitado = isFriendPayer || valorPago >= valorParte - 0.01;
+                const receiptDoAmigo = (p?.id && ride.comprovantes?.[p.id]) || null;
+
+                return (
+                  <div
+                    key={p?.id || idx}
+                    className="flex justify-between items-center bg-[#1c1c1e] p-3.5 rounded-xl border border-white/5"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div
+                        className={`w-10 h-10 rounded-full ${cor} flex items-center justify-center font-bold text-white shrink-0`}
+                      >
+                        {(nome[0] || 'A').toUpperCase()}
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-medium text-white text-sm">{nome}</span>
+                          {isFriendPayer && (
+                            <span className="text-[10px] bg-[#2DD4BF]/20 text-[#2DD4BF] px-2 py-0.5 rounded-md font-bold">
+                              Pagador
+                            </span>
+                          )}
+                          {receiptDoAmigo && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setReceiptToView({
+                                  isOpen: true,
+                                  url: receiptDoAmigo,
+                                  title: `Comprovante de ${nome}`,
+                                })
+                              }
+                              className="text-[10px] bg-sky-500/20 text-sky-300 hover:bg-sky-500/30 px-2 py-0.5 rounded-md font-semibold flex items-center gap-1"
+                            >
+                              <FileCheck2 size={11} /> Ver Comprovante
+                            </button>
+                          )}
+                        </div>
+
+                        {!isFriendPayer &&
+                          (voceEhPagador ? (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                p?.id && handleCreditorTogglePaid(p.id, isQuitado, valorParte)
+                              }
+                              className={`mt-1.5 px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all active:scale-95 border ${
+                                isQuitado
+                                  ? 'bg-[#34C759]/20 text-[#34C759] border-[#34C759]/40 hover:bg-[#34C759]/30'
+                                  : 'bg-yellow-500/20 text-yellow-300 border-yellow-500/40 hover:bg-yellow-500/30'
+                              }`}
+                              title={isQuitado ? 'Clique para desmarcar' : 'Clique para marcar como pago'}
+                            >
+                              {isQuitado ? (
+                                <>
+                                  <Check size={13} className="stroke-[3]" />
+                                  <span>Pago (desfazer)</span>
+                                </>
+                              ) : (
+                                <>
+                                  <span className="w-2 h-2 rounded-full bg-yellow-400 animate-pulse" />
+                                  <span>Marcar como Pago</span>
+                                </>
+                              )}
+                            </button>
+                          ) : (
+                            <span
+                              className={`text-[11px] font-semibold mt-1 flex items-center gap-1 ${
+                                isQuitado ? 'text-[#34C759]' : 'text-yellow-400'
+                              }`}
+                            >
+                              {isQuitado ? (
+                                <>
+                                  <Check size={12} /> Pago
+                                </>
+                              ) : (
+                                '• Pendente'
+                              )}
+                            </span>
+                          ))}
+                      </div>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <p className="text-xs text-gray-500 mb-0.5">
+                        Parte dele(a) ({pctParte}%)
+                      </p>
+                      <p className="font-bold text-white text-sm">
+                        R$ {moneyConverter(valorParte)}
+                      </p>
+                    </div>
+                  </div>
+                );
+              })}
+
+              {/* Card Você */}
+              <div className="flex justify-between items-center bg-[#1c1c1e] p-3.5 rounded-xl border border-white/5">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-[#2DD4BF] flex items-center justify-center font-bold text-[#05080f] shrink-0">
+                    V
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-medium text-white text-sm">Você</span>
+                      {voceEhPagador && (
+                        <span className="text-[10px] bg-[#2DD4BF]/20 text-[#2DD4BF] px-2 py-0.5 rounded-md font-bold">
+                          Pagador
+                        </span>
+                      )}
+                      {ride.selfReceiptUrl && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setReceiptToView({
+                              isOpen: true,
+                              url: ride.selfReceiptUrl || null,
+                              title: 'Seu Comprovante de Pagamento',
+                            })
+                          }
+                          className="text-[10px] bg-sky-500/20 text-sky-300 hover:bg-sky-500/30 px-2 py-0.5 rounded-md font-semibold flex items-center gap-1"
+                        >
+                          <FileCheck2 size={11} /> Ver Comprovante
+                        </button>
+                      )}
+                    </div>
+                    {!voceEhPagador &&
+                      (isSelfQuitado ? (
+                        <span className="text-[11px] font-semibold mt-0.5 flex items-center gap-1 text-[#34C759]">
+                          <Check size={12} /> Pago
+                        </span>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setIsPaySelfOpen(true)}
+                          className="text-[11px] bg-amber-500/20 text-amber-300 hover:bg-amber-500/30 px-2.5 py-1 rounded-lg font-bold mt-1 flex items-center gap-1 transition-colors"
+                        >
+                          <Upload size={11} /> Pagar c/ Comprovante
+                        </button>
+                      ))}
+                  </div>
+                </div>
+                <div className="text-right shrink-0">
+                  <p className="text-xs text-gray-500 mb-0.5">
+                    Sua parte (
+                    {valorNumerico > 0 ? ((minhaParte / valorNumerico) * 100).toFixed(1) : '0'}%)
+                  </p>
+                  <p className="font-bold text-white text-sm">R$ {moneyConverter(minhaParte)}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Modal de Pagar sua parte com Comprovante (quando o amigo pagou o racha) */}
+      <PayWithReceiptModal
+        isOpen={isPaySelfOpen}
+        onClose={() => setIsPaySelfOpen(false)}
+        recipientName={pagadorNome}
+        pixKey={pagadorPix}
+        defaultAmount={Math.max(0, Number((minhaParte - meuValorPago).toFixed(2)))}
+        allowCustomAmount={false}
+        description={`${ride.tag || 'Uber'} - ${ride.titulo}`}
+        onConfirm={handleDebtorConfirmSelfPayment}
+      />
+
+      {/* Modal de Visualização de Comprovante */}
+      <ReceiptViewerModal
+        isOpen={receiptToView.isOpen}
+        onClose={() => setReceiptToView({ isOpen: false, url: null, title: '' })}
+        receiptUrl={receiptToView.url}
+        title={receiptToView.title}
+      />
+
+      <AddRideModal
+        isOpen={isEditOpen}
+        rideToEdit={ride}
+        onClose={() => setIsEditOpen(false)}
+        onSuccess={() => {
+          setIsEditOpen(false);
+          triggerUpdate();
+        }}
+      />
+    </div>
+  );
+}

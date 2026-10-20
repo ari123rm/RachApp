@@ -1,0 +1,98 @@
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x", "debian-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                String   @id @default(uuid())
+  name              String
+  phone             String   @unique
+  phone_verified    Boolean  @default(false)
+  verification_code String?
+  email             String   @unique
+  password_hash     String
+  pix_key           String?
+  created_at        DateTime @default(now())
+
+  groupsOwned   Group[]       @relation("GroupOwner")
+  groups        GroupMember[]
+  expensesOwned Expense[]     @relation("ExpenseOwner")
+  friends       Friend[]
+}
+
+model Friend {
+  id          String   @id @default(uuid())
+  user_id     String
+  name        String
+  phone       String?
+  pix_key     String?
+  color       String
+  is_favorite Boolean  @default(false)
+
+  user         User                 @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  expenses     ExpenseParticipant[]
+  groupMembers GroupMember[]
+  expensesPaid Expense[]            @relation("ExpensePayerFriend")
+}
+
+model Group {
+  id         String   @id @default(uuid())
+  name       String
+  created_by String
+  created_at DateTime @default(now())
+
+  owner      User          @relation("GroupOwner", fields: [created_by], references: [id], onDelete: Cascade)
+  members    GroupMember[]
+  expenses   Expense[]
+}
+
+model GroupMember {
+  id        String  @id @default(dbgenerated("gen_random_uuid()"))
+  group_id  String
+  user_id   String?
+  friend_id String?
+
+  group     Group   @relation(fields: [group_id], references: [id], onDelete: Cascade)
+  user      User?   @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  friend    Friend? @relation(fields: [friend_id], references: [id], onDelete: Cascade)
+
+  @@unique([group_id, user_id])
+  @@unique([group_id, friend_id])
+}
+
+model Expense {
+  id                String   @id @default(uuid())
+  user_id           String
+  group_id          String?
+  paid_by_friend_id String?
+  title             String
+  tag               String?
+  total_amount      Decimal  @db.Decimal(10, 2)
+  self_amount_owed  Decimal  @default(0.00) @db.Decimal(10, 2)
+  self_amount_paid  Decimal  @default(0.00) @db.Decimal(10, 2)
+  self_receipt_url  String?  @db.Text
+  expense_date      DateTime @default(now())
+
+  owner        User                 @relation("ExpenseOwner", fields: [user_id], references: [id], onDelete: Cascade)
+  paidByFriend Friend?              @relation("ExpensePayerFriend", fields: [paid_by_friend_id], references: [id], onDelete: SetNull)
+  group        Group?               @relation(fields: [group_id], references: [id], onDelete: SetNull)
+  participants ExpenseParticipant[]
+}
+
+model ExpenseParticipant {
+  expense_id  String
+  friend_id   String
+  amount_owed Decimal @db.Decimal(10, 2)
+  amount_paid Decimal @default(0.00) @db.Decimal(10, 2)
+  receipt_url String? @db.Text
+
+  expense     Expense @relation(fields: [expense_id], references: [id], onDelete: Cascade)
+  friend      Friend  @relation(fields: [friend_id], references: [id], onDelete: Cascade)
+
+  @@id([expense_id, friend_id])
+}

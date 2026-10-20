@@ -1,0 +1,50 @@
+name: Deploy Fullstack (Backend + Web + PostgreSQL) na VPS
+
+on:
+  push:
+    branches:
+      - main
+      - feature/backend
+      - feature/full-integration
+    paths:
+      - 'backend/**'
+      - 'frontend/**'
+      - 'docker-compose.yml'
+      - '.github/workflows/deploy.yml'
+  workflow_dispatch:
+
+jobs:
+  deploy-vps:
+    name: Subir Backend, Frontend Web e Banco no Runner Self-Hosted
+    runs-on: self-hosted
+
+    steps:
+      - name: Checkout do Repositório
+        uses: actions/checkout@v4
+
+      - name: Gerar .env e subir containers Docker na VPS
+        run: |
+          set -e
+
+          cat <<EOF > .env
+          POSTGRES_USER=${{ secrets.POSTGRES_USER || 'postgres' }}
+          POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD || 'postgres' }}
+          POSTGRES_DB=${{ secrets.POSTGRES_DB || 'rachapp' }}
+          DB_PORT=${{ secrets.DB_PORT || '5432' }}
+          PORT=${{ secrets.PORT || '5000' }}
+          FRONTEND_PORT=${{ secrets.FRONTEND_PORT || '5173' }}
+          VITE_API_URL=${{ secrets.VITE_API_URL || vars.VITE_API_URL || '' }}
+          JWT_SECRET=${{ secrets.JWT_SECRET || 'rachapp_secret_key_prod' }}
+          ALLOWED_ORIGINS=*
+          EOF
+
+          if docker compose version &> /dev/null; then
+            docker compose up -d --build --remove-orphans
+          else
+            docker-compose up -d --build --remove-orphans
+          fi
+
+          docker image prune -f
+
+          echo "✅ Containers em execução na VPS:"
+          docker ps --filter "name=rachapp"
