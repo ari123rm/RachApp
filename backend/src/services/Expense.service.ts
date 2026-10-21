@@ -1039,7 +1039,6 @@ export class ExpenseService {
         const bal = await this.calculateGroupBalances(g.id, userId);
         const userNet = Number(bal.userNetBalance || 0);
         const memberBalances = bal.memberBalances || [];
-        const transfers = bal.transfers || [];
 
         const totalAReceberGrupo = memberBalances.reduce(
           (acc, m) => (m.owesYou > 0.01 ? acc + m.owesYou : acc),
@@ -1049,7 +1048,6 @@ export class ExpenseService {
           (acc, m) => (m.owesYou < -0.01 ? acc + Math.abs(m.owesYou) : acc),
           0
         );
-        const totalTransfers = transfers.reduce((acc, t) => acc + Number(t.amount || 0), 0);
 
         let saldoLiquido = Number(userNet.toFixed(2));
         if (Math.abs(saldoLiquido) <= 0.01) {
@@ -1057,8 +1055,6 @@ export class ExpenseService {
             saldoLiquido = -Number(totalAPagarGrupo.toFixed(2));
           } else if (totalAReceberGrupo > 0.01) {
             saldoLiquido = Number(totalAReceberGrupo.toFixed(2));
-          } else if (totalTransfers > 0.01) {
-            saldoLiquido = Number(totalTransfers.toFixed(2));
           }
         }
 

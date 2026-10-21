@@ -1,6 +1,16 @@
 // src/components/Home.tsx
-import { useState, useEffect } from 'react';
-import { ArrowUpRight, LoaderCircle, TrendingUp, TrendingDown, RefreshCw, BadgeCheck, Sparkles, Download } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import {
+  LoaderCircle,
+  TrendingUp,
+  TrendingDown,
+  RefreshCw,
+  BadgeCheck,
+  Sparkles,
+  Download,
+  Calendar,
+  ChevronDown,
+} from 'lucide-react';
 import type { AppReleaseInfo } from '../services/updateService';
 import { dbService } from '../services/database';
 import { FriendDetailsModal } from './FriendDetailsModal';
@@ -8,6 +18,19 @@ import { GroupDetailsModal } from './GroupDetailsModal';
 import moneyConverter from '../utils/moneyConverter';
 import { getAvatarColor, getGroupAvatarColor } from '../utils/avatarColor';
 import type { SyncStatus } from '../types';
+
+function formatarMesAno(ym: string, ymAtual?: string): string {
+  if (ym === 'all') return 'Todos os meses';
+  const [anoStr, mesStr] = ym.split('-');
+  const ano = Number(anoStr);
+  const mes = Number(mesStr);
+  if (!ano || !mes) return ym;
+  const d = new Date(ano, mes - 1, 1);
+  const nomeMes = d.toLocaleString('pt-BR', { month: 'long' });
+  const nomeCapitalizado = nomeMes.charAt(0).toUpperCase() + nomeMes.slice(1);
+  const sufixoAtual = ymAtual && ym === ymAtual ? ' (Atual)' : '';
+  return `${nomeCapitalizado} ${ano}${sufixoAtual}`;
+}
 
 export function Home({
   onDataChange,
@@ -20,14 +43,23 @@ export function Home({
   updateInfo?: AppReleaseInfo | null;
   onOpenUpdateModal?: () => void;
 }) {
+  const dataAtual = new Date();
+  const ymAtual = `${dataAtual.getFullYear()}-${String(dataAtual.getMonth() + 1).padStart(2, '0')}`;
+
+  const [periodoSelecionado, setPeriodoSelecionado] = useState<string>(ymAtual);
+  const periodoRef = useRef<string>(ymAtual);
+  periodoRef.current = periodoSelecionado;
+
+  const [mesesDisponiveis, setMesesDisponiveis] = useState<string[]>([ymAtual]);
   const [dashboard, setDashboard] = useState({
-    totalGasto: 0,
     totalAReceber: 0,
     totalAPagar: 0,
     amigosDevedores: [] as any[],
     gruposPendentes: [] as any[],
   });
   const [isLoading, setIsLoading] = useState(true);
+  const isFirstLoadRef = useRef(true);
+
   const [amigoSelecionado, setAmigoSelecionado] = useState<any>(null);
   const [grupoSelecionadoId, setGrupoSelecionadoId] = useState<string | null>(null);
   const [nomeUsuario, setNomeUsuario] = useState('Usuário');
@@ -37,19 +69,17 @@ export function Home({
     lastSyncedAt: null,
   });
 
-  const dataAtual = new Date();
-  const nomeMesBruto = dataAtual.toLocaleString('pt-BR', { month: 'long' });
-  const nomeMesAtual = nomeMesBruto.charAt(0).toUpperCase() + nomeMesBruto.slice(1);
-
-  const carregarDashboard = async () => {
-    setIsLoading(true);
+  const carregarDashboard = async (periodo = periodoRef.current, showSpinner = false) => {
+    if (showSpinner) setIsLoading(true);
     try {
       const config = await dbService.settings.get();
       setNomeUsuario(config.nome || config.name || 'Usuário');
 
-      const dados = await dbService.dashboard.get();
+      const dados = await dbService.dashboard.get(periodo);
+      if (Array.isArray((dados as any).mesesDisponiveis) && (dados as any).mesesDisponiveis.length > 0) {
+        setMesesDisponiveis((dados as any).mesesDisponiveis);
+      }
       setDashboard({
-        totalGasto: dados.totalGasto || 0,
         totalAReceber: dados.totalAReceber || 0,
         totalAPagar: (dados as any).totalAPagar || 0,
         amigosDevedores: dados.amigosDevedores || [],
@@ -59,23 +89,19 @@ export function Home({
       console.error('Erro ao carregar Dashboard:', error);
     } finally {
       setIsLoading(false);
+      isFirstLoadRef.current = false;
     }
   };
 
   useEffect(() => {
-    carregarDashboard();
+    carregarDashboard(periodoRef.current, isFirstLoadRef.current);
+  }, [periodoSelecionado]);
+
+  useEffect(() => {
     const unsub = dbService.sync.subscribe((st) => {
       setSyncStatus(st);
       if (st.state === 'synced') {
-        dbService.dashboard.get().then((dados) => {
-          setDashboard({
-            totalGasto: dados.totalGasto || 0,
-            totalAReceber: dados.totalAReceber || 0,
-            totalAPagar: (dados as any).totalAPagar || 0,
-            amigosDevedores: dados.amigosDevedores || [],
-            gruposPendentes: (dados as any).gruposPendentes || [],
-          });
-        }).catch(() => {});
+        carregarDashboard(periodoRef.current, false);
       }
     });
     return () => unsub();
@@ -83,15 +109,7 @@ export function Home({
 
   useEffect(() => {
     if (dataVersion !== undefined && dataVersion > 0) {
-      dbService.dashboard.get().then((dados) => {
-        setDashboard({
-          totalGasto: dados.totalGasto || 0,
-          totalAReceber: dados.totalAReceber || 0,
-          totalAPagar: (dados as any).totalAPagar || 0,
-          amigosDevedores: dados.amigosDevedores || [],
-          gruposPendentes: (dados as any).gruposPendentes || [],
-        });
-      }).catch(() => {});
+      carregarDashboard(periodoRef.current, false);
     }
   }, [dataVersion]);
 
@@ -100,7 +118,7 @@ export function Home({
     try {
       await dbService.amigos.delete(id);
       setAmigoSelecionado(null);
-      await carregarDashboard();
+      await carregarDashboard(periodoRef.current, false);
       if (onDataChange) onDataChange();
     } catch (error) {
       alert('Erro ao excluir o amigo.');
@@ -109,7 +127,7 @@ export function Home({
 
   const handleManualSync = async () => {
     await dbService.sync.now();
-    await carregarDashboard();
+    await carregarDashboard(periodoRef.current, false);
     if (onDataChange) onDataChange();
   };
 
@@ -128,7 +146,11 @@ export function Home({
       <header className="flex justify-between items-center mt-2">
         <div>
           <h1 className="text-xl font-bold text-white">Olá, {nomeUsuario.split(' ')[0]}</h1>
-          <p className="text-xs text-gray-500">Seu resumo de {nomeMesAtual}</p>
+          <p className="text-xs text-gray-500">
+            {periodoSelecionado === 'all'
+              ? 'Seu resumo de todos os meses'
+              : `Seu resumo de ${formatarMesAno(periodoSelecionado)}`}
+          </p>
         </div>
 
         <div className="flex items-center gap-2">
@@ -185,53 +207,83 @@ export function Home({
         </div>
       )}
 
-      {/* Card Principal: Total Pago (Figura 2 do Artigo) */}
-      <div className="bg-gradient-to-br from-[#1A2b4c] via-[#241b3d] to-[#3B1F42] rounded-3xl p-6 shadow-2xl relative overflow-hidden border border-white/5">
-        <div className="relative z-10">
-          <div className="flex justify-between items-start">
-            <p className="text-gray-300 text-sm mb-1">Total em Rachas ({nomeMesAtual}):</p>
-            <ArrowUpRight size={18} className="text-[#2DD4BF]" />
-          </div>
-          <div className="flex items-end gap-2 mb-4">
-            <h2 className="text-4xl font-black tracking-tight text-white">
-              R$ {moneyConverter(Number(dashboard.totalGasto || 0))}
-            </h2>
-          </div>
-
-          <div
-            className={`grid gap-2.5 ${
-              dashboard.totalAPagar > 0.01 ? 'grid-cols-2' : 'grid-cols-1'
-            }`}
-          >
-            <div className="bg-white/10 backdrop-blur-md rounded-2xl p-3 flex items-center gap-2.5 border border-white/10">
-              <div className="w-8 h-8 bg-amber-400 rounded-full flex items-center justify-center text-[#05080f] shrink-0">
-                <TrendingUp size={17} />
-              </div>
-              <div className="min-w-0">
-                <p className="text-[10px] text-gray-400 uppercase font-bold tracking-wider truncate">
-                  A receber
-                </p>
-                <p className="text-amber-300 font-bold text-sm truncate">
-                  R$ {moneyConverter(Number(dashboard.totalAReceber || 0))}
-                </p>
-              </div>
+      {/* Card Principal: Seletor de Período + A Receber e A Pagar */}
+      <div className="bg-gradient-to-br from-[#1A2b4c] via-[#241b3d] to-[#3B1F42] rounded-3xl p-5 shadow-2xl relative overflow-hidden border border-white/5">
+        <div className="relative z-10 space-y-4">
+          {/* Topo do Card: Título e Seletor de Mês / Todos */}
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-1.5 text-gray-300 text-xs font-semibold">
+              <Calendar size={14} className="text-[#2DD4BF] shrink-0" />
+              <span>Período:</span>
             </div>
 
-            {dashboard.totalAPagar > 0.01 && (
-              <div className="bg-white/10 backdrop-blur-md rounded-2xl p-3 flex items-center gap-2.5 border border-white/10">
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() =>
+                  setPeriodoSelecionado(periodoSelecionado === 'all' ? ymAtual : 'all')
+                }
+                className={`px-2.5 py-1.5 rounded-xl text-xs font-bold transition-colors border ${
+                  periodoSelecionado === 'all'
+                    ? 'bg-[#2DD4BF] text-[#05080f] border-[#2DD4BF]'
+                    : 'bg-white/10 text-gray-300 hover:bg-white/15 border-white/10'
+                }`}
+              >
+                Todos
+              </button>
+
+              <div className="relative">
+                <select
+                  value={periodoSelecionado}
+                  onChange={(e) => setPeriodoSelecionado(e.target.value)}
+                  className="appearance-none bg-[#121626]/80 hover:bg-[#121626] text-white text-xs font-bold pl-3 pr-7 py-1.5 rounded-xl border border-white/15 outline-none focus:border-[#2DD4BF] transition-colors cursor-pointer"
+                >
+                  <option value="all" className="bg-[#141923] text-white">
+                    Todos os meses
+                  </option>
+                  {mesesDisponiveis.map((ym) => (
+                    <option key={ym} value={ym} className="bg-[#141923] text-white">
+                      {formatarMesAno(ym, ymAtual)}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown
+                  size={13}
+                  className="text-gray-400 pointer-events-none absolute right-2 top-1/2 -translate-y-1/2"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Cards A Receber e A Pagar */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="bg-white/10 backdrop-blur-md rounded-2xl p-3.5 flex flex-col justify-between border border-white/10">
+              <div className="flex items-center gap-2 mb-2">
+                <div className="w-8 h-8 bg-amber-400 rounded-full flex items-center justify-center text-[#05080f] shrink-0">
+                  <TrendingUp size={17} />
+                </div>
+                <p className="text-[10px] text-gray-300 uppercase font-bold tracking-wider truncate">
+                  A receber
+                </p>
+              </div>
+              <p className="text-amber-300 font-black text-xl sm:text-2xl tracking-tight truncate">
+                R$ {moneyConverter(Number(dashboard.totalAReceber || 0))}
+              </p>
+            </div>
+
+            <div className="bg-white/10 backdrop-blur-md rounded-2xl p-3.5 flex flex-col justify-between border border-white/10">
+              <div className="flex items-center gap-2 mb-2">
                 <div className="w-8 h-8 bg-red-500 rounded-full flex items-center justify-center text-white shrink-0">
                   <TrendingDown size={17} />
                 </div>
-                <div className="min-w-0">
-                  <p className="text-[10px] text-gray-400 uppercase font-bold tracking-wider truncate">
-                    A pagar
-                  </p>
-                  <p className="text-red-400 font-bold text-sm truncate">
-                    R$ {moneyConverter(Number(dashboard.totalAPagar || 0))}
-                  </p>
-                </div>
+                <p className="text-[10px] text-gray-300 uppercase font-bold tracking-wider truncate">
+                  A pagar
+                </p>
               </div>
-            )}
+              <p className="text-red-400 font-black text-xl sm:text-2xl tracking-tight truncate">
+                R$ {moneyConverter(Number(dashboard.totalAPagar || 0))}
+              </p>
+            </div>
           </div>
         </div>
       </div>
@@ -396,11 +448,11 @@ export function Home({
         isOpen={!!amigoSelecionado}
         onClose={() => {
           setAmigoSelecionado(null);
-          carregarDashboard();
+          carregarDashboard(periodoRef.current, false);
         }}
         onDelete={handleExcluirAmigo}
         update={() => {
-          carregarDashboard();
+          carregarDashboard(periodoRef.current, false);
           if (onDataChange) onDataChange();
         }}
       />
@@ -410,10 +462,10 @@ export function Home({
         isOpen={!!grupoSelecionadoId}
         onClose={() => {
           setGrupoSelecionadoId(null);
-          carregarDashboard();
+          carregarDashboard(periodoRef.current, false);
         }}
         onChanged={() => {
-          carregarDashboard();
+          carregarDashboard(periodoRef.current, false);
           if (onDataChange) onDataChange();
         }}
       />

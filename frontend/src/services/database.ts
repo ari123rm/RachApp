@@ -629,7 +629,8 @@ export const dbService = {
   // SERVIÇOS DE AMIGOS
   // ==========================================
   amigos: {
-    getAll: async (): Promise<Amigo[]> => {
+    getAll: async (monthFilter?: string): Promise<Amigo[]> => {
+      const hasMonth = Boolean(monthFilter && monthFilter !== 'all');
       const rows = await queryAll<any>(
         `SELECT * FROM friends ORDER BY is_favorite DESC, name ASC`
       );
@@ -648,8 +649,11 @@ export const dbService = {
              OR (? != '' AND f.phone = ?)
              OR LOWER(TRIM(f.name)) = LOWER(TRIM(?))
            )
-           AND (e.paid_by_friend_id IS NULL OR e.paid_by_friend_id = '')`,
-          [r.id, normPhone, normPhone, r.name || '']
+           AND (e.paid_by_friend_id IS NULL OR e.paid_by_friend_id = '')
+           ${hasMonth ? 'AND substr(e.expense_date, 1, 7) = ?' : ''}`,
+          hasMonth
+            ? [r.id, normPhone, normPhone, r.name || '', monthFilter]
+            : [r.id, normPhone, normPhone, r.name || '']
         );
 
         let dividaNum = 0;
@@ -680,8 +684,11 @@ export const dbService = {
                e.paid_by_friend_id = ?
                OR (? != '' AND f.phone = ?)
                OR LOWER(TRIM(f.name)) = LOWER(TRIM(?))
-             )`,
-          [r.id, normPhone, normPhone, r.name || '']
+             )
+             ${hasMonth ? 'AND substr(e.expense_date, 1, 7) = ?' : ''}`,
+          hasMonth
+            ? [r.id, normPhone, normPhone, r.name || '', monthFilter]
+            : [r.id, normPhone, normPhone, r.name || '']
         );
 
         let voceDeveNum = 0;
@@ -1448,7 +1455,8 @@ export const dbService = {
       syncWithBackend(false).catch(() => {});
     },
 
-    getById: async (id: string): Promise<Grupo> => {
+    getById: async (id: string, monthFilter?: string): Promise<Grupo> => {
+      const hasMonth = Boolean(monthFilter && monthFilter !== 'all');
       const g = await queryOne<any>('SELECT * FROM groups_table WHERE id = ?', [id]);
       if (!g) throw new Error('Grupo não encontrado.');
 
@@ -1519,8 +1527,9 @@ export const dbService = {
          FROM expenses e
          LEFT JOIN friends f ON f.id = e.paid_by_friend_id
          WHERE e.group_id = ?
+         ${hasMonth ? 'AND substr(e.expense_date, 1, 7) = ?' : ''}
          ORDER BY e.expense_date DESC, e.rowid DESC`,
-        [id]
+        hasMonth ? [id, monthFilter] : [id]
       );
 
       const netBalances: Record<string, number> = { [ownerKey]: 0 };
@@ -1702,17 +1711,40 @@ export const dbService = {
   // SERVIÇOS FINANCEIROS E DASHBOARD
   // ==========================================
   dashboard: {
-    get: async () => {
+    get: async (monthFilter?: string) => {
       const now = new Date();
       const ymPrefix = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+      const effectiveMonth = monthFilter === undefined ? ymPrefix : monthFilter;
+      const isAllMonths = effectiveMonth === 'all';
 
-      const monthRow = await queryOne<{ total: number }>(
-        `SELECT SUM(total_amount) as total FROM expenses WHERE substr(expense_date, 1, 7) = ?`,
-        [ymPrefix]
+      const distinctMonthsRows = await queryAll<{ ym: string }>(
+        `SELECT DISTINCT substr(expense_date, 1, 7) as ym
+         FROM expenses
+         WHERE expense_date IS NOT NULL AND length(expense_date) >= 7
+         ORDER BY ym DESC`
       );
+      const mesesSet = new Set<string>([ymPrefix]);
+      distinctMonthsRows.forEach((r) => {
+        if (r.ym && /^\d{4}-\d{2}$/.test(r.ym)) {
+          mesesSet.add(r.ym);
+        }
+      });
+      // Inclui também os últimos 12 meses para facilitar a seleção
+      for (let i = 0; i < 12; i++) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        mesesSet.add(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+      }
+      const mesesDisponiveis = Array.from(mesesSet).sort((a, b) => b.localeCompare(a));
+
+      const monthRow = isAllMonths
+        ? await queryOne<{ total: number }>(`SELECT SUM(total_amount) as total FROM expenses`)
+        : await queryOne<{ total: number }>(
+            `SELECT SUM(total_amount) as total FROM expenses WHERE substr(expense_date, 1, 7) = ?`,
+            [effectiveMonth]
+          );
       const totalGasto = Number((monthRow?.total || 0).toFixed(2));
 
-      const amigos = await dbService.amigos.getAll();
+      const amigos = await dbService.amigos.getAll(isAllMonths ? undefined : effectiveMonth);
       let totalAReceber = 0;
       let totalAPagar = 0;
       const amigosDevedores: any[] = [];
@@ -1747,10 +1779,12 @@ export const dbService = {
 
       for (const gRow of groupRows) {
         try {
-          const grupo = await dbService.grupos.getById(gRow.id);
+          const grupo = await dbService.grupos.getById(
+            gRow.id,
+            isAllMonths ? undefined : effectiveMonth
+          );
           const userNet = Number(grupo.userNetBalance || 0);
           const memberBalances = grupo.memberBalances || [];
-          const transfers = grupo.transfers || [];
 
           const totalAReceberGrupo = memberBalances.reduce(
             (acc, m) => (m.owesYou > 0.01 ? acc + m.owesYou : acc),
@@ -1760,7 +1794,6 @@ export const dbService = {
             (acc, m) => (m.owesYou < -0.01 ? acc + Math.abs(m.owesYou) : acc),
             0
           );
-          const totalTransfers = transfers.reduce((acc, t) => acc + Number(t.amount || 0), 0);
 
           let saldoLiquido = Number(userNet.toFixed(2));
           if (Math.abs(saldoLiquido) <= 0.01) {
@@ -1768,8 +1801,6 @@ export const dbService = {
               saldoLiquido = -Number(totalAPagarGrupo.toFixed(2));
             } else if (totalAReceberGrupo > 0.01) {
               saldoLiquido = Number(totalAReceberGrupo.toFixed(2));
-            } else if (totalTransfers > 0.01) {
-              saldoLiquido = Number(totalTransfers.toFixed(2));
             }
           }
 
@@ -1795,6 +1826,7 @@ export const dbService = {
         totalAPagar: Number(totalAPagar.toFixed(2)),
         amigosDevedores,
         gruposPendentes,
+        mesesDisponiveis,
       };
     },
   },
