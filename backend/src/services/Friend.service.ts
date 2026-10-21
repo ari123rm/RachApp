@@ -462,8 +462,10 @@ export class FriendService {
           // Este amigo pagou: Você deve a sua parte para ele
           const totalParts = (exp.participants?.length || 0) + 1;
           const selfOwed =
-            Number(exp.self_amount_owed) > 0
+            exp.self_amount_owed !== null && exp.self_amount_owed !== undefined && Number(exp.self_amount_owed) > 0
               ? Number(exp.self_amount_owed)
+              : ((exp.participants || []).reduce((acc: number, p: any) => acc + Number(p.amount_owed || 0), 0) >= Number(exp.total_amount) - 0.1)
+              ? 0
               : Number(exp.total_amount) / totalParts;
           const selfPaid = Number(exp.self_amount_paid || 0);
           const selfPending = selfOwed - selfPaid;

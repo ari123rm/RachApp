@@ -27,6 +27,7 @@ import { PayWithReceiptModal } from './ReceiptModals';
 import { RideDetailsModal } from './RideDetailsModal';
 import { formatPhoneBR } from '../utils/phoneFormatter';
 import { useModalBackHandler } from '../utils/modalBackHandler';
+import { getAvatarColor } from '../utils/avatarColor';
 import type { Amigo, Corrida, Grupo, Transferencia } from '../types';
 
 interface GroupDetailsProps {
@@ -297,7 +298,8 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
                     {memberBalances.slice(0, 4).map((m) => (
                       <div
                         key={m.friendId}
-                        className={`w-8 h-8 rounded-full ${m.color} text-white font-bold text-xs flex items-center justify-center border-2 border-[#141923]`}
+                        style={{ backgroundColor: getAvatarColor(m.color) }}
+                        className="w-8 h-8 rounded-full text-white font-bold text-xs flex items-center justify-center border-2 border-[#141923]"
                       >
                         {m.name[0]?.toUpperCase()}
                       </div>
@@ -405,7 +407,8 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
                           >
                             <div className="flex items-center gap-2.5">
                               <div
-                                className={`w-8 h-8 rounded-full ${corAmigo} flex items-center justify-center font-bold text-white text-xs`}
+                                style={{ backgroundColor: getAvatarColor(corAmigo) }}
+                                className="w-8 h-8 rounded-full flex items-center justify-center font-bold text-white text-xs"
                               >
                                 {nomeAmigo[0]?.toUpperCase()}
                               </div>
@@ -465,7 +468,8 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
                       >
                         <div className="flex items-center gap-3">
                           <div
-                            className={`w-10 h-10 rounded-full ${m.color} flex items-center justify-center font-bold text-white text-sm`}
+                            style={{ backgroundColor: getAvatarColor(m.color) }}
+                            className="w-10 h-10 rounded-full flex items-center justify-center font-bold text-white text-sm"
                           >
                             {m.name[0]?.toUpperCase()}
                           </div>
@@ -601,9 +605,18 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
                 <div className="space-y-2.5">
                   {grupo.expenses.map((expense: any) => {
                     const totalParts = (expense.participants?.length || 0) + 1;
+                    const partSum = (expense.participants || []).reduce(
+                      (acc: number, p: any) => acc + Number(p.amount_owed || 0),
+                      0
+                    );
                     const suaParte =
+                      expense.self_amount_owed !== null &&
+                      expense.self_amount_owed !== undefined &&
                       Number(expense.self_amount_owed) > 0
                         ? Number(expense.self_amount_owed)
+                        : Math.abs(partSum - Number(expense.total_amount || 0)) <= 0.1 ||
+                          partSum >= Number(expense.total_amount || 0) - 0.1
+                        ? 0
                         : Number(expense.total_amount || 0) / totalParts;
                     const corridaCompleta = todasCorridas.find((c) => c.id === expense.id);
 

@@ -26,6 +26,7 @@ import { PayWithReceiptModal, ReceiptViewerModal } from './ReceiptModals';
 import { generatePixCopiaECola } from '../utils/pixGenerator';
 import { formatPhoneBR, openWhatsApp, phonesMatchBR, stripCountryCode } from '../utils/phoneFormatter';
 import { useModalBackHandler } from '../utils/modalBackHandler';
+import { getAvatarColor } from '../utils/avatarColor';
 
 function parseCurrency(val: any): number {
   if (typeof val === 'number') return isNaN(val) ? 0 : val;
@@ -219,9 +220,17 @@ export function FriendDetailsModal({
           const jaPago = Number(corrida.pagamentos?.[pid] || 0);
 
           // Quando o amigo pagou e Você deve sua parte para ele:
+          const parteAmigosSoma = Object.values(corrida.valoresDevidos || {}).reduce(
+            (acc, v) => acc + Number(v || 0),
+            0
+          );
           const suaParte =
-            corrida.selfAmountOwed !== undefined && corrida.selfAmountOwed > 0
+            corrida.selfAmountOwed !== undefined &&
+            corrida.selfAmountOwed !== null &&
+            Number(corrida.selfAmountOwed) > 0
               ? Number(corrida.selfAmountOwed)
+              : Math.abs(parteAmigosSoma - corrida.valorTotal) <= 0.1 || parteAmigosSoma >= corrida.valorTotal - 0.1
+              ? 0
               : corrida.valorTotal / qtdPessoas;
           const seuJaPago = Number(corrida.selfAmountPaid || 0);
 
@@ -541,7 +550,8 @@ export function FriendDetailsModal({
           {/* Resumo do Perfil */}
           <div className="flex flex-col items-center mb-6">
             <div
-              className={`w-20 h-20 rounded-full ${cor} flex items-center justify-center text-3xl font-black text-white shadow-lg mb-3`}
+              style={{ backgroundColor: getAvatarColor(cor) }}
+              className="w-20 h-20 rounded-full flex items-center justify-center text-3xl font-black text-white shadow-lg mb-3"
             >
               {nome[0]?.toUpperCase()}
             </div>

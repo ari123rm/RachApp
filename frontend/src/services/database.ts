@@ -675,9 +675,11 @@ export const dbService = {
           self_amount_paid: number;
           total_amount: number;
           part_count: number;
+          part_sum: number;
         }>(
           `SELECT e.self_amount_owed, e.self_amount_paid, e.total_amount,
-                  (SELECT COUNT(*) FROM expense_participants ep2 WHERE ep2.expense_id = e.id) as part_count
+                  (SELECT COUNT(*) FROM expense_participants ep2 WHERE ep2.expense_id = e.id) as part_count,
+                  (SELECT COALESCE(SUM(amount_owed), 0) FROM expense_participants ep3 WHERE ep3.expense_id = e.id) as part_sum
            FROM expenses e
            LEFT JOIN friends f ON f.id = e.paid_by_friend_id
            WHERE e.paid_by_friend_id IS NOT NULL AND e.paid_by_friend_id != ''
@@ -692,9 +694,12 @@ export const dbService = {
         let voceDeveNum = 0;
         for (const vr of voceDeveRows) {
           const totalPeople = Number(vr.part_count || 1) + 1;
+          const partSum = Number(vr.part_sum || 0);
           const selfOwed =
-            Number(vr.self_amount_owed) > 0
+            vr.self_amount_owed !== null && vr.self_amount_owed !== undefined && Number(vr.self_amount_owed) > 0
               ? Number(vr.self_amount_owed)
+              : Math.abs(partSum - Number(vr.total_amount || 0)) <= 0.1 || partSum >= Number(vr.total_amount || 0) - 0.1
+              ? 0
               : Number(vr.total_amount || 0) / totalPeople;
           const selfPaid = Number(vr.self_amount_paid || 0);
           const pend = selfOwed - selfPaid;
@@ -927,9 +932,14 @@ export const dbService = {
           }
         }
 
+        const partSum = partRows.reduce((acc, p) => acc + Number(p.amount_owed || 0), 0);
         const defaultShare = Number(e.total_amount) / (partRows.length + 1);
         const selfAmountOwed =
-          Number(e.self_amount_owed) > 0 ? Number(e.self_amount_owed) : Number(defaultShare.toFixed(2));
+          e.self_amount_owed !== null && e.self_amount_owed !== undefined && Number(e.self_amount_owed) > 0
+            ? Number(e.self_amount_owed)
+            : Math.abs(partSum - Number(e.total_amount)) <= 0.1 || partSum >= Number(e.total_amount) - 0.1
+            ? 0
+            : Number(defaultShare.toFixed(2));
         const selfAmountPaid = Number(e.self_amount_paid || 0);
 
         if (e.paid_by_friend_id && selfAmountOwed - selfAmountPaid > 0.01) {
@@ -1588,9 +1598,12 @@ export const dbService = {
             }
           }
 
+          const partSum = parts.reduce((acc: number, p: any) => acc + Number(p.amount_owed || 0), 0);
           const selfOwed =
-            Number(exp.self_amount_owed) > 0
+            exp.self_amount_owed !== null && exp.self_amount_owed !== undefined && Number(exp.self_amount_owed) > 0
               ? Number(exp.self_amount_owed)
+              : Math.abs(partSum - Number(exp.total_amount || 0)) <= 0.1 || partSum >= Number(exp.total_amount || 0) - 0.1
+              ? 0
               : Number(exp.total_amount) / (parts.length + 1);
           const selfPaid = Number(exp.self_amount_paid || 0);
           const selfPending = selfOwed - selfPaid;
@@ -1884,9 +1897,11 @@ export const dbService = {
           self_amount_paid: number;
           total_amount: number;
           part_count: number;
+          part_sum: number;
         }>(
           `SELECT e.id, e.self_amount_owed, e.self_amount_paid, e.total_amount,
-                  (SELECT COUNT(*) FROM expense_participants ep2 WHERE ep2.expense_id = e.id) as part_count
+                  (SELECT COUNT(*) FROM expense_participants ep2 WHERE ep2.expense_id = e.id) as part_count,
+                  (SELECT COALESCE(SUM(amount_owed), 0) FROM expense_participants ep3 WHERE ep3.expense_id = e.id) as part_sum
            FROM expenses e
            LEFT JOIN friends f ON f.id = e.paid_by_friend_id
            WHERE e.paid_by_friend_id IS NOT NULL AND e.paid_by_friend_id != ''
@@ -1905,9 +1920,12 @@ export const dbService = {
         for (const sr of selfRows) {
           if (saldoRestante <= 0.005) break;
           const totalPeople = Number(sr.part_count || 1) + 1;
+          const partSum = Number(sr.part_sum || 0);
           const selfOwed =
-            Number(sr.self_amount_owed) > 0
+            sr.self_amount_owed !== null && sr.self_amount_owed !== undefined && Number(sr.self_amount_owed) > 0
               ? Number(sr.self_amount_owed)
+              : Math.abs(partSum - Number(sr.total_amount || 0)) <= 0.1 || partSum >= Number(sr.total_amount || 0) - 0.1
+              ? 0
               : Number(sr.total_amount || 0) / totalPeople;
           const selfPaid = Number(sr.self_amount_paid || 0);
           const faltaPagar = selfOwed - selfPaid;

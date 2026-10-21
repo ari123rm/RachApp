@@ -4,6 +4,7 @@ import { ArrowUpRight, LoaderCircle, TrendingUp, TrendingDown, RefreshCw, BadgeC
 import { dbService } from '../services/database';
 import { FriendDetailsModal } from './FriendDetailsModal';
 import moneyConverter from '../utils/moneyConverter';
+import { getAvatarColor } from '../utils/avatarColor';
 import type { SyncStatus } from '../types';
 
 export function Home({ onDataChange, dataVersion }: { onDataChange?: () => void; dataVersion?: number }) {
@@ -238,7 +239,8 @@ export function Home({ onDataChange, dataVersion }: { onDataChange?: () => void;
                 >
                   <div className="relative">
                     <div
-                      className={`w-16 h-16 rounded-full ${cor} flex items-center justify-center shadow-lg border-2 border-[#05080f]`}
+                      style={{ backgroundColor: getAvatarColor(cor) }}
+                      className="w-16 h-16 rounded-full flex items-center justify-center shadow-lg border-2 border-[#05080f]"
                     >
                       <span className="text-2xl font-black text-white">
                         {nome[0]?.toUpperCase()}

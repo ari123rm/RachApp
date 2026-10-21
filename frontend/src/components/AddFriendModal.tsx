@@ -1,9 +1,11 @@
 // src/components/AddFriendModal.tsx
-import { useState, useEffect } from 'react';
-import { X, User, Phone, QrCode } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
+import { X, User, Phone, QrCode, Palette } from 'lucide-react';
 import { dbService } from '../services/database';
 import { formatPhoneBR, isValidPhoneBR, stripCountryCode } from '../utils/phoneFormatter';
 import { useModalBackHandler } from '../utils/modalBackHandler';
+import { getAvatarColor, PRESET_AVATAR_COLORS } from '../utils/avatarColor';
 import type { Amigo } from '../types';
 
 interface AddFriendModalProps {
@@ -13,23 +15,14 @@ interface AddFriendModalProps {
   friendToEdit?: Amigo | null;
 }
 
-const CORES_PALETA = [
-  'bg-sky-500',
-  'bg-pink-500',
-  'bg-amber-500',
-  'bg-green-500',
-  'bg-purple-500',
-  'bg-indigo-500',
-  'bg-teal-500',
-];
-
 export function AddFriendModal({ isOpen, onClose, onSuccess, friendToEdit }: AddFriendModalProps) {
   const [nome, setNome] = useState('');
   const [telefone, setTelefone] = useState('');
   const [pixKey, setPixKey] = useState('');
-  const [corSelecionada, setCorSelecionada] = useState(CORES_PALETA[0]);
+  const [corSelecionada, setCorSelecionada] = useState(PRESET_AVATAR_COLORS[0]);
   const [erro, setErro] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const colorInputRef = useRef<HTMLInputElement>(null);
 
   useModalBackHandler(isOpen, onClose);
 
@@ -42,12 +35,12 @@ export function AddFriendModal({ isOpen, onClose, onSuccess, friendToEdit }: Add
         setNome(friendToEdit.nome || friendToEdit.name || '');
         setTelefone(formatPhoneBR(friendToEdit.telefone || friendToEdit.phone || ''));
         setPixKey(friendToEdit.pix_key || friendToEdit.pix || '');
-        setCorSelecionada(friendToEdit.cor || friendToEdit.color || CORES_PALETA[0]);
+        setCorSelecionada(friendToEdit.cor || friendToEdit.color || PRESET_AVATAR_COLORS[0]);
       } else {
         setNome('');
         setTelefone('');
         setPixKey('');
-        setCorSelecionada(CORES_PALETA[0]);
+        setCorSelecionada(PRESET_AVATAR_COLORS[0]);
       }
     }
   }, [isOpen, friendToEdit]);
@@ -55,6 +48,10 @@ export function AddFriendModal({ isOpen, onClose, onSuccess, friendToEdit }: Add
   if (!isOpen) return null;
 
   const inicial = nome ? nome.trim().charAt(0).toUpperCase() : '?';
+
+  const isCustomColor = !PRESET_AVATAR_COLORS.some(
+    (c) => c.toLowerCase() === getAvatarColor(corSelecionada).toLowerCase()
+  );
 
   const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setErro('');
@@ -104,7 +101,7 @@ export function AddFriendModal({ isOpen, onClose, onSuccess, friendToEdit }: Add
     }
   };
 
-  return (
+  return createPortal(
     <div
       className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[70] flex items-center justify-center p-4 transition-opacity animate-fade-in"
       onClick={onClose}
@@ -134,7 +131,8 @@ export function AddFriendModal({ isOpen, onClose, onSuccess, friendToEdit }: Add
         <div className="flex flex-col items-center justify-center mb-6 gap-2">
           <p className="text-gray-500 text-xs uppercase font-bold tracking-wider">Visual do Amigo</p>
           <div
-            className={`w-20 h-20 rounded-full ${corSelecionada} flex items-center justify-center shadow-xl border-4 border-white/10 transition-colors duration-300`}
+            style={{ backgroundColor: getAvatarColor(corSelecionada) }}
+            className="w-20 h-20 rounded-full flex items-center justify-center shadow-xl border-4 border-white/10 transition-colors duration-300"
           >
             <span className="text-4xl font-black text-white tracking-tighter">{inicial}</span>
           </div>
@@ -196,18 +194,25 @@ export function AddFriendModal({ isOpen, onClose, onSuccess, friendToEdit }: Add
 
         {/* Escolha de Cor */}
         <div className="mb-6">
-          <label className="block text-gray-400 text-xs uppercase font-bold mb-2">
-            Cor de Destaque
-          </label>
+          <div className="flex justify-between items-center mb-2">
+            <label className="text-gray-400 text-xs uppercase font-bold">
+              Cor de Destaque
+            </label>
+            <span className="text-[10px] text-gray-500">
+              {isCustomColor ? 'Cor personalizada' : 'Selecione ou personalize'}
+            </span>
+          </div>
           <div className="flex justify-between items-center gap-2 bg-[#2c2c2e] p-3 rounded-2xl border border-white/5">
-            {CORES_PALETA.map((cor) => {
-              const isActive = cor === corSelecionada;
+            {PRESET_AVATAR_COLORS.map((cor) => {
+              const isActive =
+                getAvatarColor(corSelecionada).toLowerCase() === cor.toLowerCase();
               return (
                 <button
                   key={cor}
                   type="button"
+                  style={{ backgroundColor: cor }}
                   onClick={() => setCorSelecionada(cor)}
-                  className={`w-9 h-9 rounded-full ${cor} transition-all duration-200 relative ${
+                  className={`w-9 h-9 rounded-full transition-all duration-200 relative ${
                     isActive
                       ? 'scale-110 ring-4 ring-white/30 shadow-lg'
                       : 'hover:scale-105 opacity-80 hover:opacity-100'
@@ -221,6 +226,40 @@ export function AddFriendModal({ isOpen, onClose, onSuccess, friendToEdit }: Add
                 </button>
               );
             })}
+
+            {/* 7ª Bolinha: Seletor de Cor Personalizada */}
+            <div className="relative">
+              <input
+                ref={colorInputRef}
+                type="color"
+                value={getAvatarColor(corSelecionada)}
+                onChange={(e) => setCorSelecionada(e.target.value)}
+                className="sr-only"
+                id="custom-color-picker"
+              />
+              <button
+                type="button"
+                onClick={() => colorInputRef.current?.click()}
+                style={
+                  isCustomColor
+                    ? { backgroundColor: getAvatarColor(corSelecionada) }
+                    : undefined
+                }
+                className={`w-9 h-9 rounded-full transition-all duration-200 relative flex items-center justify-center ${
+                  isCustomColor
+                    ? 'scale-110 ring-4 ring-white/30 shadow-lg'
+                    : 'bg-gradient-to-tr from-pink-500 via-amber-400 to-cyan-400 hover:scale-105 opacity-90 hover:opacity-100'
+                }`}
+                title="Escolher qualquer cor personalizada"
+              >
+                <Palette
+                  size={16}
+                  className={
+                    isCustomColor ? 'text-white drop-shadow' : 'text-[#05080f] drop-shadow-sm'
+                  }
+                />
+              </button>
+            </div>
           </div>
         </div>
 
@@ -232,6 +271,7 @@ export function AddFriendModal({ isOpen, onClose, onSuccess, friendToEdit }: Add
           {isLoading ? 'Salvando...' : isEditing ? 'Salvar Alterações' : 'Salvar Amigo'}
         </button>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

@@ -1,10 +1,12 @@
 // src/components/AddGroupModal.tsx
 import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { X, Users, LoaderCircle, Search, Check, ArrowRight, UserPlus, BadgeCheck } from 'lucide-react';
 import { dbService } from '../services/database';
 import { AddFriendModal } from './AddFriendModal';
 import { formatPhoneBR } from '../utils/phoneFormatter';
 import { useModalBackHandler } from '../utils/modalBackHandler';
+import { getAvatarColor } from '../utils/avatarColor';
 import type { Amigo, Grupo } from '../types';
 
 interface AddGroupModalProps {
@@ -91,7 +93,7 @@ export function AddGroupModal({ isOpen, onClose, onSuccess, groupToEdit }: AddGr
 
   const totalPessoas = selecionados.length + 1;
 
-  return (
+  return createPortal(
     <div
       className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[60] flex items-center justify-center p-4 transition-opacity animate-fade-in"
       onClick={onClose}
@@ -183,7 +185,8 @@ export function AddGroupModal({ isOpen, onClose, onSuccess, groupToEdit }: AddGr
                     className="flex items-center gap-1.5 bg-[#05080f] border border-white/10 px-3 py-1.5 rounded-full shrink-0 hover:border-red-400/50"
                   >
                     <div
-                      className={`w-5 h-5 rounded-full ${corAmigo} text-white text-[10px] font-bold flex items-center justify-center`}
+                      style={{ backgroundColor: getAvatarColor(corAmigo) }}
+                      className="w-5 h-5 rounded-full text-white text-[10px] font-bold flex items-center justify-center"
                     >
                       {nomeAmigo[0]?.toUpperCase()}
                     </div>
@@ -230,7 +233,8 @@ export function AddGroupModal({ isOpen, onClose, onSuccess, groupToEdit }: AddGr
                   >
                     <div className="flex items-center gap-3">
                       <div
-                        className={`w-10 h-10 rounded-full ${corAmigo} flex items-center justify-center font-bold text-white text-sm`}
+                        style={{ backgroundColor: getAvatarColor(corAmigo) }}
+                        className="w-10 h-10 rounded-full flex items-center justify-center font-bold text-white text-sm"
                       >
                         {nomeAmigo[0]?.toUpperCase()}
                       </div>
@@ -292,6 +296,7 @@ export function AddGroupModal({ isOpen, onClose, onSuccess, groupToEdit }: AddGr
           }
         }}
       />
-    </div>
+    </div>,
+    document.body
   );
 }

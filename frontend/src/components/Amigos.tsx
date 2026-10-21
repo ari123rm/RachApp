@@ -19,6 +19,7 @@ import { AddGroupModal } from './AddGroupModal';
 import { GroupDetailsModal } from './GroupDetailsModal';
 import { dbService } from '../services/database';
 import moneyConverter from '../utils/moneyConverter';
+import { getAvatarColor } from '../utils/avatarColor';
 import type { Grupo } from '../types';
 
 export function Amigos({ onDataChange, dataVersion }: { onDataChange?: () => void; dataVersion?: number }) {
@@ -579,9 +580,8 @@ export function Amigos({ onDataChange, dataVersion }: { onDataChange?: () => voi
                       >
                         <div className="flex items-center gap-3">
                           <div
-                            className={`w-10 h-10 rounded-2xl ${
-                              req.sender?.color || 'bg-teal-500'
-                            } text-white font-bold text-sm flex items-center justify-center shadow`}
+                            style={{ backgroundColor: getAvatarColor(req.sender?.color || req.sender?.cor) }}
+                            className="w-10 h-10 rounded-2xl text-white font-bold text-sm flex items-center justify-center shadow"
                           >
                             {(req.sender?.name || 'A')[0].toUpperCase()}
                           </div>
@@ -634,7 +634,8 @@ export function Amigos({ onDataChange, dataVersion }: { onDataChange?: () => voi
                     >
                       <div className="relative mb-2">
                         <div
-                          className={`w-16 h-16 rounded-3xl ${amigo.cor} flex items-center justify-center shadow-lg border border-white/10`}
+                          style={{ backgroundColor: getAvatarColor(amigo.cor || amigo.color) }}
+                          className="w-16 h-16 rounded-3xl flex items-center justify-center shadow-lg border border-white/10"
                         >
                           <span className="text-2xl font-black text-white">
                             {amigo.nome[0]?.toUpperCase()}
@@ -875,9 +876,8 @@ export function Amigos({ onDataChange, dataVersion }: { onDataChange?: () => voi
                           {visibleFriends.map((m, idx) => (
                             <div
                               key={m.friend?.id || idx}
-                              className={`w-7 h-7 rounded-full ${
-                                m.friend?.color || 'bg-sky-500'
-                              } text-white font-bold text-[10px] flex items-center justify-center border-2 border-[#1c1c1e]`}
+                              style={{ backgroundColor: getAvatarColor(m.friend?.color) }}
+                              className="w-7 h-7 rounded-full text-white font-bold text-[10px] flex items-center justify-center border-2 border-[#1c1c1e]"
                             >
                               {(m.friend?.name || 'A')[0].toUpperCase()}
                             </div>

@@ -1,5 +1,6 @@
 // src/components/ChangePasswordScreen.tsx
 import { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { ChevronLeft, Lock, LoaderCircle, CheckCircle2, AlertCircle, KeyRound, X } from 'lucide-react';
 import { dbService } from '../services/database';
 import { useModalBackHandler } from '../utils/modalBackHandler';
@@ -84,7 +85,7 @@ export function ChangePasswordScreen({
     }
   };
 
-  return (
+  return createPortal(
     <div
       className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in"
       onClick={onClose}
@@ -250,6 +251,7 @@ export function ChangePasswordScreen({
           </form>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

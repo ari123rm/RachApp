@@ -4,6 +4,7 @@ import { Plus, LoaderCircle, ChevronRight } from 'lucide-react';
 import { dbService } from '../services/database';
 import { AddGroupModal } from './AddGroupModal';
 import { GroupDetailsModal } from './GroupDetailsModal';
+import { getAvatarColor } from '../utils/avatarColor';
 import type { Grupo } from '../types';
 
 export function Grupos({ onDataChange }: { onDataChange?: () => void }) {
@@ -87,9 +88,8 @@ export function Grupos({ onDataChange }: { onDataChange?: () => void }) {
                     {visibleFriends.map((m, idx) => (
                       <div
                         key={m.friend?.id || idx}
-                        className={`w-7 h-7 rounded-full ${
-                          m.friend?.color || 'bg-sky-500'
-                        } text-white font-bold text-[10px] flex items-center justify-center border-2 border-[#1c1c1e]`}
+                        style={{ backgroundColor: getAvatarColor(m.friend?.color) }}
+                        className="w-7 h-7 rounded-full text-white font-bold text-[10px] flex items-center justify-center border-2 border-[#1c1c1e]"
                       >
                         {(m.friend?.name || 'A')[0].toUpperCase()}
                       </div>

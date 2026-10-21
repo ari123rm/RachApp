@@ -1,10 +1,12 @@
 // src/components/AddRideModal.tsx
 import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { X, LoaderCircle, UsersRound, Wallet, Percent, DollarSign, Equal, BadgeCheck } from 'lucide-react';
 import { dbService } from '../services/database';
 import type { Amigo, Corrida, Grupo } from '../types';
 import moneyConverter from '../utils/moneyConverter';
 import { useModalBackHandler } from '../utils/modalBackHandler';
+import { getAvatarColor } from '../utils/avatarColor';
 
 interface AddRideModalProps {
   isOpen: boolean;
@@ -229,61 +231,67 @@ export function AddRideModal({
     } else if (mode === 'percent') {
       if (valorNumerico > 0) {
         const nextPct: Record<string, string> = {};
-        let sumPct = 0;
         selecionados.forEach((id) => {
           const v =
-            splitMode === 'amount'
+            splitMode === 'amount' && friendAmounts[id] !== undefined
               ? parseFloat(friendAmounts[id] || '0') || 0
               : valorNumerico / (selecionados.length + 1);
           const pct = (v / valorNumerico) * 100;
           nextPct[id] = pct.toFixed(1);
-          sumPct += pct;
         });
         setFriendPercents(nextPct);
-        setSelfPercent(Math.max(0, 100 - sumPct).toFixed(1));
+        const selfV =
+          splitMode === 'amount' && selfAmount !== undefined
+            ? parseFloat(selfAmount || '0') || 0
+            : valorNumerico / (selecionados.length + 1);
+        const sPct = (selfV / valorNumerico) * 100;
+        setSelfPercent(sPct.toFixed(1));
       } else {
         inicializarDivisaoIgual(selecionados, 0);
       }
     } else if (mode === 'amount') {
       if (valorNumerico > 0) {
         const nextAmt: Record<string, string> = {};
-        let sumAmt = 0;
         selecionados.forEach((id) => {
           const pct =
-            splitMode === 'percent'
+            splitMode === 'percent' && friendPercents[id] !== undefined
               ? parseFloat(friendPercents[id] || '0') || 0
               : 100 / (selecionados.length + 1);
           const v = (valorNumerico * pct) / 100;
           nextAmt[id] = v.toFixed(2);
-          sumAmt += v;
         });
         setFriendAmounts(nextAmt);
-        setSelfAmount(Math.max(0, valorNumerico - sumAmt).toFixed(2));
+        const sPct =
+          splitMode === 'percent' && selfPercent !== undefined
+            ? parseFloat(selfPercent || '0') || 0
+            : 100 / (selecionados.length + 1);
+        const sAmt = (valorNumerico * sPct) / 100;
+        setSelfAmount(sAmt.toFixed(2));
       }
     }
   };
 
   const handleFriendPercentChange = (friendId: string, rawVal: string) => {
     const cleaned = rawVal.replace(',', '.');
-    const next = { ...friendPercents, [friendId]: cleaned };
-    setFriendPercents(next);
-
-    const somaAmigos = selecionados.reduce(
-      (acc, id) => acc + (parseFloat(next[id] || '0') || 0),
-      0
-    );
-    const restante = Math.max(0, Number((100 - somaAmigos).toFixed(2)));
-    setSelfPercent(String(restante));
+    setFriendPercents((prev) => ({ ...prev, [friendId]: cleaned }));
   };
 
   const handleFriendAmountChange = (friendId: string, rawVal: string) => {
     const cleaned = rawVal.replace(',', '.');
-    const next = { ...friendAmounts, [friendId]: cleaned };
-    setFriendAmounts(next);
+    setFriendAmounts((prev) => ({ ...prev, [friendId]: cleaned }));
+  };
 
-    if (valorNumerico > 0) {
+  const handleAjustarRestanteEmVoce = () => {
+    if (splitMode === 'percent') {
       const somaAmigos = selecionados.reduce(
-        (acc, id) => acc + (parseFloat(next[id] || '0') || 0),
+        (acc, id) => acc + (parseFloat(friendPercents[id] || '0') || 0),
+        0
+      );
+      const restante = Math.max(0, Number((100 - somaAmigos).toFixed(1)));
+      setSelfPercent(String(restante));
+    } else if (splitMode === 'amount' && valorNumerico > 0) {
+      const somaAmigos = selecionados.reduce(
+        (acc, id) => acc + (parseFloat(friendAmounts[id] || '0') || 0),
         0
       );
       const restante = Math.max(0, Number((valorNumerico - somaAmigos).toFixed(2)));
@@ -414,7 +422,7 @@ export function AddRideModal({
 
   if (!isOpen) return null;
 
-  return (
+  return createPortal(
     <div
       className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[60] flex items-center justify-center p-4 transition-opacity animate-fade-in"
       onClick={onClose}
@@ -608,7 +616,8 @@ export function AddRideModal({
                       }`}
                     >
                       <div
-                        className={`w-6 h-6 rounded-full ${corAmigo} flex items-center justify-center text-[10px] text-white font-bold`}
+                        style={{ backgroundColor: getAvatarColor(corAmigo) }}
+                        className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] text-white font-bold"
                       >
                         {nomeAmigo[0]?.toUpperCase()}
                       </div>
@@ -694,7 +703,8 @@ export function AddRideModal({
                       >
                         <div className="flex items-center gap-2 min-w-0">
                           <div
-                            className={`w-6 h-6 rounded-full ${corAmigo} flex items-center justify-center text-[10px] text-white font-bold shrink-0`}
+                            style={{ backgroundColor: getAvatarColor(corAmigo) }}
+                            className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] text-white font-bold shrink-0"
                           >
                             {nomeAmigo[0]?.toUpperCase()}
                           </div>
@@ -774,19 +784,55 @@ export function AddRideModal({
                   </div>
                 </div>
 
-                {/* Resumo da Soma */}
-                <div className="flex justify-between items-center pt-1 px-1 text-[11px]">
-                  <span className="text-gray-400">Soma da divisão:</span>
-                  <span
-                    className={`font-bold ${
-                      (splitMode === 'percent' && Math.abs(somaPercentual - 100) <= 0.5) ||
-                      (splitMode === 'amount' && Math.abs(somaTotal - valorNumerico) <= 0.1)
-                        ? 'text-[#34C759]'
-                        : 'text-amber-400'
-                    }`}
-                  >
-                    R$ {moneyConverter(somaTotal)} ({somaPercentual}%)
-                  </span>
+                {/* Resumo da Soma e Botão Auxiliar */}
+                <div className="flex flex-col gap-1.5 pt-2 px-1 border-t border-white/5">
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="text-gray-400">Soma da divisão:</span>
+                    <span
+                      className={`font-bold ${
+                        (splitMode === 'percent' && Math.abs(somaPercentual - 100) <= 0.5) ||
+                        (splitMode === 'amount' && Math.abs(somaTotal - valorNumerico) <= 0.1)
+                          ? 'text-[#34C759]'
+                          : 'text-amber-400'
+                      }`}
+                    >
+                      R$ {moneyConverter(somaTotal)} ({somaPercentual}%)
+                    </span>
+                  </div>
+
+                  {splitMode === 'percent' && Math.abs(somaPercentual - 100) > 0.5 && (
+                    <div className="flex items-center justify-between text-[11px] bg-amber-500/10 px-2.5 py-1.5 rounded-lg border border-amber-500/20">
+                      <span className="text-amber-300">
+                        {somaPercentual < 100
+                          ? `Falta fechar ${(100 - somaPercentual).toFixed(1)}%`
+                          : `Passou ${(somaPercentual - 100).toFixed(1)}%`}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={handleAjustarRestanteEmVoce}
+                        className="text-[11px] text-[#2DD4BF] hover:underline font-bold"
+                      >
+                        Ajustar em Você
+                      </button>
+                    </div>
+                  )}
+
+                  {splitMode === 'amount' && Math.abs(somaTotal - valorNumerico) > 0.1 && valorNumerico > 0 && (
+                    <div className="flex items-center justify-between text-[11px] bg-amber-500/10 px-2.5 py-1.5 rounded-lg border border-amber-500/20">
+                      <span className="text-amber-300">
+                        {somaTotal < valorNumerico
+                          ? `Falta R$ ${moneyConverter(valorNumerico - somaTotal)}`
+                          : `Passou R$ ${moneyConverter(somaTotal - valorNumerico)}`}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={handleAjustarRestanteEmVoce}
+                        className="text-[11px] text-[#2DD4BF] hover:underline font-bold"
+                      >
+                        Ajustar em Você
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -855,6 +901,7 @@ export function AddRideModal({
           )}
         </button>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

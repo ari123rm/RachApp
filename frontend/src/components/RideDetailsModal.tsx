@@ -20,6 +20,7 @@ import { AddRideModal } from './AddRideModal';
 import { PayWithReceiptModal, ReceiptViewerModal } from './ReceiptModals';
 import { dbService } from '../services/database';
 import { useModalBackHandler } from '../utils/modalBackHandler';
+import { getAvatarColor } from '../utils/avatarColor';
 
 interface RideDetailsProps {
   ride?: Corrida;
@@ -234,7 +235,8 @@ export function RideDetailsModal({
                   >
                     <div className="flex items-center gap-3">
                       <div
-                        className={`w-10 h-10 rounded-full ${cor} flex items-center justify-center font-bold text-white shrink-0`}
+                        style={{ backgroundColor: getAvatarColor(cor) }}
+                        className="w-10 h-10 rounded-full flex items-center justify-center font-bold text-white shrink-0"
                       >
                         {nome[0]?.toUpperCase()}
                       </div>

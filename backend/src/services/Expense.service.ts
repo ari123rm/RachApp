@@ -80,7 +80,11 @@ export class ExpenseService {
     }
 
     const ownerOwed =
-      Number(exp.self_amount_owed) > 0 ? Number(exp.self_amount_owed) : defaultShare;
+      exp.self_amount_owed !== null && exp.self_amount_owed !== undefined && Number(exp.self_amount_owed) > 0
+        ? Number(exp.self_amount_owed)
+        : ((exp.participants || []).reduce((acc: number, p: any) => acc + Number(p.amount_owed || 0), 0) >= Number(exp.total_amount) - 0.1)
+        ? 0
+        : defaultShare;
     const ownerPaid = !exp.paid_by_friend_id ? ownerOwed : Number(exp.self_amount_paid || 0);
 
     const transformedParticipants: any[] = [
@@ -500,8 +504,10 @@ export class ExpenseService {
       if (friendId === 'self') {
         const totalParts = expense.participants.length + 1;
         const selfOwed =
-          Number(expense.self_amount_owed) > 0
+          expense.self_amount_owed !== null && expense.self_amount_owed !== undefined && Number(expense.self_amount_owed) > 0
             ? Number(expense.self_amount_owed)
+            : ((expense.participants || []).reduce((acc: number, p: any) => acc + Number(p.amount_owed || 0), 0) >= Number(expense.total_amount) - 0.1)
+            ? 0
             : Number(expense.total_amount) / totalParts;
         const target =
           amountPaid !== undefined ? Math.min(selfOwed, Math.max(0, Number(amountPaid))) : 0;
@@ -601,8 +607,10 @@ export class ExpenseService {
     if (isTargetTheExpenseOwner) {
       const totalParts = expense.participants.length + 1;
       const ownerOwed =
-        Number(expense.self_amount_owed) > 0
+        expense.self_amount_owed !== null && expense.self_amount_owed !== undefined && Number(expense.self_amount_owed) > 0
           ? Number(expense.self_amount_owed)
+          : ((expense.participants || []).reduce((acc: number, p: any) => acc + Number(p.amount_owed || 0), 0) >= Number(expense.total_amount) - 0.1)
+          ? 0
           : Number(expense.total_amount) / totalParts;
       const targetAmount =
         amountPaid !== undefined ? Math.min(ownerOwed, Math.max(0, Number(amountPaid))) : 0;
@@ -783,8 +791,10 @@ export class ExpenseService {
         });
 
         const selfOwed =
-          Number(exp.self_amount_owed) > 0
+          exp.self_amount_owed !== null && exp.self_amount_owed !== undefined && Number(exp.self_amount_owed) > 0
             ? Number(exp.self_amount_owed)
+            : ((exp.participants || []).reduce((acc: number, p: any) => acc + Number(p.amount_owed || 0), 0) >= Number(exp.total_amount) - 0.1)
+            ? 0
             : Number(exp.total_amount) / (exp.participants.length + 1);
         const selfPaid = Number(exp.self_amount_paid || 0);
         const selfPending = selfOwed - selfPaid;
@@ -922,8 +932,10 @@ export class ExpenseService {
 
       const totalParts = (expense.participants?.length || 0) + 1;
       const selfOwed =
-        Number(expense.self_amount_owed) > 0
+        expense.self_amount_owed !== null && expense.self_amount_owed !== undefined && Number(expense.self_amount_owed) > 0
           ? Number(expense.self_amount_owed)
+          : ((expense.participants || []).reduce((acc: number, p: any) => acc + Number(p.amount_owed || 0), 0) >= Number(expense.total_amount) - 0.1)
+          ? 0
           : Number(expense.total_amount) / totalParts;
       const selfPaid = Number(expense.self_amount_paid || 0);
       const pending = selfOwed - selfPaid;

@@ -2,6 +2,7 @@
 import { Star, QrCode, Phone, BadgeCheck } from 'lucide-react';
 import { formatPhoneBR } from '../utils/phoneFormatter';
 import moneyConverter from '../utils/moneyConverter';
+import { getAvatarColor } from '../utils/avatarColor';
 
 interface FriendCardProps {
   amigo: any;
@@ -29,7 +30,8 @@ export function FriendCard({ amigo, onClick, onToggleFavorito }: FriendCardProps
       {/* Lado Esquerdo: Avatar e Nome */}
       <div className="flex items-center gap-3.5 min-w-0">
         <div
-          className={`w-12 h-12 rounded-full ${cor} flex items-center justify-center font-bold text-white text-lg shrink-0`}
+          style={{ backgroundColor: getAvatarColor(cor) }}
+          className="w-12 h-12 rounded-full flex items-center justify-center font-bold text-white text-lg shrink-0"
         >
           {nome[0]?.toUpperCase()}
         </div>
