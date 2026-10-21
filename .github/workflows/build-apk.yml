@@ -80,6 +80,11 @@ jobs:
             cp -f capacitor-overrides/android/MainActivity.java android/app/src/main/java/com/ariel/rachapp/MainActivity.java
             echo "✅ MainActivity.java customizada aplicada"
           fi
+          if [ -d "capacitor-overrides/android/res" ]; then
+            mkdir -p android/app/src/main/res
+            cp -rf capacitor-overrides/android/res/* android/app/src/main/res/
+            echo "✅ Recursos nativos (res/xml) customizados aplicados"
+          fi
 
       - name: Aplicar ícone (src/assets/icon.png) e Splash Screen no APK
         run: |
@@ -122,6 +127,17 @@ jobs:
                   </trust-anchors>
               </base-config>
           </network-security-config>
+          EOF
+
+          cat << 'EOF' > android/app/src/main/res/xml/file_paths.xml
+          <?xml version="1.0" encoding="utf-8"?>
+          <paths xmlns:android="http://schemas.android.com/apk/res/android">
+              <cache-path name="shared_receipts" path="shared_receipts" />
+              <cache-path name="cache_root" path="." />
+              <external-cache-path name="ext_cache" path="." />
+              <external-path name="ext_files" path="." />
+              <files-path name="internal_files" path="." />
+          </paths>
           EOF
 
           MANIFEST="android/app/src/main/AndroidManifest.xml"

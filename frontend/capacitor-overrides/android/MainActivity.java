@@ -6,9 +6,12 @@ import android.os.Bundle;
 import android.util.Base64;
 import android.webkit.JavascriptInterface;
 import android.webkit.WebView;
+import androidx.core.content.FileProvider;
 import com.getcapacitor.BridgeActivity;
 import org.json.JSONObject;
 import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileOutputStream;
 import java.io.InputStream;
 
 public class MainActivity extends BridgeActivity {
@@ -70,6 +73,65 @@ public class MainActivity extends BridgeActivity {
                             Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
                             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
                             startActivity(intent);
+                        } catch (Exception e) {
+                            e.printStackTrace();
+                        }
+                    }
+
+                    @JavascriptInterface
+                    public void shareReceipt(String dataUrl, String title) {
+                        try {
+                            if (dataUrl == null || dataUrl.trim().isEmpty()) return;
+
+                            String base64Content = dataUrl.trim();
+                            String mimeType = "image/jpeg";
+                            String ext = "jpg";
+
+                            if (base64Content.contains(",")) {
+                                String header = base64Content.substring(0, base64Content.indexOf(","));
+                                base64Content = base64Content.substring(base64Content.indexOf(",") + 1);
+                                if (header.contains("image/png")) {
+                                    mimeType = "image/png";
+                                    ext = "png";
+                                } else if (header.contains("application/pdf")) {
+                                    mimeType = "application/pdf";
+                                    ext = "pdf";
+                                } else if (header.contains("image/webp")) {
+                                    mimeType = "image/webp";
+                                    ext = "webp";
+                                }
+                            }
+
+                            byte[] bytes = Base64.decode(base64Content, Base64.DEFAULT);
+
+                            File cacheDir = new File(getCacheDir(), "shared_receipts");
+                            if (!cacheDir.exists()) {
+                                cacheDir.mkdirs();
+                            }
+                            File file = new File(cacheDir, "comprovante_rachapp." + ext);
+                            FileOutputStream fos = new FileOutputStream(file);
+                            fos.write(bytes);
+                            fos.flush();
+                            fos.close();
+
+                            Uri fileUri = FileProvider.getUriForFile(
+                                MainActivity.this,
+                                getPackageName() + ".fileprovider",
+                                file
+                            );
+
+                            Intent shareIntent = new Intent(Intent.ACTION_SEND);
+                            shareIntent.setType(mimeType);
+                            shareIntent.putExtra(Intent.EXTRA_STREAM, fileUri);
+                            shareIntent.putExtra(Intent.EXTRA_TEXT, "Comprovante de pagamento - RachApp");
+                            shareIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+
+                            Intent chooser = Intent.createChooser(
+                                shareIntent,
+                                title != null && !title.isEmpty() ? title : "Compartilhar comprovante"
+                            );
+                            chooser.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                            startActivity(chooser);
                         } catch (Exception e) {
                             e.printStackTrace();
                         }

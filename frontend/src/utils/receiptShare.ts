@@ -6,6 +6,7 @@ declare global {
       getPendingReceipt: () => string | null;
       clearPendingReceipt: () => void;
       openExternalUrl?: (url: string) => void;
+      shareReceipt?: (dataUrl: string, title: string) => void;
     };
     __onNativeSharedReceipt?: (dataUrl: string) => void;
   }
@@ -39,7 +40,8 @@ export async function urlToFile(url: string, filename = 'comprovante-rachapp.jpg
 
 /**
  * Compartilha o comprovante para outros aplicativos (WhatsApp, Telegram, etc.)
- * utilizando a Web Share API com suporte a arquivos, ou fallback para download/cópia.
+ * utilizando o menu nativo do Android (AndroidReceiptBridge / Intent.ACTION_SEND),
+ * Web Share API nos navegadores modernos, ou fallback para download.
  */
 export async function shareReceipt(
   receiptUrl: string | null | undefined,
@@ -47,6 +49,20 @@ export async function shareReceipt(
 ): Promise<{ success: boolean; fallback?: 'download' | 'copied' | 'none' }> {
   if (!receiptUrl) return { success: false };
 
+  // 1. Prioridade no APK Android (Capacitor): ponte nativa da MainActivity
+  // Abre o menu/folha nativa do sistema Android ("Compartilhar com...")
+  // com a imagem do comprovante anexada diretamente para WhatsApp, Telegram, etc.
+  try {
+    const bridge = window.AndroidReceiptBridge;
+    if (bridge && typeof bridge.shareReceipt === 'function') {
+      bridge.shareReceipt(receiptUrl, title);
+      return { success: true };
+    }
+  } catch (err) {
+    console.warn('Erro ao compartilhar via AndroidReceiptBridge:', err);
+  }
+
+  // 2. Se for Web com suporte a Web Share API para arquivos (Chrome/Safari)
   try {
     const file = await urlToFile(receiptUrl, 'comprovante-rachapp.jpg');
 
@@ -72,7 +88,7 @@ export async function shareReceipt(
     console.warn('Falha no Web Share, aplicando fallback:', err);
   }
 
-  // Fallback: faz o download automático da imagem
+  // 3. Fallback Web Desktop: faz o download automático da imagem
   try {
     const a = document.createElement('a');
     a.href = receiptUrl;
