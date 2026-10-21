@@ -40,6 +40,7 @@ export function Perfil({ onDataChange, updateInfo, onOpenUpdateModal }: PerfilPr
   const [isLoading, setIsLoading] = useState(true);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [isPixPreviewOpen, setIsPixPreviewOpen] = useState(false);
+  const [testPixAmount, setTestPixAmount] = useState(10);
   const [isPasswordScreenOpen, setIsPasswordScreenOpen] = useState(false);
   const [syncStatus, setSyncStatus] = useState<SyncStatus>({
     state: 'synced',
@@ -329,7 +330,9 @@ export function Perfil({ onDataChange, updateInfo, onOpenUpdateModal }: PerfilPr
         onClose={() => setIsPixPreviewOpen(false)}
         pixKey={pix}
         recipientName={nome || 'Usuário'}
-        amount={10}
+        amount={testPixAmount}
+        allowEditAmount={true}
+        onAmountChange={setTestPixAmount}
         description="Teste Pix RachApp"
       />
 

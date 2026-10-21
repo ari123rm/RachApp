@@ -1,6 +1,6 @@
 import { createPortal } from 'react-dom';
 // src/components/PixModal.tsx
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, Copy, Check, QrCode, Share2 } from 'lucide-react';
 import { generatePixCopiaECola, generatePixQRCodeDataUrl } from '../utils/pixGenerator';
 import moneyConverter from '../utils/moneyConverter';
@@ -16,6 +16,8 @@ interface PixModalProps {
   description?: string;
   whatsappPhone?: string;
   whatsappCustomMessage?: string;
+  allowEditAmount?: boolean;
+  onAmountChange?: (newAmount: number) => void;
 }
 
 export function PixModal({
@@ -27,7 +29,13 @@ export function PixModal({
   description = 'Acerto RachApp',
   whatsappPhone,
   whatsappCustomMessage,
+  allowEditAmount = false,
+  onAmountChange,
 }: PixModalProps) {
+  const [currentAmount, setCurrentAmount] = useState<number>(amount);
+  const [amountInput, setAmountInput] = useState<string>(() =>
+    amount > 0 ? moneyConverter(amount) : ''
+  );
   const [qrCodeUrl, setQrCodeUrl] = useState('');
   const [copiaECola, setCopiaECola] = useState('');
   const [copiedKey, setCopiedKey] = useState(false);
@@ -36,11 +44,20 @@ export function PixModal({
   useModalBackHandler(isOpen, onClose);
 
   useEffect(() => {
+    if (isOpen) {
+      setCurrentAmount(amount);
+      setAmountInput(amount > 0 ? moneyConverter(amount) : '');
+    }
+  }, [isOpen, amount]);
+
+  const activeAmount = allowEditAmount ? currentAmount : amount;
+
+  useEffect(() => {
     if (isOpen && pixKey) {
       const payload = generatePixCopiaECola({
         pixKey,
         merchantName: recipientName || 'RachApp',
-        amount: amount > 0 ? amount : undefined,
+        amount: activeAmount > 0 ? activeAmount : undefined,
         description,
       });
       setCopiaECola(payload);
@@ -51,7 +68,39 @@ export function PixModal({
       setQrCodeUrl('');
       setCopiaECola('');
     }
-  }, [isOpen, pixKey, recipientName, amount, description]);
+  }, [isOpen, pixKey, recipientName, activeAmount, description]);
+
+  const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const apenasNumeros = e.target.value.replace(/\D/g, '');
+    if (apenasNumeros === '') {
+      setAmountInput('');
+      setCurrentAmount(0);
+      onAmountChange?.(0);
+      return;
+    }
+    const valorEmCentavos = Number(apenasNumeros) / 100;
+    setCurrentAmount(valorEmCentavos);
+    setAmountInput(
+      valorEmCentavos.toLocaleString('pt-BR', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      })
+    );
+    onAmountChange?.(valorEmCentavos);
+  };
+
+  const handleSelectPreset = (preset: number) => {
+    setCurrentAmount(preset);
+    setAmountInput(
+      preset > 0
+        ? preset.toLocaleString('pt-BR', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+          })
+        : ''
+    );
+    onAmountChange?.(preset);
+  };
 
   if (!isOpen) return null;
 
@@ -102,15 +151,14 @@ export function PixModal({
   };
 
   const handleSendWhatsApp = () => {
+    const valorTexto = activeAmount > 0 ? `R$ ${moneyConverter(activeAmount)}` : 'Valor a definir';
     const defaultMsg =
       whatsappCustomMessage ||
-      `Olá! Segue o resumo do acerto pelo RachApp:\nValor: R$ ${moneyConverter(amount)}\nChave Pix (${recipientName}): ${pixKey}${
+      `Olá! Segue o resumo do acerto pelo RachApp:\nValor: ${valorTexto}\nChave Pix (${recipientName}): ${pixKey}${
         copiaECola ? `\n\nPix Copia e Cola:\n${copiaECola}` : ''
       }`;
     openWhatsApp(whatsappPhone, defaultMsg);
   };
-
-  if (!isOpen) return null;
 
   return createPortal(
     <div
@@ -133,17 +181,86 @@ export function PixModal({
             <QrCode size={22} />
           </div>
           <div>
-            <h3 className="text-white font-bold text-lg">Pagamento via Pix</h3>
+            <h3 className="text-white font-bold text-lg">
+              {allowEditAmount ? 'Teste de QR Code Pix' : 'Pagamento via Pix'}
+            </h3>
             <p className="text-xs text-gray-400">Recebedor: {recipientName}</p>
           </div>
         </div>
 
-        <div className="bg-[#05080f] rounded-2xl p-4 text-center mb-4 border border-white/5">
-          <p className="text-xs text-gray-400 uppercase font-semibold">Valor do Acerto</p>
-          <p className="text-3xl font-black text-[#2DD4BF] mt-1">
-            R$ {moneyConverter(amount)}
-          </p>
-        </div>
+        {/* Bloco de Valor */}
+        {allowEditAmount ? (
+          <div className="bg-[#05080f] rounded-2xl p-4 text-center mb-4 border border-[#2DD4BF]/30 relative shadow-inner">
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="text-[11px] text-gray-400 uppercase font-bold tracking-wider">
+                Valor para Teste
+              </span>
+              <span className="text-[10px] text-[#2DD4BF] font-semibold bg-[#2DD4BF]/15 px-2 py-0.5 rounded-full border border-[#2DD4BF]/30">
+                Editável
+              </span>
+            </div>
+
+            <div className="flex items-center justify-center gap-1.5 py-1">
+              <span className="text-2xl font-black text-[#2DD4BF]">R$</span>
+              <input
+                type="text"
+                inputMode="numeric"
+                value={amountInput}
+                onChange={handleAmountChange}
+                placeholder="0,00"
+                className="bg-transparent text-3xl font-black text-white outline-none w-44 text-center border-b border-dashed border-gray-600 focus:border-[#2DD4BF] focus:text-[#2DD4BF] transition-all"
+                autoFocus
+              />
+            </div>
+
+            {/* Presets rápidos */}
+            <div className="flex items-center justify-center gap-1.5 mt-3 flex-wrap">
+              {[1, 5, 10, 25, 50].map((preset) => (
+                <button
+                  key={preset}
+                  type="button"
+                  onClick={() => handleSelectPreset(preset)}
+                  className={`text-[11px] px-2.5 py-1 rounded-lg font-bold transition-all active:scale-95 ${
+                    currentAmount === preset
+                      ? 'bg-[#2DD4BF] text-[#05080f] shadow-sm shadow-[#2DD4BF]/20'
+                      : 'bg-[#2c2c2e] text-gray-300 hover:bg-gray-700 hover:text-white'
+                  }`}
+                >
+                  R$ {preset}
+                </button>
+              ))}
+              <button
+                type="button"
+                onClick={() => handleSelectPreset(0)}
+                className={`text-[11px] px-2.5 py-1 rounded-lg font-bold transition-all active:scale-95 ${
+                  currentAmount === 0
+                    ? 'bg-[#2DD4BF] text-[#05080f] shadow-sm shadow-[#2DD4BF]/20'
+                    : 'bg-[#2c2c2e] text-gray-400 hover:bg-gray-700 hover:text-white'
+                }`}
+                title="Sem valor pré-definido no QR Code"
+              >
+                Sem valor
+              </button>
+            </div>
+
+            {currentAmount === 0 ? (
+              <p className="text-[11px] text-amber-300/80 mt-2">
+                💡 QR Code aberto: o valor será digitado no app do banco.
+              </p>
+            ) : (
+              <p className="text-[10px] text-gray-400 mt-2">
+                QR Code e Copia e Cola atualizados em tempo real.
+              </p>
+            )}
+          </div>
+        ) : (
+          <div className="bg-[#05080f] rounded-2xl p-4 text-center mb-4 border border-white/5">
+            <p className="text-xs text-gray-400 uppercase font-semibold">Valor do Acerto</p>
+            <p className="text-3xl font-black text-[#2DD4BF] mt-1">
+              R$ {moneyConverter(amount)}
+            </p>
+          </div>
+        )}
 
         {!pixKey ? (
           <div className="bg-amber-500/10 border border-amber-500/30 text-amber-300 rounded-2xl p-4 text-sm text-center mb-4">
@@ -201,7 +318,7 @@ export function PixModal({
           className="w-full bg-[#25D366] hover:bg-[#1ebd5a] text-white font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 transition-transform active:scale-95"
         >
           <Share2 size={18} />
-          Enviar Cobrança no WhatsApp
+          {allowEditAmount ? 'Compartilhar no WhatsApp' : 'Enviar Cobrança no WhatsApp'}
         </button>
       </div>
     </div>,
