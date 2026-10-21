@@ -550,10 +550,20 @@ export function FriendDetailsModal({
           {/* Resumo do Perfil */}
           <div className="flex flex-col items-center mb-6">
             <div
-              style={{ backgroundColor: getAvatarColor(cor) }}
-              className="w-20 h-20 rounded-full flex items-center justify-center text-3xl font-black text-white shadow-lg mb-3"
+              style={
+                baseAmigo.avatar_url ? undefined : { backgroundColor: getAvatarColor(cor) }
+              }
+              className="w-20 h-20 rounded-full overflow-hidden flex items-center justify-center text-3xl font-black text-white shadow-lg mb-3"
             >
-              {nome[0]?.toUpperCase()}
+              {baseAmigo.avatar_url ? (
+                <img
+                  src={baseAmigo.avatar_url}
+                  alt={nome}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                nome[0]?.toUpperCase()
+              )}
             </div>
             <div className="flex items-center gap-1.5">
               <h3 className="text-xl font-bold text-white">{nome}</h3>

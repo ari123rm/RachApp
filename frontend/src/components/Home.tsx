@@ -63,6 +63,7 @@ export function Home({
   const [amigoSelecionado, setAmigoSelecionado] = useState<any>(null);
   const [grupoSelecionadoId, setGrupoSelecionadoId] = useState<string | null>(null);
   const [nomeUsuario, setNomeUsuario] = useState('Usuário');
+  const [avatarUsuario, setAvatarUsuario] = useState<string | null>(null);
   const [syncStatus, setSyncStatus] = useState<SyncStatus>({
     state: 'synced',
     pendingCount: 0,
@@ -74,6 +75,7 @@ export function Home({
     try {
       const config = await dbService.settings.get();
       setNomeUsuario(config.nome || config.name || 'Usuário');
+      setAvatarUsuario(config.avatar_url || null);
 
       const dados = await dbService.dashboard.get(periodo);
       if (Array.isArray((dados as any).mesesDisponiveis) && (dados as any).mesesDisponiveis.length > 0) {
@@ -175,8 +177,16 @@ export function Home({
             </span>
           </button>
 
-          <div className="w-10 h-10 bg-[#2DD4BF] text-[#05080f] rounded-full flex items-center justify-center font-bold shadow-md">
-            <span className="text-sm uppercase">{(nomeUsuario || 'U')[0]}</span>
+          <div className="w-10 h-10 bg-[#2DD4BF] text-[#05080f] rounded-full overflow-hidden flex items-center justify-center font-bold shadow-md border border-[#2DD4BF]/30">
+            {avatarUsuario ? (
+              <img
+                src={avatarUsuario}
+                alt={nomeUsuario}
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <span className="text-sm uppercase">{(nomeUsuario || 'U')[0]}</span>
+            )}
           </div>
         </div>
       </header>
@@ -334,12 +344,22 @@ export function Home({
                 >
                   <div className="relative">
                     <div
-                      style={{ backgroundColor: getAvatarColor(cor) }}
-                      className="w-16 h-16 rounded-full flex items-center justify-center shadow-lg border-2 border-[#05080f]"
+                      style={
+                        amigo.avatar_url ? undefined : { backgroundColor: getAvatarColor(cor) }
+                      }
+                      className="w-16 h-16 rounded-full overflow-hidden flex items-center justify-center shadow-lg border-2 border-[#05080f]"
                     >
-                      <span className="text-2xl font-black text-white">
-                        {nome[0]?.toUpperCase()}
-                      </span>
+                      {amigo.avatar_url ? (
+                        <img
+                          src={amigo.avatar_url}
+                          alt={nome}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <span className="text-2xl font-black text-white">
+                          {nome[0]?.toUpperCase()}
+                        </span>
+                      )}
                     </div>
                     <div
                       className={`absolute -top-1 -right-1 w-5 h-5 ${
@@ -409,12 +429,20 @@ export function Home({
                 >
                   <div className="relative">
                     <div
-                      style={{ backgroundColor: cor }}
-                      className="w-16 h-16 rounded-full flex items-center justify-center shadow-lg border-2 border-[#05080f]"
+                      style={grupo.avatar_url ? undefined : { backgroundColor: cor }}
+                      className="w-16 h-16 rounded-full overflow-hidden flex items-center justify-center shadow-lg border-2 border-[#05080f]"
                     >
-                      <span className="text-2xl font-black text-white">
-                        {nome[0]?.toUpperCase()}
-                      </span>
+                      {grupo.avatar_url ? (
+                        <img
+                          src={grupo.avatar_url}
+                          alt={nome}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <span className="text-2xl font-black text-white">
+                          {nome[0]?.toUpperCase()}
+                        </span>
+                      )}
                     </div>
                     <div
                       className={`absolute -top-1 -right-1 w-5 h-5 ${

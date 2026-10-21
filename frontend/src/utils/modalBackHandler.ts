@@ -100,3 +100,47 @@ export function compressReceiptImage(file: File, maxDimension = 960, quality = 0
     reader.readAsDataURL(file);
   });
 }
+
+/**
+ * Recorta a imagem ao centro em formato quadrado (1:1) e comprime para Base64 JPEG leve (~15-35KB),
+ * ideal para fotos de perfil de usuário e ícones de grupos.
+ */
+export function compressAvatarImage(file: File, targetSize = 320, quality = 0.82): Promise<string> {
+  return new Promise((resolve, reject) => {
+    if (!file.type.startsWith('image/')) {
+      reject(new Error('Selecione um arquivo de imagem válido (PNG, JPG, WebP).'));
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('Erro ao ler a imagem selecionada.'));
+    reader.onload = () => {
+      const dataUrl = reader.result as string;
+      const img = new Image();
+      img.onerror = () => reject(new Error('Formato de imagem inválido.'));
+      img.onload = () => {
+        const minSide = Math.min(img.width, img.height);
+        const sx = Math.round((img.width - minSide) / 2);
+        const sy = Math.round((img.height - minSide) / 2);
+
+        const canvas = document.createElement('canvas');
+        canvas.width = targetSize;
+        canvas.height = targetSize;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          resolve(dataUrl);
+          return;
+        }
+        ctx.fillStyle = '#0b0f19';
+        ctx.fillRect(0, 0, targetSize, targetSize);
+        ctx.drawImage(img, sx, sy, minSide, minSide, 0, 0, targetSize, targetSize);
+
+        const compressed = canvas.toDataURL('image/jpeg', quality);
+        resolve(compressed);
+      };
+      img.src = dataUrl;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+

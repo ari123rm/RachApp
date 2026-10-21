@@ -217,7 +217,10 @@ export class AuthService {
     return userWithoutPassword;
   }
 
-  static async updateProfile(userId: string, data: { name?: string; phone?: string; pix_key?: string }) {
+  static async updateProfile(
+    userId: string,
+    data: { name?: string; phone?: string; pix_key?: string; avatar_url?: string | null }
+  ) {
     const cleanPhone = data.phone ? normalizePhoneBackend(data.phone) || data.phone.trim() : undefined;
     const updatedUser = await prisma.user.update({
       where: { id: userId },
@@ -225,11 +228,12 @@ export class AuthService {
         ...(data.name !== undefined && data.name.trim() !== '' && { name: data.name.trim() }),
         ...(cleanPhone !== undefined && cleanPhone !== '' && { phone: cleanPhone }),
         ...(data.pix_key !== undefined && { pix_key: data.pix_key.trim() || null }),
+        ...(data.avatar_url !== undefined && { avatar_url: data.avatar_url || null }),
       },
     });
 
-    // Se o usuário atualizou a chave Pix dele, atualiza automaticamente os registros de amigos de outros usuários
-    if (updatedUser.phone && updatedUser.pix_key) {
+    // Se o usuário atualizou a chave Pix ou a foto de perfil dele, propaga automaticamente para os registros de amigos de outros usuários
+    if (updatedUser.phone) {
       try {
         const allFriendsWithPhone = await prisma.friend.findMany({
           where: {
@@ -243,11 +247,14 @@ export class AuthService {
         if (matchingFriends.length > 0) {
           await prisma.friend.updateMany({
             where: { id: { in: matchingFriends.map((f) => f.id) } },
-            data: { pix_key: updatedUser.pix_key },
+            data: {
+              ...(updatedUser.pix_key ? { pix_key: updatedUser.pix_key } : {}),
+              avatar_url: updatedUser.avatar_url || null,
+            },
           });
         }
       } catch (err) {
-        console.error('Erro ao propagar chave Pix do usuário para amigos:', err);
+        console.error('Erro ao propagar chave Pix e foto do usuário para amigos:', err);
       }
     }
 

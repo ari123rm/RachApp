@@ -30,10 +30,18 @@ export function FriendCard({ amigo, onClick, onToggleFavorito }: FriendCardProps
       {/* Lado Esquerdo: Avatar e Nome */}
       <div className="flex items-center gap-3.5 min-w-0">
         <div
-          style={{ backgroundColor: getAvatarColor(cor) }}
-          className="w-12 h-12 rounded-full flex items-center justify-center font-bold text-white text-lg shrink-0"
+          style={amigo.avatar_url ? undefined : { backgroundColor: getAvatarColor(cor) }}
+          className="w-12 h-12 rounded-full overflow-hidden flex items-center justify-center font-bold text-white text-lg shrink-0"
         >
-          {nome[0]?.toUpperCase()}
+          {amigo.avatar_url ? (
+            <img
+              src={amigo.avatar_url}
+              alt={nome}
+              className="w-full h-full object-cover"
+            />
+          ) : (
+            nome[0]?.toUpperCase()
+          )}
         </div>
         <div className="min-w-0">
           <div className="flex items-center gap-1.5">

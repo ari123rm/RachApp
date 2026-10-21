@@ -8,6 +8,7 @@ export interface UserProfile {
   phone: string;
   pix_key?: string;
   pix?: string;
+  avatar_url?: string | null;
   phone_verified?: boolean;
 }
 
@@ -19,6 +20,7 @@ export interface Amigo {
   phone?: string;
   pix_key?: string;
   pix?: string;
+  avatar_url?: string | null;
   cor: string;
   color?: string;
   favorito: boolean;
@@ -78,6 +80,7 @@ export interface MembroSaldo {
   name: string;
   phone?: string | null;
   pix_key?: string | null;
+  avatar_url?: string | null;
   color: string;
   netBalance: number;
   owesYou: number;
@@ -89,16 +92,18 @@ export interface MembroSaldo {
 export interface Grupo {
   id: string;
   name: string;
+  avatar_url?: string | null;
   created_by: string;
   created_at: string;
   members: {
     id?: string;
-    user?: { id: string; name: string; pix_key?: string | null; phone?: string | null } | null;
+    user?: { id: string; name: string; pix_key?: string | null; phone?: string | null; avatar_url?: string | null } | null;
     friend?: {
       id: string;
       name: string;
       phone?: string | null;
       pix_key?: string | null;
+      avatar_url?: string | null;
       color: string;
       has_account?: boolean;
       is_registered?: boolean;

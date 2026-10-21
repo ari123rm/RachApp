@@ -1,6 +1,6 @@
 import { createPortal } from 'react-dom';
 // src/components/RideDetailsModal.tsx
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   ChevronLeft,
   Receipt,
@@ -41,6 +41,7 @@ export function RideDetailsModal({
 }: RideDetailsProps) {
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isPaySelfOpen, setIsPaySelfOpen] = useState(false);
+  const [myAvatarUrl, setMyAvatarUrl] = useState<string | null>(null);
   const [receiptToView, setReceiptToView] = useState<{
     isOpen: boolean;
     url: string | null;
@@ -52,6 +53,15 @@ export function RideDetailsModal({
   });
 
   useModalBackHandler(isOpen, onClose);
+
+  useEffect(() => {
+    if (isOpen) {
+      dbService.auth
+        .getSessionUser()
+        .then((u) => setMyAvatarUrl(u?.avatar_url || null))
+        .catch(() => {});
+    }
+  }, [isOpen]);
 
   if (!isOpen || !ride) return null;
 
@@ -235,10 +245,18 @@ export function RideDetailsModal({
                   >
                     <div className="flex items-center gap-3">
                       <div
-                        style={{ backgroundColor: getAvatarColor(cor) }}
-                        className="w-10 h-10 rounded-full flex items-center justify-center font-bold text-white shrink-0"
+                        style={p.avatar_url ? undefined : { backgroundColor: getAvatarColor(cor) }}
+                        className="w-10 h-10 rounded-full overflow-hidden flex items-center justify-center font-bold text-white shrink-0"
                       >
-                        {nome[0]?.toUpperCase()}
+                        {p.avatar_url ? (
+                          <img
+                            src={p.avatar_url}
+                            alt={nome}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          nome[0]?.toUpperCase()
+                        )}
                       </div>
                       <div>
                         <div className="flex items-center gap-1.5 flex-wrap">
@@ -318,8 +336,12 @@ export function RideDetailsModal({
               {/* Card Você */}
               <div className="flex justify-between items-center bg-[#1c1c1e] p-3.5 rounded-xl border border-white/5">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-[#2DD4BF] flex items-center justify-center font-bold text-[#05080f] shrink-0">
-                    V
+                  <div className="w-10 h-10 rounded-full overflow-hidden bg-[#2DD4BF] flex items-center justify-center font-bold text-[#05080f] shrink-0">
+                    {myAvatarUrl ? (
+                      <img src={myAvatarUrl} alt="Você" className="w-full h-full object-cover" />
+                    ) : (
+                      'V'
+                    )}
                   </div>
                   <div>
                     <div className="flex items-center gap-2 flex-wrap">

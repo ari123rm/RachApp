@@ -46,21 +46,29 @@ export class FriendService {
     }
 
     const allUsers = await prisma.user.findMany({
-      select: { id: true, name: true, phone: true, pix_key: true },
+      select: { id: true, name: true, phone: true, pix_key: true, avatar_url: true } as any,
     });
 
-    // Enriquece e atualiza amigos locais com a chave Pix do usuário cadastrado (priorizando o que ele cadastrou para si)
+    // Enriquece e atualiza amigos locais com a chave Pix e foto do usuário cadastrado (priorizando o que ele cadastrou para si)
     for (let i = 0; i < myFriends.length; i++) {
-      const mf = myFriends[i];
+      const mf = myFriends[i] as any;
       if (mf.phone) {
-        const regUser = allUsers.find((u) => u.id !== userId && phonesMatch(u.phone, mf.phone));
-        const regPix = regUser?.pix_key?.trim();
-        if (regPix && regPix !== mf.pix_key) {
-          const updated = await prisma.friend.update({
-            where: { id: mf.id },
-            data: { pix_key: regPix },
-          });
-          myFriends[i] = updated;
+        const regUser = (allUsers as any[]).find((u) => u.id !== userId && phonesMatch(u.phone, mf.phone));
+        if (regUser) {
+          const regPix = regUser?.pix_key?.trim();
+          const regAvatar = regUser?.avatar_url || null;
+          const needsPix = Boolean(regPix && regPix !== mf.pix_key);
+          const needsAvatar = (mf.avatar_url || null) !== regAvatar;
+          if (needsPix || needsAvatar) {
+            const updated = await prisma.friend.update({
+              where: { id: mf.id },
+              data: {
+                ...(needsPix ? { pix_key: regPix } : {}),
+                ...(needsAvatar ? { avatar_url: regAvatar } : {}),
+              } as any,
+            });
+            myFriends[i] = updated;
+          }
         }
       }
     }
@@ -70,25 +78,29 @@ export class FriendService {
       name: string;
       phone?: string | null;
       pix_key?: string | null;
+      avatar_url?: string | null;
     }) => {
       const normOwnerPhone = normalizePhoneBackend(ownerUser.phone);
       const cleanOwnerPix = ownerUser.pix_key?.trim() || null;
+      const cleanOwnerAvatar = ownerUser.avatar_url || null;
       let existing = myFriends.find(
         (f) =>
           (normOwnerPhone && phonesMatch(f.phone, normOwnerPhone)) ||
           (!f.phone && f.name.trim().toLowerCase() === ownerUser.name.trim().toLowerCase())
-      );
+      ) as any;
 
       if (existing) {
         const needsPhone = !existing.phone && normOwnerPhone;
         const needsPix = cleanOwnerPix && existing.pix_key !== cleanOwnerPix;
-        if (needsPhone || needsPix) {
+        const needsAvatar = (existing.avatar_url || null) !== cleanOwnerAvatar;
+        if (needsPhone || needsPix || needsAvatar) {
           existing = await prisma.friend.update({
             where: { id: existing.id },
             data: {
               ...(needsPhone ? { phone: normOwnerPhone } : {}),
               ...(cleanOwnerPix && needsPix ? { pix_key: cleanOwnerPix } : {}),
-            },
+              ...(needsAvatar ? { avatar_url: cleanOwnerAvatar } : {}),
+            } as any,
           });
           myFriends = myFriends.map((f) => (f.id === existing!.id ? existing! : f));
         }
@@ -101,9 +113,10 @@ export class FriendService {
           name: ownerUser.name.trim() || 'Amigo',
           phone: normOwnerPhone || null,
           pix_key: cleanOwnerPix,
+          avatar_url: cleanOwnerAvatar,
           color: 'bg-teal-500',
           is_favorite: false,
-        },
+        } as any,
       });
       myFriends.push(created);
       return created;
@@ -139,7 +152,7 @@ export class FriendService {
       },
       include: {
         user: {
-          select: { id: true, name: true, phone: true, pix_key: true },
+          select: { id: true, name: true, phone: true, pix_key: true, avatar_url: true } as any,
         },
       },
     });
@@ -318,13 +331,13 @@ export class FriendService {
       },
       include: {
         sender: {
-          select: { id: true, name: true, phone: true, pix_key: true },
+          select: { id: true, name: true, phone: true, pix_key: true, avatar_url: true } as any,
         },
       },
       orderBy: { created_at: 'desc' },
     });
 
-    return requests.map((r) => ({
+    return requests.map((r: any) => ({
       id: r.id,
       sender_id: r.sender_id,
       receiver_id: r.receiver_id,
@@ -335,20 +348,21 @@ export class FriendService {
         name: r.sender.name,
         phone: r.sender.phone,
         pix_key: r.sender.pix_key,
+        avatar_url: r.sender.avatar_url || null,
         color: 'bg-teal-500',
       },
     }));
   }
 
   static async acceptRequest(userId: string, requestId: string) {
-    const request = await prisma.friendshipRequest.findFirst({
+    const request: any = await prisma.friendshipRequest.findFirst({
       where: {
         id: requestId,
         receiver_id: userId,
       },
       include: {
-        sender: { select: { id: true, name: true, phone: true, pix_key: true } },
-        receiver: { select: { id: true, name: true, phone: true, pix_key: true } },
+        sender: { select: { id: true, name: true, phone: true, pix_key: true, avatar_url: true } as any },
+        receiver: { select: { id: true, name: true, phone: true, pix_key: true, avatar_url: true } as any },
       },
     });
 
@@ -374,9 +388,10 @@ export class FriendService {
           name: request.sender.name,
           phone: normalizePhoneBackend(request.sender.phone) || null,
           pix_key: request.sender.pix_key || null,
+          avatar_url: request.sender.avatar_url || null,
           color: 'bg-emerald-500',
           is_favorite: false,
-        },
+        } as any,
       });
     }
 
@@ -393,9 +408,10 @@ export class FriendService {
           name: request.receiver.name,
           phone: normalizePhoneBackend(request.receiver.phone) || null,
           pix_key: request.receiver.pix_key || null,
+          avatar_url: request.receiver.avatar_url || null,
           color: 'bg-teal-500',
           is_favorite: false,
-        },
+        } as any,
       });
     }
 
@@ -441,12 +457,12 @@ export class FriendService {
     const { ExpenseService } = await import('./Expense.service');
     const allUserExpenses = await ExpenseService.listExpenses(userId);
 
-    // Mapeia todos os usuários para priorizar a chave Pix que o amigo cadastrou para si
+    // Mapeia todos os usuários para priorizar a chave Pix e foto que o amigo cadastrou para si
     const allUsers = await prisma.user.findMany({
-      select: { id: true, name: true, phone: true, pix_key: true },
+      select: { id: true, name: true, phone: true, pix_key: true, avatar_url: true } as any,
     });
 
-    return friends.map((friend) => {
+    return friends.map((friend: any) => {
       let divida = 0; // Quanto o amigo deve para Você
       let voceDeve = 0; // Quanto Você deve para o amigo
 
@@ -473,12 +489,13 @@ export class FriendService {
         }
       }
 
-      // Prioriza a chave Pix que o próprio amigo cadastrou na conta dele e detecta se possui conta no RachApp
+      // Prioriza a chave Pix e foto que o próprio amigo cadastrou na conta dele e detecta se possui conta no RachApp
       let effectivePixKey = (friend.pix_key || '').trim();
+      let effectiveAvatarUrl = friend.avatar_url || null;
       let hasAccount = false;
       let registeredUserId: string | null = null;
       if (friend.phone) {
-        const regUser = allUsers.find(
+        const regUser = (allUsers as any[]).find(
           (u) => u.id !== userId && phonesMatch(u.phone, friend.phone)
         );
         if (regUser) {
@@ -488,6 +505,7 @@ export class FriendService {
           if (regPix) {
             effectivePixKey = regPix;
           }
+          effectiveAvatarUrl = regUser.avatar_url || null;
         }
       }
 
@@ -495,6 +513,7 @@ export class FriendService {
       return {
         ...friendData,
         pix_key: effectivePixKey,
+        avatar_url: effectiveAvatarUrl,
         registered_pix_key: effectivePixKey,
         has_account: hasAccount,
         is_registered: hasAccount,

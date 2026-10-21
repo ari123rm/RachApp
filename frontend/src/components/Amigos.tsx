@@ -29,6 +29,7 @@ export function Amigos({ onDataChange, dataVersion }: { onDataChange?: () => voi
   const [filtroAmigos, setFiltroAmigos] = useState<'todos' | 'verificados' | 'favoritos' | 'pendentes'>('todos');
   const [filtroGrupos, setFiltroGrupos] = useState<'todos' | 'meus' | 'convites'>('todos');
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [myAvatarUrl, setMyAvatarUrl] = useState<string | null>(null);
 
   const [amigoSelecionado, setAmigoSelecionado] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -61,6 +62,7 @@ export function Amigos({ onDataChange, dataVersion }: { onDataChange?: () => voi
       if (sessionUser?.id) {
         setCurrentUserId(sessionUser.id);
       }
+      setMyAvatarUrl(sessionUser?.avatar_url || null);
 
       const amigosComValores = await Promise.all(
         dadosAmigos.map(async (amigo) => {
@@ -547,10 +549,22 @@ export function Amigos({ onDataChange, dataVersion }: { onDataChange?: () => voi
                       >
                         <div className="flex items-center gap-3">
                           <div
-                            style={{ backgroundColor: getAvatarColor(req.sender?.color || req.sender?.cor) }}
-                            className="w-10 h-10 rounded-2xl text-white font-bold text-sm flex items-center justify-center shadow"
+                            style={
+                              req.sender?.avatar_url
+                                ? undefined
+                                : { backgroundColor: getAvatarColor(req.sender?.color || req.sender?.cor) }
+                            }
+                            className="w-10 h-10 rounded-2xl overflow-hidden text-white font-bold text-sm flex items-center justify-center shadow shrink-0"
                           >
-                            {(req.sender?.name || 'A')[0].toUpperCase()}
+                            {req.sender?.avatar_url ? (
+                              <img
+                                src={req.sender.avatar_url}
+                                alt={req.sender?.name || 'Usuário'}
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              (req.sender?.name || 'A')[0].toUpperCase()
+                            )}
                           </div>
                           <div>
                             <p className="text-sm font-bold text-white">
@@ -601,12 +615,24 @@ export function Amigos({ onDataChange, dataVersion }: { onDataChange?: () => voi
                     >
                       <div className="relative mb-2">
                         <div
-                          style={{ backgroundColor: getAvatarColor(amigo.cor || amigo.color) }}
-                          className="w-16 h-16 rounded-3xl flex items-center justify-center shadow-lg border border-white/10"
+                          style={
+                            amigo.avatar_url
+                              ? undefined
+                              : { backgroundColor: getAvatarColor(amigo.cor || amigo.color) }
+                          }
+                          className="w-16 h-16 rounded-3xl overflow-hidden flex items-center justify-center shadow-lg border border-white/10"
                         >
-                          <span className="text-2xl font-black text-white">
-                            {amigo.nome[0]?.toUpperCase()}
-                          </span>
+                          {amigo.avatar_url ? (
+                            <img
+                              src={amigo.avatar_url}
+                              alt={amigo.nome}
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <span className="text-2xl font-black text-white">
+                              {amigo.nome[0]?.toUpperCase()}
+                            </span>
+                          )}
                         </div>
                         <div className="absolute -bottom-2 -right-2 bg-[#05080f] rounded-full p-1">
                           <Star size={16} className="text-yellow-500 fill-yellow-500" />
@@ -708,8 +734,16 @@ export function Amigos({ onDataChange, dataVersion }: { onDataChange?: () => voi
                         className="bg-[#121214] p-3 rounded-xl border border-white/5 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
                       >
                         <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-2xl bg-indigo-500 text-white font-bold text-sm flex items-center justify-center shadow">
-                            {(inv.group?.name || 'G')[0].toUpperCase()}
+                          <div className="w-10 h-10 rounded-2xl overflow-hidden bg-indigo-500 text-white font-bold text-sm flex items-center justify-center shadow shrink-0">
+                            {inv.group?.avatar_url ? (
+                              <img
+                                src={inv.group.avatar_url}
+                                alt={inv.group?.name || 'Grupo'}
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              (inv.group?.name || 'G')[0].toUpperCase()
+                            )}
                           </div>
                           <div>
                             <p className="text-sm font-bold text-white">{inv.group?.name}</p>
@@ -815,45 +849,82 @@ export function Amigos({ onDataChange, dataVersion }: { onDataChange?: () => voi
                       onClick={() => setGrupoSelecionadoId(grupo.id)}
                       className="bg-[#1c1c1e] rounded-2xl p-4 flex items-center justify-between border border-white/5 cursor-pointer hover:bg-[#2c2c2e] transition-colors"
                     >
-                      <div className="flex-1 min-w-0 mr-3">
-                        <div className="flex items-center gap-2">
-                          <h3 className="text-white font-bold text-base truncate">{grupo.name}</h3>
-                          {currentUserId && grupo.created_by === currentUserId && (
-                            <span className="text-[10px] font-semibold text-[#2DD4BF] bg-[#2DD4BF]/10 px-2 py-0.5 rounded-full shrink-0">
-                              Criador
-                            </span>
+                      <div className="flex items-start gap-3.5 flex-1 min-w-0 mr-3">
+                        <div className="w-12 h-12 rounded-2xl overflow-hidden bg-[#2DD4BF]/15 border border-[#2DD4BF]/30 flex items-center justify-center text-[#2DD4BF] shrink-0 mt-0.5">
+                          {grupo.avatar_url ? (
+                            <img
+                              src={grupo.avatar_url}
+                              alt={grupo.name}
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <Users size={22} />
                           )}
                         </div>
 
-                        <p className="text-xs text-gray-500 mt-0.5 mb-2">
-                          {totalMembers} {totalMembers === 1 ? 'participante' : 'participantes'}
-                        </p>
-
-                        {matchedMemberName && (
-                          <div className="mb-2.5 inline-flex items-center gap-1.5 text-[11px] text-[#2DD4BF] bg-[#2DD4BF]/10 px-2.5 py-0.5 rounded-lg font-medium">
-                            <UserCheck size={13} className="shrink-0" />
-                            <span className="truncate">Participante: {matchedMemberName}</span>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <h3 className="text-white font-bold text-base truncate">{grupo.name}</h3>
+                            {currentUserId && grupo.created_by === currentUserId && (
+                              <span className="text-[10px] font-semibold text-[#2DD4BF] bg-[#2DD4BF]/10 px-2 py-0.5 rounded-full shrink-0">
+                                Criador
+                              </span>
+                            )}
                           </div>
-                        )}
 
-                        <div className="flex -space-x-2">
-                          <div className="w-7 h-7 rounded-full bg-[#2DD4BF] text-[#05080f] font-black text-[10px] flex items-center justify-center border-2 border-[#1c1c1e]">
-                            V
-                          </div>
-                          {visibleFriends.map((m, idx) => (
-                            <div
-                              key={m.friend?.id || idx}
-                              style={{ backgroundColor: getAvatarColor(m.friend?.color) }}
-                              className="w-7 h-7 rounded-full text-white font-bold text-[10px] flex items-center justify-center border-2 border-[#1c1c1e]"
-                            >
-                              {(m.friend?.name || 'A')[0].toUpperCase()}
-                            </div>
-                          ))}
-                          {extraCount > 0 && (
-                            <div className="w-7 h-7 rounded-full bg-gray-700 text-gray-200 font-bold text-[10px] flex items-center justify-center border-2 border-[#1c1c1e]">
-                              +{extraCount}
+                          <p className="text-xs text-gray-500 mt-0.5 mb-2">
+                            {totalMembers} {totalMembers === 1 ? 'participante' : 'participantes'}
+                          </p>
+
+                          {matchedMemberName && (
+                            <div className="mb-2.5 inline-flex items-center gap-1.5 text-[11px] text-[#2DD4BF] bg-[#2DD4BF]/10 px-2.5 py-0.5 rounded-lg font-medium">
+                              <UserCheck size={13} className="shrink-0" />
+                              <span className="truncate">Participante: {matchedMemberName}</span>
                             </div>
                           )}
+
+                          <div className="flex -space-x-2">
+                            <div className="w-7 h-7 rounded-full overflow-hidden bg-[#2DD4BF] text-[#05080f] font-black text-[10px] flex items-center justify-center border-2 border-[#1c1c1e]">
+                              {myAvatarUrl ? (
+                                <img
+                                  src={myAvatarUrl}
+                                  alt="Você"
+                                  className="w-full h-full object-cover"
+                                />
+                              ) : (
+                                'V'
+                              )}
+                            </div>
+                            {visibleFriends.map((m, idx) => {
+                              const fAvatar = m.friend?.avatar_url;
+                              return (
+                                <div
+                                  key={m.friend?.id || idx}
+                                  style={
+                                    fAvatar
+                                      ? undefined
+                                      : { backgroundColor: getAvatarColor(m.friend?.color) }
+                                  }
+                                  className="w-7 h-7 rounded-full overflow-hidden text-white font-bold text-[10px] flex items-center justify-center border-2 border-[#1c1c1e]"
+                                >
+                                  {fAvatar ? (
+                                    <img
+                                      src={fAvatar}
+                                      alt={m.friend?.name || 'Amigo'}
+                                      className="w-full h-full object-cover"
+                                    />
+                                  ) : (
+                                    (m.friend?.name || 'A')[0].toUpperCase()
+                                  )}
+                                </div>
+                              );
+                            })}
+                            {extraCount > 0 && (
+                              <div className="w-7 h-7 rounded-full bg-gray-700 text-gray-200 font-bold text-[10px] flex items-center justify-center border-2 border-[#1c1c1e]">
+                                +{extraCount}
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </div>
                       <ChevronRight size={20} className="text-gray-500 shrink-0" />

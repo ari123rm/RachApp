@@ -1,6 +1,6 @@
 // src/components/Grupos.tsx
 import { useState, useEffect } from 'react';
-import { Plus, LoaderCircle, ChevronRight } from 'lucide-react';
+import { Plus, LoaderCircle, ChevronRight, Users } from 'lucide-react';
 import { dbService } from '../services/database';
 import { AddGroupModal } from './AddGroupModal';
 import { GroupDetailsModal } from './GroupDetailsModal';
@@ -9,6 +9,7 @@ import type { Grupo } from '../types';
 
 export function Grupos({ onDataChange }: { onDataChange?: () => void }) {
   const [grupos, setGrupos] = useState<Grupo[]>([]);
+  const [myAvatarUrl, setMyAvatarUrl] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [grupoSelecionadoId, setGrupoSelecionadoId] = useState<string | null>(null);
@@ -16,8 +17,12 @@ export function Grupos({ onDataChange }: { onDataChange?: () => void }) {
   const carregarGrupos = async () => {
     setIsLoading(true);
     try {
-      const dados = await dbService.grupos.getAll();
+      const [dados, sessionUser] = await Promise.all([
+        dbService.grupos.getAll(),
+        dbService.auth.getSessionUser(),
+      ]);
       setGrupos(dados);
+      setMyAvatarUrl(sessionUser?.avatar_url || null);
     } catch (error) {
       console.error('Erro ao carregar grupos:', error);
     } finally {
@@ -74,31 +79,68 @@ export function Grupos({ onDataChange }: { onDataChange?: () => void }) {
                 onClick={() => setGrupoSelecionadoId(grupo.id)}
                 className="bg-[#1c1c1e] rounded-2xl p-4 flex items-center justify-between border border-white/5 cursor-pointer hover:bg-[#2c2c2e] transition-colors"
               >
-                <div>
-                  <h3 className="text-white font-bold text-base">{grupo.name}</h3>
-                  <p className="text-xs text-gray-500 mt-0.5 mb-2.5">
-                    {totalMembers} {totalMembers === 1 ? 'participante' : 'participantes'}
-                  </p>
-
-                  {/* Avatares Sobrepostos (Figura 3 do Artigo) */}
-                  <div className="flex -space-x-2">
-                    <div className="w-7 h-7 rounded-full bg-[#2DD4BF] text-[#05080f] font-black text-[10px] flex items-center justify-center border-2 border-[#1c1c1e]">
-                      V
-                    </div>
-                    {visibleFriends.map((m, idx) => (
-                      <div
-                        key={m.friend?.id || idx}
-                        style={{ backgroundColor: getAvatarColor(m.friend?.color) }}
-                        className="w-7 h-7 rounded-full text-white font-bold text-[10px] flex items-center justify-center border-2 border-[#1c1c1e]"
-                      >
-                        {(m.friend?.name || 'A')[0].toUpperCase()}
-                      </div>
-                    ))}
-                    {extraCount > 0 && (
-                      <div className="w-7 h-7 rounded-full bg-gray-700 text-gray-200 font-bold text-[10px] flex items-center justify-center border-2 border-[#1c1c1e]">
-                        +{extraCount}
-                      </div>
+                <div className="flex items-start gap-3.5 min-w-0">
+                  <div className="w-12 h-12 rounded-2xl overflow-hidden bg-[#2DD4BF]/15 border border-[#2DD4BF]/30 flex items-center justify-center text-[#2DD4BF] shrink-0 mt-0.5">
+                    {grupo.avatar_url ? (
+                      <img
+                        src={grupo.avatar_url}
+                        alt={grupo.name}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <Users size={22} />
                     )}
+                  </div>
+
+                  <div>
+                    <h3 className="text-white font-bold text-base">{grupo.name}</h3>
+                    <p className="text-xs text-gray-500 mt-0.5 mb-2.5">
+                      {totalMembers} {totalMembers === 1 ? 'participante' : 'participantes'}
+                    </p>
+
+                    {/* Avatares Sobrepostos */}
+                    <div className="flex -space-x-2">
+                      <div className="w-7 h-7 rounded-full overflow-hidden bg-[#2DD4BF] text-[#05080f] font-black text-[10px] flex items-center justify-center border-2 border-[#1c1c1e]">
+                        {myAvatarUrl ? (
+                          <img
+                            src={myAvatarUrl}
+                            alt="Você"
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          'V'
+                        )}
+                      </div>
+                      {visibleFriends.map((m, idx) => {
+                        const fAvatar = m.friend?.avatar_url;
+                        return (
+                          <div
+                            key={m.friend?.id || idx}
+                            style={
+                              fAvatar
+                                ? undefined
+                                : { backgroundColor: getAvatarColor(m.friend?.color) }
+                            }
+                            className="w-7 h-7 rounded-full overflow-hidden text-white font-bold text-[10px] flex items-center justify-center border-2 border-[#1c1c1e]"
+                          >
+                            {fAvatar ? (
+                              <img
+                                src={fAvatar}
+                                alt={m.friend?.name || 'Amigo'}
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              (m.friend?.name || 'A')[0].toUpperCase()
+                            )}
+                          </div>
+                        );
+                      })}
+                      {extraCount > 0 && (
+                        <div className="w-7 h-7 rounded-full bg-gray-700 text-gray-200 font-bold text-[10px] flex items-center justify-center border-2 border-[#1c1c1e]">
+                          +{extraCount}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
 

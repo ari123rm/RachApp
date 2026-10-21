@@ -83,6 +83,7 @@ function createSchema(db: Database) {
       email TEXT,
       phone TEXT,
       pix_key TEXT,
+      avatar_url TEXT,
       phone_verified INTEGER DEFAULT 0,
       updated_at TEXT
     );
@@ -93,6 +94,7 @@ function createSchema(db: Database) {
       name TEXT NOT NULL,
       phone TEXT,
       pix_key TEXT,
+      avatar_url TEXT,
       color TEXT NOT NULL,
       is_favorite INTEGER DEFAULT 0,
       has_account INTEGER DEFAULT 0,
@@ -103,6 +105,7 @@ function createSchema(db: Database) {
     CREATE TABLE IF NOT EXISTS groups_table (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
+      avatar_url TEXT,
       created_by TEXT,
       created_at TEXT,
       synced INTEGER DEFAULT 0
@@ -172,6 +175,24 @@ function createSchema(db: Database) {
 
   try {
     db.run('ALTER TABLE friends ADD COLUMN has_account INTEGER DEFAULT 0');
+  } catch {
+    // Coluna já existe
+  }
+
+  try {
+    db.run('ALTER TABLE auth_session ADD COLUMN avatar_url TEXT');
+  } catch {
+    // Coluna já existe
+  }
+
+  try {
+    db.run('ALTER TABLE friends ADD COLUMN avatar_url TEXT');
+  } catch {
+    // Coluna já existe
+  }
+
+  try {
+    db.run('ALTER TABLE groups_table ADD COLUMN avatar_url TEXT');
   } catch {
     // Coluna já existe
   }

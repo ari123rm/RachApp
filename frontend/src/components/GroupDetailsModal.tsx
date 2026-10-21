@@ -1,5 +1,5 @@
-import { createPortal } from 'react-dom';
 // src/components/GroupDetailsModal.tsx
+import { createPortal } from 'react-dom';
 import { useState, useEffect } from 'react';
 import {
   ChevronLeft,
@@ -41,7 +41,12 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
   const [grupo, setGrupo] = useState<Grupo | null>(null);
   const [todosAmigos, setTodosAmigos] = useState<Amigo[]>([]);
   const [todasCorridas, setTodasCorridas] = useState<Corrida[]>([]);
-  const [myConfig, setMyConfig] = useState<{ nome: string; pix: string }>({ nome: 'Você', pix: '' });
+  const [myConfig, setMyConfig] = useState<{
+    id?: string;
+    nome: string;
+    pix: string;
+    avatar_url?: string | null;
+  }>({ nome: 'Você', pix: '', avatar_url: null });
 
   const [isLoading, setIsLoading] = useState(false);
   const [isAddingMemberId, setIsAddingMemberId] = useState<string | null>(null);
@@ -98,8 +103,10 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
       setTodosAmigos(amigos);
       setTodasCorridas(corridas);
       setMyConfig({
+        id: config.id,
         nome: config.nome || config.name || 'Você',
         pix: config.pix_key || config.pix || '',
+        avatar_url: config.avatar_url || null,
       });
     } catch (error) {
       console.error('Erro ao carregar detalhes do grupo:', error);
@@ -138,7 +145,7 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
       await dbService.grupos.delete(grupo.id);
       if (onChanged) onChanged();
       onClose();
-    } catch (error) {
+    } catch {
       alert('Erro ao excluir grupo.');
     }
   };
@@ -153,7 +160,7 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
       await dbService.financeiro.registrarPagamento(friendId, amount, grupo.id);
       await carregarDetalhes();
       if (onChanged) onChanged();
-    } catch (err) {
+    } catch {
       alert('Erro ao registrar pagamento.');
     }
   };
@@ -242,6 +249,11 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
 
   const pendenciasCount = memberBalances.filter((m) => Math.abs(m.netBalance) > 0.01).length;
   const userNet = Number(grupo?.userNetBalance || 0);
+  const isGroupCreator =
+    !grupo?.created_by ||
+    !myConfig.id ||
+    grupo.created_by === myConfig.id ||
+    grupo.created_by === 'me';
 
   if (!isOpen) return null;
 
@@ -290,27 +302,79 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
             {/* Card Principal do Grupo */}
             <div className="bg-[#141923] rounded-3xl p-5 border border-white/10 shadow-xl">
               <div className="flex justify-between items-center mb-4">
-                <div className="flex items-center">
-                  <div className="flex -space-x-2">
-                    <div className="w-8 h-8 rounded-full bg-[#2DD4BF] text-[#05080f] font-black text-xs flex items-center justify-center border-2 border-[#141923]">
-                      V
+                <div className="flex items-center gap-3">
+                  {/* Ícone do Grupo */}
+                  <div className="relative shrink-0">
+                    <div className="w-12 h-12 rounded-2xl overflow-hidden bg-[#2DD4BF]/15 border border-[#2DD4BF]/30 flex items-center justify-center text-[#2DD4BF]">
+                      {grupo.avatar_url ? (
+                        <img
+                          src={grupo.avatar_url}
+                          alt={grupo.name}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <Users size={22} />
+                      )}
                     </div>
-                    {memberBalances.slice(0, 4).map((m) => (
-                      <div
-                        key={m.friendId}
-                        style={{ backgroundColor: getAvatarColor(m.color) }}
-                        className="w-8 h-8 rounded-full text-white font-bold text-xs flex items-center justify-center border-2 border-[#141923]"
+                    {isGroupCreator && (
+                      <button
+                        type="button"
+                        onClick={() => setIsEditGroupOpen(true)}
+                        title="Editar ícone do grupo"
+                        className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-[#2DD4BF] text-[#05080f] flex items-center justify-center shadow border border-[#141923]"
                       >
-                        {m.name[0]?.toUpperCase()}
-                      </div>
-                    ))}
+                        <Pencil size={10} className="stroke-[2.5px]" />
+                      </button>
+                    )}
                   </div>
-                  <span className="text-xs text-gray-400 ml-2.5 font-medium">
-                    {memberBalances.length + 1} participantes
-                  </span>
+
+                  <div>
+                    <h3 className="text-white font-bold text-base leading-tight">{grupo.name}</h3>
+                    <div className="flex items-center mt-1">
+                      <div className="flex -space-x-2">
+                        <div className="w-6 h-6 rounded-full overflow-hidden bg-[#2DD4BF] text-[#05080f] font-black text-[10px] flex items-center justify-center border-2 border-[#141923]">
+                          {myConfig.avatar_url ? (
+                            <img
+                              src={myConfig.avatar_url}
+                              alt="Você"
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            'V'
+                          )}
+                        </div>
+                        {memberBalances.slice(0, 4).map((m) => {
+                          const friendObj = todosAmigos.find((a) => a.id === m.friendId);
+                          const memberAvatar = m.avatar_url || friendObj?.avatar_url;
+                          return (
+                            <div
+                              key={m.friendId}
+                              style={
+                                memberAvatar ? undefined : { backgroundColor: getAvatarColor(m.color) }
+                              }
+                              className="w-6 h-6 rounded-full overflow-hidden text-white font-bold text-[10px] flex items-center justify-center border-2 border-[#141923]"
+                            >
+                              {memberAvatar ? (
+                                <img
+                                  src={memberAvatar}
+                                  alt={m.name}
+                                  className="w-full h-full object-cover"
+                                />
+                              ) : (
+                                m.name[0]?.toUpperCase()
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                      <span className="text-[11px] text-gray-400 ml-2 font-medium">
+                        {memberBalances.length + 1} participantes
+                      </span>
+                    </div>
+                  </div>
                 </div>
 
-                <span className="text-[10px] font-bold bg-[#2DD4BF]/15 text-[#2DD4BF] px-2.5 py-1 rounded-full">
+                <span className="text-[10px] font-bold bg-[#2DD4BF]/15 text-[#2DD4BF] px-2.5 py-1 rounded-full shrink-0">
                   • ATIVO
                 </span>
               </div>
@@ -407,10 +471,22 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
                           >
                             <div className="flex items-center gap-2.5">
                               <div
-                                style={{ backgroundColor: getAvatarColor(corAmigo) }}
-                                className="w-8 h-8 rounded-full flex items-center justify-center font-bold text-white text-xs"
+                                style={
+                                  amigo.avatar_url
+                                    ? undefined
+                                    : { backgroundColor: getAvatarColor(corAmigo) }
+                                }
+                                className="w-8 h-8 rounded-full overflow-hidden flex items-center justify-center font-bold text-white text-xs shrink-0"
                               >
-                                {nomeAmigo[0]?.toUpperCase()}
+                                {amigo.avatar_url ? (
+                                  <img
+                                    src={amigo.avatar_url}
+                                    alt={nomeAmigo}
+                                    className="w-full h-full object-cover"
+                                  />
+                                ) : (
+                                  nomeAmigo[0]?.toUpperCase()
+                                )}
                               </div>
                               <div>
                                 <div className="flex items-center gap-1">
@@ -461,6 +537,8 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
                   memberBalances.map((m) => {
                     const deveVoce = m.owesYou > 0.01;
                     const voceDeve = m.owesYou < -0.01;
+                    const friendObj = todosAmigos.find((a) => a.id === m.friendId);
+                    const memberAvatar = m.avatar_url || friendObj?.avatar_url;
                     return (
                       <div
                         key={m.friendId}
@@ -468,15 +546,29 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
                       >
                         <div className="flex items-center gap-3">
                           <div
-                            style={{ backgroundColor: getAvatarColor(m.color) }}
-                            className="w-10 h-10 rounded-full flex items-center justify-center font-bold text-white text-sm"
+                            style={
+                              memberAvatar ? undefined : { backgroundColor: getAvatarColor(m.color) }
+                            }
+                            className="w-10 h-10 rounded-full overflow-hidden flex items-center justify-center font-bold text-white text-sm shrink-0"
                           >
-                            {m.name[0]?.toUpperCase()}
+                            {memberAvatar ? (
+                              <img
+                                src={memberAvatar}
+                                alt={m.name}
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              m.name[0]?.toUpperCase()
+                            )}
                           </div>
                           <div>
                             <div className="flex items-center gap-1.5">
                               <p className="font-semibold text-white text-sm">{m.name}</p>
-                              {Boolean((m as any).has_account || (m as any).is_registered || todosAmigos.find(a => a.id === m.friendId)?.has_account) && (
+                              {Boolean(
+                                (m as any).has_account ||
+                                  (m as any).is_registered ||
+                                  friendObj?.has_account
+                              ) && (
                                 <BadgeCheck size={14} className="text-[#2DD4BF] fill-[#2DD4BF]/20 shrink-0" />
                               )}
                             </div>

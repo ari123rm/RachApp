@@ -135,13 +135,18 @@ async function saveRemoteSnapshotToSQLite(data: {
       const hasPendingProfile = pendingIds.has('me') || pendingIds.has(data.user.id);
       if (!hasPendingProfile) {
         const preservedPix = data.user.pix_key || currentSession?.pix_key || '';
+        const nextAvatar =
+          data.user.avatar_url !== undefined
+            ? data.user.avatar_url || null
+            : currentSession?.avatar_url || null;
         db.run(
-          `UPDATE auth_session SET name = ?, email = ?, phone = ?, pix_key = ?, phone_verified = ?, updated_at = ? WHERE id = 1`,
+          `UPDATE auth_session SET name = ?, email = ?, phone = ?, pix_key = ?, avatar_url = ?, phone_verified = ?, updated_at = ? WHERE id = 1`,
           [
             data.user.name || currentSession?.name || '',
             data.user.email || currentSession?.email || '',
             stripCountryCode(data.user.phone || currentSession?.phone || ''),
             preservedPix,
+            nextAvatar,
             data.user.phone_verified ? 1 : 0,
             new Date().toISOString(),
           ]
@@ -160,8 +165,8 @@ async function saveRemoteSnapshotToSQLite(data: {
       for (const f of data.friends) {
         if (pendingIds.has(f.id)) continue;
         db.run(
-          `INSERT OR REPLACE INTO friends (id, user_id, name, phone, pix_key, color, is_favorite, has_account, synced, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?)`,
+          `INSERT OR REPLACE INTO friends (id, user_id, name, phone, pix_key, color, avatar_url, is_favorite, has_account, synced, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)`,
           [
             f.id,
             f.user_id || data.user?.id || '',
@@ -169,6 +174,7 @@ async function saveRemoteSnapshotToSQLite(data: {
             stripCountryCode(f.phone || f.telefone || ''),
             f.pix_key || f.pix || '',
             f.color || f.cor || 'bg-sky-500',
+            f.avatar_url || null,
             f.is_favorite || f.favorito ? 1 : 0,
             f.has_account || f.is_registered ? 1 : 0,
             new Date().toISOString(),
@@ -189,9 +195,15 @@ async function saveRemoteSnapshotToSQLite(data: {
       for (const g of data.groups) {
         if (pendingIds.has(g.id)) continue;
         db.run(
-          `INSERT OR REPLACE INTO groups_table (id, name, created_by, created_at, synced)
-           VALUES (?, ?, ?, ?, 1)`,
-          [g.id, g.name, g.created_by || data.user?.id || '', g.created_at || new Date().toISOString()]
+          `INSERT OR REPLACE INTO groups_table (id, name, avatar_url, created_by, created_at, synced)
+           VALUES (?, ?, ?, ?, ?, 1)`,
+          [
+            g.id,
+            g.name,
+            g.avatar_url || null,
+            g.created_by || data.user?.id || '',
+            g.created_at || new Date().toISOString(),
+          ]
         );
 
         if (Array.isArray(g.members)) {
@@ -440,6 +452,7 @@ export const dbService = {
             phone: row.phone,
             pix_key: row.pix_key || '',
             pix: row.pix_key || '',
+            avatar_url: row.avatar_url || null,
             phone_verified: !!row.phone_verified,
           },
         };
@@ -459,6 +472,7 @@ export const dbService = {
           phone: row.phone,
           pix_key: row.pix_key || '',
           pix: row.pix_key || '',
+          avatar_url: row.avatar_url || null,
           phone_verified: !!row.phone_verified,
         };
       }
@@ -480,8 +494,8 @@ export const dbService = {
       }
 
       await runSQL(
-        `INSERT OR REPLACE INTO auth_session (id, token, user_id, name, email, phone, pix_key, phone_verified, updated_at)
-         VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT OR REPLACE INTO auth_session (id, token, user_id, name, email, phone, pix_key, avatar_url, phone_verified, updated_at)
+         VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           data.token,
           data.user.id,
@@ -489,6 +503,7 @@ export const dbService = {
           data.user.email || '',
           stripCountryCode(data.user.phone || ''),
           data.user.pix_key || '',
+          data.user.avatar_url || null,
           data.user.phone_verified ? 1 : 0,
           new Date().toISOString(),
         ]
@@ -507,8 +522,8 @@ export const dbService = {
       if (data.token && data.user) {
         memoryToken = data.token;
         await runSQL(
-          `INSERT OR REPLACE INTO auth_session (id, token, user_id, name, email, phone, pix_key, phone_verified, updated_at)
-           VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          `INSERT OR REPLACE INTO auth_session (id, token, user_id, name, email, phone, pix_key, avatar_url, phone_verified, updated_at)
+           VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             data.token,
             data.user.id,
@@ -516,6 +531,7 @@ export const dbService = {
             data.user.email || '',
             stripCountryCode(data.user.phone || ''),
             data.user.pix_key || userData.pix_key || '',
+            data.user.avatar_url || null,
             data.user.phone_verified ? 1 : 0,
             new Date().toISOString(),
           ]
@@ -529,8 +545,8 @@ export const dbService = {
       if (data.token && data.user) {
         memoryToken = data.token;
         await runSQL(
-          `INSERT OR REPLACE INTO auth_session (id, token, user_id, name, email, phone, pix_key, phone_verified, updated_at)
-           VALUES (1, ?, ?, ?, ?, ?, ?, 1, ?)`,
+          `INSERT OR REPLACE INTO auth_session (id, token, user_id, name, email, phone, pix_key, avatar_url, phone_verified, updated_at)
+           VALUES (1, ?, ?, ?, ?, ?, ?, ?, 1, ?)`,
           [
             data.token,
             data.user.id,
@@ -538,6 +554,7 @@ export const dbService = {
             data.user.email || '',
             stripCountryCode(data.user.phone || ''),
             data.user.pix_key || '',
+            data.user.avatar_url || null,
             new Date().toISOString(),
           ]
         );
@@ -569,7 +586,7 @@ export const dbService = {
       await runSQL('DELETE FROM sync_queue', [], true);
     },
 
-    updateProfile: async (data: { name?: string; phone?: string; pix_key?: string }) => {
+    updateProfile: async (data: { name?: string; phone?: string; pix_key?: string; avatar_url?: string | null }) => {
       const session = await queryOne<any>('SELECT * FROM auth_session WHERE id = 1');
       const newName = data.name !== undefined ? data.name.trim() : session?.name || '';
       const newPhone =
@@ -577,11 +594,15 @@ export const dbService = {
           ? stripCountryCode(data.phone) || data.phone.trim()
           : session?.phone || '';
       const newPix = data.pix_key !== undefined ? data.pix_key.trim() : session?.pix_key || '';
+      const newAvatar =
+        data.avatar_url !== undefined
+          ? data.avatar_url || null
+          : session?.avatar_url || null;
 
       // 1. Grava imediatamente na tabela auth_session
       await runSQL(
-        `INSERT OR REPLACE INTO auth_session (id, token, user_id, name, email, phone, pix_key, phone_verified, updated_at)
-         VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT OR REPLACE INTO auth_session (id, token, user_id, name, email, phone, pix_key, avatar_url, phone_verified, updated_at)
+         VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           session?.token || memoryToken || '',
           session?.user_id || 'me',
@@ -589,6 +610,7 @@ export const dbService = {
           session?.email || '',
           newPhone,
           newPix,
+          newAvatar,
           session?.phone_verified ? 1 : 0,
           new Date().toISOString(),
         ]
@@ -600,12 +622,14 @@ export const dbService = {
           name: newName,
           phone: newPhone,
           pix_key: newPix,
+          avatar_url: newAvatar,
         });
       } catch {
         await enqueueSync('profile', 'update', session?.user_id || 'me', {
           name: newName,
           phone: newPhone,
           pix_key: newPix,
+          avatar_url: newAvatar,
         });
       }
 
@@ -616,6 +640,7 @@ export const dbService = {
         phone: newPhone,
         pix_key: newPix,
         pix: newPix,
+        avatar_url: newAvatar,
       };
     },
 
@@ -719,6 +744,7 @@ export const dbService = {
           pix: r.pix_key || '',
           cor: r.color || 'bg-sky-500',
           color: r.color || 'bg-sky-500',
+          avatar_url: r.avatar_url || null,
           favorito: !!r.is_favorite,
           is_favorite: !!r.is_favorite,
           has_account: !!r.has_account,
@@ -1268,7 +1294,7 @@ export const dbService = {
       const result: Grupo[] = [];
       for (const g of groupRows) {
         const memberRows = await queryAll<any>(
-          `SELECT gm.*, f.name as friend_name, f.phone as friend_phone, f.pix_key as friend_pix, f.color as friend_color, f.has_account as friend_has_account
+          `SELECT gm.*, f.name as friend_name, f.phone as friend_phone, f.pix_key as friend_pix, f.color as friend_color, f.avatar_url as friend_avatar, f.has_account as friend_has_account
            FROM group_members gm
            LEFT JOIN friends f ON f.id = gm.friend_id
            WHERE gm.group_id = ?`,
@@ -1288,6 +1314,7 @@ export const dbService = {
                 name: session?.name || 'Você',
                 pix_key: session?.pix_key || '',
                 phone: session?.phone || '',
+                avatar_url: session?.avatar_url || null,
               }
             : null,
           friend: m.friend_id
@@ -1297,6 +1324,7 @@ export const dbService = {
                 phone: m.friend_phone || '',
                 pix_key: m.friend_pix || '',
                 color: m.friend_color || 'bg-sky-500',
+                avatar_url: m.friend_avatar || null,
                 has_account: Boolean(m.friend_has_account),
               }
             : null,
@@ -1308,6 +1336,7 @@ export const dbService = {
         result.push({
           id: g.id,
           name: g.name,
+          avatar_url: g.avatar_url || null,
           created_by: g.created_by,
           created_at: g.created_at,
           members,
@@ -1321,18 +1350,19 @@ export const dbService = {
       return result;
     },
 
-    create: async (nameOrPayload: string | { name: string; friendIds?: string[] }): Promise<Grupo> => {
+    create: async (nameOrPayload: string | { name: string; friendIds?: string[]; avatar_url?: string | null }): Promise<Grupo> => {
       const session = await queryOne<any>('SELECT * FROM auth_session WHERE id = 1');
       const id = generateUUID();
       const name = typeof nameOrPayload === 'string' ? nameOrPayload.trim() : nameOrPayload.name.trim();
       const friendIds =
         typeof nameOrPayload === 'string' ? [] : Array.from(new Set(nameOrPayload.friendIds || []));
+      const avatarUrl = typeof nameOrPayload === 'string' ? null : nameOrPayload.avatar_url || null;
       const createdAt = new Date().toISOString();
       const userId = session?.user_id || 'me';
 
       await runSQL(
-        `INSERT INTO groups_table (id, name, created_by, created_at, synced) VALUES (?, ?, ?, ?, 0)`,
-        [id, name, userId, createdAt],
+        `INSERT INTO groups_table (id, name, avatar_url, created_by, created_at, synced) VALUES (?, ?, ?, ?, ?, 0)`,
+        [id, name, avatarUrl, userId, createdAt],
         false
       );
 
@@ -1352,18 +1382,27 @@ export const dbService = {
 
       await flushSQLite();
 
-      await enqueueSync('group', 'create', id, { id, name, friendIds });
+      await enqueueSync('group', 'create', id, { id, name, friendIds, avatar_url: avatarUrl });
       syncWithBackend(false).catch(() => {});
 
       return dbService.grupos.getById(id);
     },
 
-    update: async (id: string, data: { name?: string; friendIds?: string[] }): Promise<Grupo> => {
+    update: async (id: string, data: { name?: string; friendIds?: string[]; avatar_url?: string | null }): Promise<Grupo> => {
       const session = await queryOne<any>('SELECT * FROM auth_session WHERE id = 1');
       const userId = session?.user_id || 'me';
+      const existingGroup = await queryOne<any>('SELECT * FROM groups_table WHERE id = ?', [id]);
+      const isCreator =
+        !existingGroup?.created_by ||
+        existingGroup.created_by === userId ||
+        existingGroup.created_by === 'me';
 
       if (data.name !== undefined && data.name.trim()) {
         await runSQL('UPDATE groups_table SET name = ?, synced = 0 WHERE id = ?', [data.name.trim(), id], false);
+      }
+
+      if (data.avatar_url !== undefined && isCreator) {
+        await runSQL('UPDATE groups_table SET avatar_url = ?, synced = 0 WHERE id = ?', [data.avatar_url || null, id], false);
       }
 
       if (Array.isArray(data.friendIds)) {
@@ -1384,7 +1423,11 @@ export const dbService = {
       }
 
       await flushSQLite();
-      await enqueueSync('group', 'update', id, data);
+      const syncPayload = { ...data };
+      if (!isCreator) {
+        delete syncPayload.avatar_url;
+      }
+      await enqueueSync('group', 'update', id, syncPayload);
       syncWithBackend(false).catch(() => {});
 
       return dbService.grupos.getById(id);
@@ -1465,7 +1508,7 @@ export const dbService = {
       const ownerKey = `user:${ownerId}`;
 
       const memberRows = await queryAll<any>(
-        `SELECT gm.*, f.name as friend_name, f.phone as friend_phone, f.pix_key as friend_pix, f.color as friend_color
+        `SELECT gm.*, f.name as friend_name, f.phone as friend_phone, f.pix_key as friend_pix, f.color as friend_color, f.avatar_url as friend_avatar
          FROM group_members gm
          LEFT JOIN friends f ON f.id = gm.friend_id
          WHERE gm.group_id = ?`,
@@ -1474,7 +1517,15 @@ export const dbService = {
 
       const entityMeta: Record<
         string,
-        { id: string; name: string; phone?: string | null; pix_key?: string | null; color: string; isOwner?: boolean }
+        {
+          id: string;
+          name: string;
+          phone?: string | null;
+          pix_key?: string | null;
+          color: string;
+          avatar_url?: string | null;
+          isOwner?: boolean;
+        }
       > = {
         [ownerKey]: {
           id: ownerId,
@@ -1482,6 +1533,7 @@ export const dbService = {
           phone: session?.phone || '',
           pix_key: session?.pix_key || '',
           color: 'bg-[#2DD4BF]',
+          avatar_url: session?.avatar_url || null,
           isOwner: true,
         },
       };
@@ -1494,6 +1546,7 @@ export const dbService = {
             name: session?.name || 'Você',
             pix_key: session?.pix_key || '',
             phone: session?.phone || '',
+            avatar_url: session?.avatar_url || null,
           },
           friend: null,
         },
@@ -1507,6 +1560,7 @@ export const dbService = {
             phone: m.friend_phone || '',
             pix_key: m.friend_pix || '',
             color: m.friend_color || 'bg-sky-500',
+            avatar_url: m.friend_avatar || null,
           };
           members.push({
             id: m.id,
@@ -1517,13 +1571,14 @@ export const dbService = {
               phone: m.friend_phone || '',
               pix_key: m.friend_pix || '',
               color: m.friend_color || 'bg-sky-500',
+              avatar_url: m.friend_avatar || null,
             },
           });
         }
       }
 
       const expRows = await queryAll<any>(
-        `SELECT e.*, f.name as payer_friend_name, f.color as payer_friend_color, f.pix_key as payer_friend_pix, f.phone as payer_friend_phone
+        `SELECT e.*, f.name as payer_friend_name, f.color as payer_friend_color, f.pix_key as payer_friend_pix, f.phone as payer_friend_phone, f.avatar_url as payer_friend_avatar
          FROM expenses e
          LEFT JOIN friends f ON f.id = e.paid_by_friend_id
          WHERE e.group_id = ?
@@ -1553,7 +1608,7 @@ export const dbService = {
 
       for (const exp of expRows) {
         const parts = await queryAll<any>(
-          `SELECT ep.*, f.name as friend_name, f.color as friend_color, f.phone as friend_phone, f.pix_key as friend_pix
+          `SELECT ep.*, f.name as friend_name, f.color as friend_color, f.phone as friend_phone, f.pix_key as friend_pix, f.avatar_url as friend_avatar
            FROM expense_participants ep
            LEFT JOIN friends f ON f.id = ep.friend_id
            WHERE ep.expense_id = ?`,
@@ -1568,6 +1623,7 @@ export const dbService = {
               phone: p.friend_phone || '',
               pix_key: p.friend_pix || '',
               color: p.friend_color || 'bg-sky-500',
+              avatar_url: p.friend_avatar || null,
             };
             netBalances[p.friend_id] = 0;
             memberPendingCount[p.friend_id] = 0;
@@ -1594,6 +1650,7 @@ export const dbService = {
               phone: exp.payer_friend_phone || '',
               pix_key: exp.payer_friend_pix || '',
               color: exp.payer_friend_color || 'bg-purple-500',
+              avatar_url: exp.payer_friend_avatar || null,
             };
           }
 
@@ -1648,6 +1705,7 @@ export const dbService = {
           phone: meta.phone,
           pix_key: meta.pix_key,
           color: meta.color,
+          avatar_url: meta.avatar_url || null,
           netBalance: Number((netBalances[key] || 0).toFixed(2)),
           owesYou: Number((memberOwesOwner[key] || 0).toFixed(2)),
           pendingCount: memberPendingCount[key] || 0,
@@ -1656,6 +1714,7 @@ export const dbService = {
       return {
         id: g.id,
         name: g.name,
+        avatar_url: g.avatar_url || null,
         created_by: g.created_by,
         created_at: g.created_at,
         members,
@@ -2082,12 +2141,13 @@ export const dbService = {
           const { data: me } = await api.get('/auth/me');
           if (me && me.id) {
             await runSQL(
-              `UPDATE auth_session SET name = ?, email = ?, phone = ?, pix_key = ?, updated_at = ? WHERE id = 1`,
+              `UPDATE auth_session SET name = ?, email = ?, phone = ?, pix_key = ?, avatar_url = ?, updated_at = ? WHERE id = 1`,
               [
                 me.name || row.name || '',
                 me.email || row.email || '',
                 stripCountryCode(me.phone || row.phone || ''),
                 me.pix_key || '',
+                me.avatar_url !== undefined ? me.avatar_url || null : row.avatar_url || null,
                 new Date().toISOString(),
               ]
             );
@@ -2108,6 +2168,7 @@ export const dbService = {
           telefone: row.phone || '',
           pix_key: row.pix_key || '',
           pix: row.pix_key || '',
+          avatar_url: row.avatar_url || null,
           notificacoes: true,
         };
       }
@@ -2119,19 +2180,21 @@ export const dbService = {
         telefone: '',
         pix_key: '',
         pix: '',
+        avatar_url: null,
         notificacoes: true,
       };
     },
 
-    save: async (config: { nome?: string; name?: string; pix?: string; pix_key?: string; phone?: string }) => {
+    save: async (config: { nome?: string; name?: string; pix?: string; pix_key?: string; phone?: string; avatar_url?: string | null }) => {
       return dbService.auth.updateProfile({
         name: config.name ?? config.nome,
         pix_key: config.pix_key ?? config.pix,
         phone: config.phone,
+        avatar_url: config.avatar_url,
       });
     },
 
-    updateProfile: async (data: { name?: string; phone?: string; pix_key?: string }) => {
+    updateProfile: async (data: { name?: string; phone?: string; pix_key?: string; avatar_url?: string | null }) => {
       return dbService.auth.updateProfile(data);
     },
 

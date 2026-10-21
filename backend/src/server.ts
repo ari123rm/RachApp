@@ -7,8 +7,21 @@ import financesRoutes from './routes/Financies.routes';
 import friendRoutes from './routes/Friend.routes';
 
 import { PORT } from './config/env';
+import { prisma } from './config/db';
 
 const app = express();
+
+// Garante que as colunas de avatar existam mesmo antes de rodar migração manual
+async function ensureAvatarColumns() {
+  try {
+    await prisma.$executeRawUnsafe(`ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "avatar_url" TEXT;`);
+    await prisma.$executeRawUnsafe(`ALTER TABLE "Friend" ADD COLUMN IF NOT EXISTS "avatar_url" TEXT;`);
+    await prisma.$executeRawUnsafe(`ALTER TABLE "Group" ADD COLUMN IF NOT EXISTS "avatar_url" TEXT;`);
+  } catch (err) {
+    console.warn('Aviso ao verificar colunas de avatar:', err);
+  }
+}
+ensureAvatarColumns();
 
 app.use(helmet());
 app.use(

@@ -28,6 +28,7 @@ function formatDateIso(d: Date): string {
 export function Viagens({ onDataChange, dataVersion }: { onDataChange?: () => void; dataVersion?: number }) {
   const [corridas, setCorridas] = useState<Corrida[]>([]);
   const [amigos, setAmigos] = useState<Amigo[]>([]);
+  const [myAvatarUrl, setMyAvatarUrl] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [corridaSelecionadaId, setCorridaSelecionadaId] = useState<string | null>(null);
 
@@ -47,12 +48,14 @@ export function Viagens({ onDataChange, dataVersion }: { onDataChange?: () => vo
   const carregarDados = async (showLoading = isFirstLoadRef.current) => {
     if (showLoading) setIsLoading(true);
     try {
-      const [listaCorridas, listaAmigos] = await Promise.all([
+      const [listaCorridas, listaAmigos, sessionUser] = await Promise.all([
         dbService.corridas.getAll(),
         dbService.amigos.getAll(),
+        dbService.auth.getSessionUser(),
       ]);
       setCorridas(listaCorridas);
       setAmigos(listaAmigos);
+      setMyAvatarUrl(sessionUser?.avatar_url || null);
     } catch (error) {
       console.error('Erro ao carregar viagens:', error);
     } finally {
@@ -604,11 +607,12 @@ export function Viagens({ onDataChange, dataVersion }: { onDataChange?: () => vo
                       titulo={corrida.titulo}
                       valorTotal={moneyConverter(corrida.valorTotal)}
                       participantes={[
-                        { id: 0, nome: 'Você', cor: '#2DD4BF' },
+                        { id: 0, nome: 'Você', cor: '#2DD4BF', avatar_url: myAvatarUrl },
                         ...getParticipantesCompletos(corrida.participantesIds).map((a, idx) => ({
                           id: a.id || idx + 1,
                           nome: a.nome || 'Amigo',
                           cor: a.cor || '#0ea5e9',
+                          avatar_url: a.avatar_url || null,
                         })),
                       ]}
                       onClick={() => setCorridaSelecionadaId(corrida.id)}

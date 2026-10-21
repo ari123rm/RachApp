@@ -1,5 +1,5 @@
 // src/components/Perfil.tsx
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   User,
   Sparkles,
@@ -15,31 +15,52 @@ import {
   RefreshCw,
   ChevronRight,
   Check,
+  Pencil,
+  Camera,
+  X,
 } from 'lucide-react';
 import { dbService } from '../services/database';
 import { PixModal } from './PixModal';
 import { ChangePasswordScreen } from './ChangePasswordScreen';
 import { formatPhoneBR, isValidPhoneBR } from '../utils/phoneFormatter';
+import { compressAvatarImage } from '../utils/modalBackHandler';
 import type { SyncStatus } from '../types';
 import { getCurrentAppVersion, checkAppUpdate, triggerApkDownload, type AppReleaseInfo } from '../services/updateService';
 
 interface PerfilProps {
+  dataVersion?: number;
   onDataChange: () => void;
+  onProfileChange?: () => void;
   updateInfo?: AppReleaseInfo | null;
   onOpenUpdateModal?: () => void;
   onUpdateDetected?: (info: AppReleaseInfo) => void;
 }
 
-export function Perfil({ onDataChange, updateInfo, onOpenUpdateModal, onUpdateDetected }: PerfilProps) {
+export function Perfil({
+  dataVersion,
+  onDataChange,
+  onProfileChange,
+  updateInfo,
+  onOpenUpdateModal,
+  onUpdateDetected,
+}: PerfilProps) {
   const [currentVersion, setCurrentVersion] = useState('');
   const [manualUpdateInfo, setManualUpdateInfo] = useState<AppReleaseInfo | null>(updateInfo || null);
   const [isCheckingUpdate, setIsCheckingUpdate] = useState(false);
   const [isDownloadingApk, setIsDownloadingApk] = useState(false);
   const [downloadMsg, setDownloadMsg] = useState('');
+
   const [nome, setNome] = useState('');
   const [telefone, setTelefone] = useState('');
   const [email, setEmail] = useState('');
   const [pix, setPix] = useState('');
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+
+  const [savedDados, setSavedDados] = useState({ nome: '', telefone: '', pix: '' });
+  const [isEditingDados, setIsEditingDados] = useState(false);
+  const [showPhotoActions, setShowPhotoActions] = useState(false);
+  const [isSavingPhoto, setIsSavingPhoto] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const [isLoading, setIsLoading] = useState(true);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
@@ -54,14 +75,19 @@ export function Perfil({ onDataChange, updateInfo, onOpenUpdateModal, onUpdateDe
 
   useEffect(() => {
     const carregarPerfil = async () => {
-      setIsLoading(true);
       try {
         getCurrentAppVersion().then((v) => setCurrentVersion(v)).catch(() => {});
         const user = await dbService.settings.get();
-        setNome(user.name || user.nome || '');
-        setTelefone(formatPhoneBR(user.phone || user.telefone || ''));
+        const loadedNome = user.name || user.nome || '';
+        const loadedTel = formatPhoneBR(user.phone || user.telefone || '');
+        const loadedPix = user.pix_key || user.pix || '';
+
+        setNome(loadedNome);
+        setTelefone(loadedTel);
         setEmail(user.email || '');
-        setPix(user.pix_key || user.pix || '');
+        setPix(loadedPix);
+        setAvatarUrl(user.avatar_url || null);
+        setSavedDados({ nome: loadedNome, telefone: loadedTel, pix: loadedPix });
       } finally {
         setIsLoading(false);
       }
@@ -70,7 +96,59 @@ export function Perfil({ onDataChange, updateInfo, onOpenUpdateModal, onUpdateDe
 
     const unsub = dbService.sync.subscribe((st) => setSyncStatus(st));
     return () => unsub();
-  }, []);
+  }, [dataVersion]);
+
+  const handlePhotoPencilClick = () => {
+    if (!avatarUrl) {
+      fileInputRef.current?.click();
+    } else {
+      setShowPhotoActions((prev) => !prev);
+    }
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+
+    setIsSavingPhoto(true);
+    setShowPhotoActions(false);
+    try {
+      const compressedDataUrl = await compressAvatarImage(file, 320, 0.82);
+      setAvatarUrl(compressedDataUrl);
+      await dbService.auth.updateProfile({ avatar_url: compressedDataUrl });
+      onProfileChange?.();
+    } catch {
+      alert('Não foi possível processar esta imagem. Tente outra foto.');
+    } finally {
+      setIsSavingPhoto(false);
+    }
+  };
+
+  const handleRemoverFoto = async () => {
+    setIsSavingPhoto(true);
+    setShowPhotoActions(false);
+    try {
+      setAvatarUrl(null);
+      await dbService.auth.updateProfile({ avatar_url: null });
+      onProfileChange?.();
+    } catch {
+      alert('Erro ao remover foto de perfil.');
+    } finally {
+      setIsSavingPhoto(false);
+    }
+  };
+
+  const handleToggleEditDados = () => {
+    if (isEditingDados) {
+      setNome(savedDados.nome);
+      setTelefone(savedDados.telefone);
+      setPix(savedDados.pix);
+      setIsEditingDados(false);
+    } else {
+      setIsEditingDados(true);
+    }
+  };
 
   const handleSalvarPerfil = async () => {
     if (!nome.trim()) return alert('O nome não pode ficar vazio.');
@@ -80,13 +158,21 @@ export function Perfil({ onDataChange, updateInfo, onOpenUpdateModal, onUpdateDe
 
     setIsSavingProfile(true);
     try {
+      const formattedPhone = formatPhoneBR(telefone);
       await dbService.auth.updateProfile({
         name: nome.trim(),
-        phone: formatPhoneBR(telefone),
+        phone: formattedPhone,
         pix_key: pix.trim(),
       });
+      setSavedDados({
+        nome: nome.trim(),
+        telefone: formattedPhone,
+        pix: pix.trim(),
+      });
+      setIsEditingDados(false);
+      onProfileChange?.();
       alert('Dados do perfil atualizados com sucesso!');
-    } catch (error) {
+    } catch {
       alert('Erro ao atualizar perfil.');
     } finally {
       setIsSavingProfile(false);
@@ -108,43 +194,146 @@ export function Perfil({ onDataChange, updateInfo, onOpenUpdateModal, onUpdateDe
     );
   }
 
+  const userInitial = (nome || 'U').trim().charAt(0).toUpperCase();
+
   return (
     <div className="space-y-6 pb-20">
-      <header className="mt-2">
-        <h1 className="text-3xl font-bold text-white mb-1">Seu Perfil</h1>
-        <p className="text-gray-500 text-sm">
-          Gerencie seus dados de cobrança Pix e segurança da conta
-        </p>
-      </header>
+      {/* Cabeçalho com Foto de Perfil Grande Centralizada e Nome embaixo */}
+      <div className="flex flex-col items-center pt-4 pb-2">
+        <div className="relative">
+          <div
+            onClick={handlePhotoPencilClick}
+            className="w-28 h-28 rounded-full overflow-hidden bg-[#1c1c1e] border-2 border-[#2DD4BF]/40 shadow-xl shadow-black/40 flex items-center justify-center cursor-pointer relative group"
+          >
+            {avatarUrl ? (
+              <img
+                src={avatarUrl}
+                alt={nome || 'Foto de Perfil'}
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <div className="w-full h-full bg-gradient-to-br from-[#2DD4BF]/25 to-[#1c1c1e] flex items-center justify-center text-[#2DD4BF] text-4xl font-extrabold select-none">
+                {userInitial}
+              </div>
+            )}
 
-      {/* Dados do Perfil e Chave Pix */}
+            {isSavingPhoto && (
+              <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
+                <LoaderCircle size={28} className="animate-spin text-[#2DD4BF]" />
+              </div>
+            )}
+          </div>
+
+          {/* Lapizinho ao lado da foto */}
+          <button
+            type="button"
+            onClick={handlePhotoPencilClick}
+            title="Editar foto de perfil"
+            className="absolute bottom-0 right-0 w-9 h-9 rounded-full bg-[#2DD4BF] hover:bg-[#25b5a3] text-[#05080f] shadow-lg flex items-center justify-center border-2 border-[#05080f] transition-transform active:scale-90"
+          >
+            <Pencil size={15} className="stroke-[2.5px]" />
+          </button>
+
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            onChange={handleFileChange}
+            className="hidden"
+          />
+        </div>
+
+        {/* Menu rápido para trocar ou remover foto quando já possui foto */}
+        {showPhotoActions && (
+          <div className="mt-3 flex items-center gap-2 bg-[#1c1c1e] border border-white/10 p-1.5 rounded-2xl shadow-lg animate-fade-in">
+            <button
+              type="button"
+              onClick={() => {
+                setShowPhotoActions(false);
+                fileInputRef.current?.click();
+              }}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#2DD4BF]/15 text-[#2DD4BF] hover:bg-[#2DD4BF]/25 text-xs font-bold transition-colors"
+            >
+              <Camera size={14} />
+              Trocar foto
+            </button>
+            {avatarUrl && (
+              <button
+                type="button"
+                onClick={handleRemoverFoto}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-red-500/15 text-red-400 hover:bg-red-500/25 text-xs font-bold transition-colors"
+              >
+                <Trash2 size={14} />
+                Remover foto
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => setShowPhotoActions(false)}
+              className="p-1.5 text-gray-400 hover:text-white rounded-lg"
+            >
+              <X size={14} />
+            </button>
+          </div>
+        )}
+
+        <h1 className="text-2xl font-bold text-white mt-3 text-center break-words max-w-xs">
+          {nome || 'Seu Perfil'}
+        </h1>
+        {email && <p className="text-gray-500 text-xs mt-0.5">{email}</p>}
+      </div>
+
+      {/* Dados Públicos e Chave Pix (Somente editável ao clicar no lapizinho) */}
       <section className="bg-[#1c1c1e] rounded-3xl p-5 border border-white/5 space-y-4">
-        <div className="flex justify-between items-center">
+        <div className="flex justify-between items-center gap-2">
           <h2 className="text-white font-semibold flex items-center gap-2">
             <ShieldCheck size={20} className="text-[#2DD4BF]" />
             Dados Públicos e Pix
           </h2>
-          {pix && (
+          <div className="flex items-center gap-2">
+            {pix && (
+              <button
+                type="button"
+                onClick={() => setIsPixPreviewOpen(true)}
+                className="text-xs bg-[#2DD4BF]/15 text-[#2DD4BF] hover:bg-[#2DD4BF]/25 px-3 py-1.5 rounded-full font-bold flex items-center gap-1"
+              >
+                <QrCode size={13} /> Testar QR Pix
+              </button>
+            )}
             <button
-              onClick={() => setIsPixPreviewOpen(true)}
-              className="text-xs bg-[#2DD4BF]/15 text-[#2DD4BF] hover:bg-[#2DD4BF]/25 px-3 py-1.5 rounded-full font-bold flex items-center gap-1"
+              type="button"
+              onClick={handleToggleEditDados}
+              title={isEditingDados ? 'Cancelar edição' : 'Editar dados públicos'}
+              className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${
+                isEditingDados
+                  ? 'bg-[#2DD4BF] text-[#05080f]'
+                  : 'bg-[#2c2c2e] text-gray-300 hover:text-white hover:bg-white/10'
+              }`}
             >
-              <QrCode size={13} /> Testar QR Pix
+              {isEditingDados ? <X size={15} /> : <Pencil size={15} />}
             </button>
-          )}
+          </div>
         </div>
 
         <div>
           <label className="block text-gray-400 text-xs mb-1.5 uppercase font-bold tracking-wider">
             Seu Nome
           </label>
-          <div className="bg-[#2c2c2e] rounded-xl p-3 flex items-center text-white focus-within:ring-1 focus-within:ring-[#2DD4BF]">
-            <User size={18} className="text-gray-400 mr-3" />
+          <div
+            className={`bg-[#2c2c2e] rounded-xl p-3 flex items-center text-white transition-all ${
+              isEditingDados
+                ? 'ring-1 ring-[#2DD4BF]/40 focus-within:ring-[#2DD4BF]'
+                : 'opacity-70'
+            }`}
+          >
+            <User size={18} className="text-gray-400 mr-3 shrink-0" />
             <input
               type="text"
               value={nome}
+              disabled={!isEditingDados}
+              readOnly={!isEditingDados}
               onChange={(e) => setNome(e.target.value)}
-              className="bg-transparent w-full outline-none text-white"
+              className="bg-transparent w-full outline-none text-white disabled:cursor-default"
             />
           </div>
         </div>
@@ -153,14 +342,22 @@ export function Perfil({ onDataChange, updateInfo, onOpenUpdateModal, onUpdateDe
           <label className="block text-gray-400 text-xs mb-1.5 uppercase font-bold tracking-wider">
             Seu WhatsApp (com DDD)
           </label>
-          <div className="bg-[#2c2c2e] rounded-xl p-3 flex items-center text-white focus-within:ring-1 focus-within:ring-[#2DD4BF]">
-            <Phone size={18} className="text-gray-400 mr-3" />
+          <div
+            className={`bg-[#2c2c2e] rounded-xl p-3 flex items-center text-white transition-all ${
+              isEditingDados
+                ? 'ring-1 ring-[#2DD4BF]/40 focus-within:ring-[#2DD4BF]'
+                : 'opacity-70'
+            }`}
+          >
+            <Phone size={18} className="text-gray-400 mr-3 shrink-0" />
             <input
               type="tel"
               value={telefone}
+              disabled={!isEditingDados}
+              readOnly={!isEditingDados}
               onChange={(e) => setTelefone(formatPhoneBR(e.target.value))}
               placeholder="(85) 99999-8888"
-              className="bg-transparent w-full outline-none text-white"
+              className="bg-transparent w-full outline-none text-white disabled:cursor-default"
             />
           </div>
         </div>
@@ -169,30 +366,51 @@ export function Perfil({ onDataChange, updateInfo, onOpenUpdateModal, onUpdateDe
           <label className="block text-gray-400 text-xs mb-1.5 uppercase font-bold tracking-wider">
             Sua Chave Pix Principal
           </label>
-          <div className="bg-[#2c2c2e] rounded-xl p-3 flex items-center text-white focus-within:ring-1 focus-within:ring-[#2DD4BF]">
-            <QrCode size={18} className="text-gray-400 mr-3" />
+          <div
+            className={`bg-[#2c2c2e] rounded-xl p-3 flex items-center text-white transition-all ${
+              isEditingDados
+                ? 'ring-1 ring-[#2DD4BF]/40 focus-within:ring-[#2DD4BF]'
+                : 'opacity-70'
+            }`}
+          >
+            <QrCode size={18} className="text-gray-400 mr-3 shrink-0" />
             <input
               type="text"
               value={pix}
+              disabled={!isEditingDados}
+              readOnly={!isEditingDados}
               onChange={(e) => setPix(e.target.value)}
               placeholder="CPF, E-mail, Celular ou Chave Aleatória"
-              className="bg-transparent w-full outline-none text-white"
+              className="bg-transparent w-full outline-none text-white disabled:cursor-default"
             />
           </div>
         </div>
 
-        <button
-          onClick={handleSalvarPerfil}
-          disabled={isSavingProfile}
-          className="w-full bg-[#2DD4BF] hover:bg-[#25b5a3] text-[#05080f] font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 disabled:opacity-50 transition-colors"
-        >
-          {isSavingProfile ? (
-            <LoaderCircle className="animate-spin" size={20} />
-          ) : (
-            <Save size={20} />
-          )}{' '}
-          Salvar Dados
-        </button>
+        {isEditingDados && (
+          <div className="flex items-center gap-2 pt-1">
+            <button
+              type="button"
+              onClick={handleToggleEditDados}
+              disabled={isSavingProfile}
+              className="flex-1 bg-[#2c2c2e] hover:bg-gray-700 text-gray-300 font-semibold py-3.5 rounded-xl transition-colors"
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              onClick={handleSalvarPerfil}
+              disabled={isSavingProfile}
+              className="flex-[2] bg-[#2DD4BF] hover:bg-[#25b5a3] text-[#05080f] font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 disabled:opacity-50 transition-colors"
+            >
+              {isSavingProfile ? (
+                <LoaderCircle className="animate-spin" size={20} />
+              ) : (
+                <Save size={20} />
+              )}{' '}
+              Salvar Dados
+            </button>
+          </div>
+        )}
       </section>
 
       {/* Status de Sincronização na Nuvem */}
@@ -267,16 +485,16 @@ export function Perfil({ onDataChange, updateInfo, onOpenUpdateModal, onUpdateDe
           </div>
           <span
             className={`text-xs px-2.5 py-1 rounded-full font-bold flex items-center gap-1 ${
-              (manualUpdateInfo?.isNewer || updateInfo?.isNewer)
+              manualUpdateInfo?.isNewer || updateInfo?.isNewer
                 ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
                 : 'bg-[#2DD4BF]/15 text-[#2DD4BF] border border-[#2DD4BF]/30'
             }`}
           >
-            {(manualUpdateInfo?.isNewer || updateInfo?.isNewer) ? 'Atualização disponível' : 'Mais recente'}
+            {manualUpdateInfo?.isNewer || updateInfo?.isNewer ? 'Atualização disponível' : 'Mais recente'}
           </span>
         </div>
 
-        {(manualUpdateInfo?.isNewer || updateInfo?.isNewer) ? (
+        {manualUpdateInfo?.isNewer || updateInfo?.isNewer ? (
           <div className="bg-[#2c2c2e] p-4 rounded-2xl border border-amber-500/30 space-y-3">
             <div className="flex items-center justify-between gap-2">
               <div>

@@ -701,13 +701,14 @@ export class ExpenseService {
 
     const entityMeta: Record<
       string,
-      { id: string; name: string; phone?: string | null; pix_key?: string | null; color: string; isOwner?: boolean }
+      { id: string; name: string; phone?: string | null; pix_key?: string | null; avatar_url?: string | null; color: string; isOwner?: boolean }
     > = {
       [ownerKey]: {
         id: effectiveUserId,
         name: currentUser?.name || group.owner?.name || 'Você',
         phone: currentUser?.phone || group.owner?.phone,
         pix_key: currentUser?.pix_key || group.owner?.pix_key,
+        avatar_url: (currentUser as any)?.avatar_url || (group.owner as any)?.avatar_url || null,
         color: 'bg-[#2DD4BF]',
         isOwner: true,
       },
@@ -720,6 +721,7 @@ export class ExpenseService {
         name: ownerLocal.name,
         phone: ownerLocal.phone,
         pix_key: ownerLocal.pix_key,
+        avatar_url: (ownerLocal as any).avatar_url || (group.owner as any).avatar_url || null,
         color: ownerLocal.color || 'bg-teal-500',
       };
     }
@@ -729,7 +731,7 @@ export class ExpenseService {
         for (const m of group.members) {
       const friendObj = m.friend;
       if (friendObj && !reverseSet.has(friendObj.id)) {
-        const localMatch =
+        const localMatch: any =
           group.created_by === effectiveUserId
             ? friendObj
             : (friendObj.phone
@@ -740,6 +742,7 @@ export class ExpenseService {
           name: localMatch.name,
           phone: localMatch.phone,
           pix_key: localMatch.pix_key,
+          avatar_url: localMatch.avatar_url || (friendObj as any).avatar_url || null,
           color: localMatch.color || 'bg-sky-500',
         };
       }
@@ -848,6 +851,7 @@ export class ExpenseService {
         name: meta.name,
         phone: meta.phone,
         pix_key: meta.pix_key,
+        avatar_url: meta.avatar_url || null,
         color: meta.color,
         netBalance: Number((netBalances[key] || 0).toFixed(2)),
         owesYou: Number((memberOwesOwner[key] || 0).toFixed(2)),
@@ -1027,9 +1031,10 @@ export class ExpenseService {
       select: {
         id: true,
         name: true,
+        avatar_url: true,
         created_by: true,
         created_at: true,
-      },
+      } as any,
       orderBy: { created_at: 'desc' },
     });
 

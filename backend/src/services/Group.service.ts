@@ -32,6 +32,7 @@ export class GroupService {
                 name: currentUser.name,
                 pix_key: currentUser.pix_key,
                 phone: currentUser.phone,
+                avatar_url: (currentUser as any).avatar_url || null,
               }
             : null,
           friend: null,
@@ -59,6 +60,7 @@ export class GroupService {
             id: m.friend.id,
             name: m.friend.name,
             phone: m.friend.phone,
+            avatar_url: m.friend.avatar_url || null,
             color: m.friend.color || 'bg-sky-500',
           };
           if (!seenFriendIds.has(memberFriend.id)) {
@@ -99,7 +101,7 @@ export class GroupService {
 
   static async createGroup(
     userId: string,
-    data: { id?: string; name: string; friendIds?: string[] }
+    data: { id?: string; name: string; friendIds?: string[]; avatar_url?: string | null }
   ) {
     const name = data.name?.trim();
     if (!name) throw new Error('O nome do grupo é obrigatório.');
@@ -109,12 +111,12 @@ export class GroupService {
     if (data.id) {
       const existing = await prisma.group.findUnique({ where: { id: data.id } });
       if (existing && existing.created_by === userId) {
-        return this.updateGroup(userId, data.id, { name, friendIds });
+        return this.updateGroup(userId, data.id, { name, friendIds, avatar_url: data.avatar_url });
       }
     }
 
     const allUsers = await prisma.user.findMany({
-      select: { id: true, name: true, phone: true, pix_key: true },
+      select: { id: true, name: true, phone: true, pix_key: true, avatar_url: true } as any,
     });
     const friends = await prisma.friend.findMany({
       where: { id: { in: friendIds }, user_id: userId },
@@ -125,7 +127,7 @@ export class GroupService {
     for (const friendId of friendIds) {
       const f = friends.find((x) => x.id === friendId);
       const regUser = f?.phone
-        ? allUsers.find((u) => u.id !== userId && phonesMatch(u.phone, f.phone))
+        ? (allUsers as any[]).find((u) => u.id !== userId && phonesMatch(u.phone, f.phone))
         : null;
 
       if (regUser) {
@@ -148,16 +150,17 @@ export class GroupService {
       data: {
         ...(data.id ? { id: data.id } : {}),
         name,
+        avatar_url: data.avatar_url || null,
         created_by: userId,
         members: {
           create: memberCreates,
         },
-      },
+      } as any,
       include: {
-        owner: { select: { id: true, name: true, pix_key: true, phone: true } },
+        owner: { select: { id: true, name: true, pix_key: true, phone: true, avatar_url: true } as any },
         members: {
           include: {
-            user: { select: { id: true, name: true, pix_key: true, phone: true } },
+            user: { select: { id: true, name: true, pix_key: true, phone: true, avatar_url: true } as any },
             friend: true,
           },
         },
@@ -181,16 +184,16 @@ export class GroupService {
         ],
       },
       include: {
-        owner: { select: { id: true, name: true, pix_key: true, phone: true } },
+        owner: { select: { id: true, name: true, pix_key: true, phone: true, avatar_url: true } as any },
         members: {
           include: {
-            user: { select: { id: true, name: true, pix_key: true, phone: true } },
+            user: { select: { id: true, name: true, pix_key: true, phone: true, avatar_url: true } as any },
             friend: true,
           },
         },
         expenses: {
           include: {
-            owner: { select: { id: true, name: true, pix_key: true, phone: true } },
+            owner: { select: { id: true, name: true, pix_key: true, phone: true, avatar_url: true } as any },
             participants: { include: { friend: true } },
             paidByFriend: true,
           },
@@ -229,13 +232,14 @@ export class GroupService {
       orderBy: { id: 'desc' },
     });
 
-    return invitations.map((inv) => ({
+    return invitations.map((inv: any) => ({
       id: inv.id,
       group_id: inv.group_id,
       status: inv.status,
       group: {
         id: inv.group.id,
         name: inv.group.name,
+        avatar_url: inv.group.avatar_url || null,
         creator_name: inv.group.owner?.name || 'Amigo',
         members_count: inv.group._count.members,
         expenses_count: inv.group._count.expenses,
@@ -380,7 +384,7 @@ export class GroupService {
   static async updateGroup(
     userId: string,
     groupId: string,
-    data: { name?: string; friendIds?: string[] }
+    data: { name?: string; friendIds?: string[]; avatar_url?: string | null }
   ) {
     const group = await prisma.group.findFirst({
       where: {
@@ -393,10 +397,18 @@ export class GroupService {
     });
     if (!group) throw new Error('Grupo não encontrado.');
 
+    const updateData: any = {};
     if (data.name !== undefined && data.name.trim()) {
+      updateData.name = data.name.trim();
+    }
+    if (data.avatar_url !== undefined && group.created_by === userId) {
+      updateData.avatar_url = data.avatar_url || null;
+    }
+
+    if (Object.keys(updateData).length > 0) {
       await prisma.group.update({
         where: { id: groupId },
-        data: { name: data.name.trim() },
+        data: updateData,
       });
     }
 
@@ -581,17 +593,17 @@ export class GroupService {
     const group = await prisma.group.findUnique({
       where: { id: groupId },
       include: {
-        owner: { select: { id: true, name: true, pix_key: true, phone: true } },
+        owner: { select: { id: true, name: true, pix_key: true, phone: true, avatar_url: true } as any },
         members: {
           include: {
-            user: { select: { id: true, name: true, pix_key: true, phone: true } },
+            user: { select: { id: true, name: true, pix_key: true, phone: true, avatar_url: true } as any },
             friend: true,
           },
         },
         expenses: {
           orderBy: { expense_date: 'desc' },
           include: {
-            owner: { select: { id: true, name: true, pix_key: true, phone: true } },
+            owner: { select: { id: true, name: true, pix_key: true, phone: true, avatar_url: true } as any },
             paidByFriend: true,
             participants: {
               include: {

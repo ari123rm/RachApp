@@ -6,7 +6,7 @@ interface RideProps {
   tag: string;
   titulo: string;
   valorTotal: string;
-  participantes: { id: number | string; nome: string; cor: string }[];
+  participantes: { id: number | string; nome: string; cor: string; avatar_url?: string | null }[];
   onClick?: () => void;
 }
 
@@ -31,10 +31,18 @@ export function RideCard({ data, tag, titulo, valorTotal, participantes, onClick
             {visible.map((p) => (
               <div
                 key={p.id}
-                style={{ backgroundColor: getAvatarColor(p.cor) }}
-                className="w-7 h-7 rounded-full flex items-center justify-center border-2 border-[#1c1c1e] text-[10px] font-bold text-white shrink-0 shadow-sm"
+                style={p.avatar_url ? undefined : { backgroundColor: getAvatarColor(p.cor) }}
+                className="w-7 h-7 rounded-full overflow-hidden flex items-center justify-center border-2 border-[#1c1c1e] text-[10px] font-bold text-white shrink-0 shadow-sm"
               >
-                {p.nome?.[0]?.toUpperCase() || '?'}
+                {p.avatar_url ? (
+                  <img
+                    src={p.avatar_url}
+                    alt={p.nome}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  p.nome?.[0]?.toUpperCase() || '?'
+                )}
               </div>
             ))}
             {extra > 0 && (
