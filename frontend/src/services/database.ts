@@ -1714,7 +1714,7 @@ export const dbService = {
     get: async (monthFilter?: string) => {
       const now = new Date();
       const ymPrefix = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-      const effectiveMonth = monthFilter === undefined ? ymPrefix : monthFilter;
+      const effectiveMonth = monthFilter === undefined ? 'all' : monthFilter;
       const isAllMonths = effectiveMonth === 'all';
 
       const distinctMonthsRows = await queryAll<{ ym: string }>(

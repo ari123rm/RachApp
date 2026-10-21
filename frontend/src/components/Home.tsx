@@ -46,8 +46,8 @@ export function Home({
   const dataAtual = new Date();
   const ymAtual = `${dataAtual.getFullYear()}-${String(dataAtual.getMonth() + 1).padStart(2, '0')}`;
 
-  const [periodoSelecionado, setPeriodoSelecionado] = useState<string>(ymAtual);
-  const periodoRef = useRef<string>(ymAtual);
+  const [periodoSelecionado, setPeriodoSelecionado] = useState<string>('all');
+  const periodoRef = useRef<string>('all');
   periodoRef.current = periodoSelecionado;
 
   const [mesesDisponiveis, setMesesDisponiveis] = useState<string[]>([ymAtual]);

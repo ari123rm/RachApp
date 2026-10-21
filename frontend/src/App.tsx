@@ -20,6 +20,20 @@ import { listenForSharedReceipt, clearSharedReceipt } from './utils/receiptShare
 
 const TABS = ['home', 'viagens', 'amigos', 'perfil'] as const;
 
+function isInsideScrollableHorizontal(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  let el: HTMLElement | null = target;
+  while (el && el !== document.body) {
+    if (el.classList.contains('overflow-x-auto')) {
+      if (el.scrollWidth > el.clientWidth + 4) {
+        return true;
+      }
+    }
+    el = el.parentElement;
+  }
+  return false;
+}
+
 function App() {
   const [isInitializing, setIsInitializing] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -34,7 +48,19 @@ function App() {
   const [isUpdateModalOpen, setIsUpdateModalOpen] = useState(false);
   const lastSyncedRef = useRef<string | null>(null);
 
-  const touchStartRef = useRef<{ x: number; y: number; time: number } | null>(null);
+  const containerRef = useRef<HTMLElement | null>(null);
+  const trackRef = useRef<HTMLDivElement | null>(null);
+  const dragRef = useRef<{
+    active: boolean;
+    startX: number;
+    startY: number;
+    lastX: number;
+    lastTime: number;
+    velocityX: number;
+    direction: 'undecided' | 'horizontal' | 'vertical';
+    containerWidth: number;
+    startTabIndex: number;
+  } | null>(null);
 
   const refreshData = () => setDataVersion((prev) => prev + 1);
 
@@ -113,7 +139,9 @@ function App() {
             return;
           }
 
-          const hasOpenModal = document.querySelector('.fixed.z-50, .fixed.z-\\[60\\], .fixed.z-\\[70\\], .fixed.z-\\[75\\], .fixed.z-\\[80\\], .fixed.z-\\[90\\]');
+          const hasOpenModal = document.querySelector(
+            '.fixed.z-50, .fixed.z-\\[60\\], .fixed.z-\\[70\\], .fixed.z-\\[75\\], .fixed.z-\\[80\\], .fixed.z-\\[90\\]'
+          );
 
           if (hasOpenModal) {
             setIncomingSharedReceipt(null);
@@ -140,37 +168,109 @@ function App() {
     };
   }, [activeTab]);
 
+  const tabIndex = Math.max(0, TABS.indexOf(activeTab as any));
+
+  // Sincroniza posição da trilha quando activeTab muda (inclusive ao clicar na BottomNav)
+  useEffect(() => {
+    if (!trackRef.current) return;
+    trackRef.current.style.transition = 'transform 280ms cubic-bezier(0.22, 1, 0.36, 1)';
+    trackRef.current.style.transform = `translate3d(-${tabIndex * 100}%, 0, 0)`;
+  }, [tabIndex]);
+
   const handleFabClick = () => {
     if (activeTab === 'amigos') setIsFriendModalOpen(true);
     else setIsRideModalOpen(true);
   };
 
-  // Suporte a swipe horizontal entre as abas principais
+  // Arraste horizontal em tempo real (acompanhando o dedo a 60/120fps via GPU translate3d)
   const handleTouchStart = (e: React.TouchEvent) => {
-    touchStartRef.current = {
-      x: e.touches[0].clientX,
-      y: e.touches[0].clientY,
-      time: Date.now(),
+    if (e.touches.length !== 1) return;
+    if (isInsideScrollableHorizontal(e.target)) return;
+
+    const touch = e.touches[0];
+    const width = containerRef.current?.clientWidth || window.innerWidth;
+
+    dragRef.current = {
+      active: true,
+      startX: touch.clientX,
+      startY: touch.clientY,
+      lastX: touch.clientX,
+      lastTime: performance.now(),
+      velocityX: 0,
+      direction: 'undecided',
+      containerWidth: width,
+      startTabIndex: tabIndex,
     };
   };
 
-  const handleTouchEnd = (e: React.TouchEvent) => {
-    if (!touchStartRef.current) return;
-    const diffX = e.changedTouches[0].clientX - touchStartRef.current.x;
-    const diffY = e.changedTouches[0].clientY - touchStartRef.current.y;
-    const elapsed = Date.now() - touchStartRef.current.time;
-    touchStartRef.current = null;
+  const handleTouchMove = (e: React.TouchEvent) => {
+    const drag = dragRef.current;
+    if (!drag || !drag.active || e.touches.length !== 1) return;
 
-    // Detecta arrasto predominantemente horizontal com deslocamento mínimo
-    if (Math.abs(diffX) > 45 && Math.abs(diffX) > Math.abs(diffY) * 1.3 && elapsed < 600) {
-      const currentIndex = TABS.indexOf(activeTab as any);
-      if (diffX < 0 && currentIndex < TABS.length - 1) {
-        // Swipe para a esquerda -> avança para a próxima aba
-        setActiveTab(TABS[currentIndex + 1]);
-      } else if (diffX > 0 && currentIndex > 0) {
-        // Swipe para a direita -> volta para a aba anterior
-        setActiveTab(TABS[currentIndex - 1]);
+    const touch = e.touches[0];
+    const dx = touch.clientX - drag.startX;
+    const dy = touch.clientY - drag.startY;
+
+    if (drag.direction === 'undecided') {
+      if (Math.abs(dx) < 7 && Math.abs(dy) < 7) return;
+
+      if (Math.abs(dy) >= Math.abs(dx)) {
+        drag.direction = 'vertical';
+        drag.active = false;
+        return;
       }
+
+      drag.direction = 'horizontal';
+      if (trackRef.current) {
+        trackRef.current.style.transition = 'none';
+      }
+    }
+
+    if (drag.direction === 'horizontal' && trackRef.current) {
+      const now = performance.now();
+      const dt = now - drag.lastTime;
+      if (dt > 0) {
+        drag.velocityX = (touch.clientX - drag.lastX) / dt;
+        drag.lastX = touch.clientX;
+        drag.lastTime = now;
+      }
+
+      // Resistência suave (rubber-band) nas extremidades
+      const isPastStart = drag.startTabIndex === 0 && dx > 0;
+      const isPastEnd = drag.startTabIndex === TABS.length - 1 && dx < 0;
+      const effectiveDx = isPastStart || isPastEnd ? dx * 0.22 : dx;
+
+      const baseOffsetPx = -drag.startTabIndex * drag.containerWidth;
+      trackRef.current.style.transform = `translate3d(${baseOffsetPx + effectiveDx}px, 0, 0)`;
+    }
+  };
+
+  const finishTouchDrag = (e: React.TouchEvent) => {
+    const drag = dragRef.current;
+    dragRef.current = null;
+    if (!drag || drag.direction !== 'horizontal') return;
+
+    const endX = e.changedTouches[0]?.clientX ?? drag.lastX;
+    const dx = endX - drag.startX;
+    const width = drag.containerWidth || window.innerWidth;
+    const ratio = dx / width;
+    const vx = drag.velocityX;
+
+    let nextIndex = drag.startTabIndex;
+
+    if ((ratio < -0.2 || (vx < -0.32 && dx < -22)) && drag.startTabIndex < TABS.length - 1) {
+      nextIndex = drag.startTabIndex + 1;
+    } else if ((ratio > 0.2 || (vx > 0.32 && dx > 22)) && drag.startTabIndex > 0) {
+      nextIndex = drag.startTabIndex - 1;
+    }
+
+    if (trackRef.current) {
+      trackRef.current.style.transition = 'transform 280ms cubic-bezier(0.22, 1, 0.36, 1)';
+      trackRef.current.style.transform = `translate3d(-${nextIndex * 100}%, 0, 0)`;
+    }
+
+    if (nextIndex !== drag.startTabIndex) {
+      setActiveTab(TABS[nextIndex]);
     }
   };
 
@@ -194,46 +294,54 @@ function App() {
     );
   }
 
-  const tabIndex = Math.max(0, TABS.indexOf(activeTab as any));
-
   return (
     <div className="h-[100dvh] bg-[#05080f] text-white font-sans relative overflow-hidden flex flex-col">
-      {/* Contêiner de abas principais com animação deslizante para os lados */}
+      {/* Contêiner de abas principais com acompanhamento do dedo em tempo real */}
       <main
+        ref={containerRef}
         onTouchStart={handleTouchStart}
-        onTouchEnd={handleTouchEnd}
-        className="flex-1 w-full overflow-hidden relative"
+        onTouchMove={handleTouchMove}
+        onTouchEnd={finishTouchDrag}
+        onTouchCancel={finishTouchDrag}
+        className="flex-1 w-full overflow-hidden relative touch-pan-y"
       >
         <div
-          className="flex h-full w-full transition-transform duration-300 md:transition-none ease-out"
+          ref={trackRef}
+          className="flex h-full w-full will-change-transform"
           style={{
-            transform: `translateX(-${tabIndex * 100}%)`,
+            transform: `translate3d(-${tabIndex * 100}%, 0, 0)`,
+            backfaceVisibility: 'hidden',
           }}
         >
           {/* TAB 0: HOME */}
           <div className="w-full min-w-full h-full shrink-0 overflow-hidden">
-            <div className="w-full h-full overflow-y-auto p-4 md:p-6 pb-24 max-w-lg md:max-w-xl lg:max-w-2xl mx-auto scrollbar-hide">
-              <Home dataVersion={dataVersion} onDataChange={refreshData} updateInfo={updateInfo} onOpenUpdateModal={() => setIsUpdateModalOpen(true)} />
+            <div className="w-full h-full overflow-y-auto p-4 md:p-6 pb-24 max-w-lg md:max-w-xl lg:max-w-2xl mx-auto scrollbar-hide touch-pan-y">
+              <Home
+                dataVersion={dataVersion}
+                onDataChange={refreshData}
+                updateInfo={updateInfo}
+                onOpenUpdateModal={() => setIsUpdateModalOpen(true)}
+              />
             </div>
           </div>
 
           {/* TAB 1: VIAGENS / RACHAS */}
           <div className="w-full min-w-full h-full shrink-0 overflow-hidden">
-            <div className="w-full h-full overflow-y-auto p-4 md:p-6 pb-24 max-w-lg md:max-w-xl lg:max-w-2xl mx-auto scrollbar-hide">
+            <div className="w-full h-full overflow-y-auto p-4 md:p-6 pb-24 max-w-lg md:max-w-xl lg:max-w-2xl mx-auto scrollbar-hide touch-pan-y">
               <Viagens dataVersion={dataVersion} onDataChange={refreshData} />
             </div>
           </div>
 
           {/* TAB 2: AMIGOS (com Amigos e Grupos internos) */}
           <div className="w-full min-w-full h-full shrink-0 overflow-hidden">
-            <div className="w-full h-full overflow-y-auto p-4 md:p-6 pb-24 max-w-lg md:max-w-xl lg:max-w-2xl mx-auto scrollbar-hide">
+            <div className="w-full h-full overflow-y-auto p-4 md:p-6 pb-24 max-w-lg md:max-w-xl lg:max-w-2xl mx-auto scrollbar-hide touch-pan-y">
               <Amigos dataVersion={dataVersion} onDataChange={refreshData} />
             </div>
           </div>
 
           {/* TAB 3: PERFIL */}
           <div className="w-full min-w-full h-full shrink-0 overflow-hidden">
-            <div className="w-full h-full overflow-y-auto p-4 md:p-6 pb-24 max-w-lg md:max-w-xl lg:max-w-2xl mx-auto scrollbar-hide">
+            <div className="w-full h-full overflow-y-auto p-4 md:p-6 pb-24 max-w-lg md:max-w-xl lg:max-w-2xl mx-auto scrollbar-hide touch-pan-y">
               <Perfil
                 onDataChange={() => setIsAuthenticated(false)}
                 updateInfo={updateInfo}

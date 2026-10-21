@@ -43,30 +43,6 @@ export function Amigos({ onDataChange, dataVersion }: { onDataChange?: () => voi
   const [isAddGroupOpen, setIsAddGroupOpen] = useState(false);
   const [grupoSelecionadoId, setGrupoSelecionadoId] = useState<string | null>(null);
 
-  const subTouchStartRef = useRef<{ x: number; y: number } | null>(null);
-
-  const handleSubTouchStart = (e: React.TouchEvent) => {
-    subTouchStartRef.current = {
-      x: e.touches[0].clientX,
-      y: e.touches[0].clientY,
-    };
-  };
-
-  const handleSubTouchEnd = (e: React.TouchEvent) => {
-    if (!subTouchStartRef.current) return;
-    const diffX = e.changedTouches[0].clientX - subTouchStartRef.current.x;
-    const diffY = e.changedTouches[0].clientY - subTouchStartRef.current.y;
-    subTouchStartRef.current = null;
-
-    if (Math.abs(diffX) > 40 && Math.abs(diffX) > Math.abs(diffY) * 1.3) {
-      if (diffX < 0 && subTab === 'amigos') {
-        setSubTab('grupos');
-      } else if (diffX > 0 && subTab === 'grupos') {
-        setSubTab('amigos');
-      }
-    }
-  };
-
   const isFirstLoadRef = useRef(true);
 
   const carregarDados = async (showLoading = isFirstLoadRef.current) => {
@@ -538,20 +514,11 @@ export function Amigos({ onDataChange, dataVersion }: { onDataChange?: () => voi
         )}
       </header>
 
-      {/* Contêiner de abas deslizantes entre Amigos e Grupos */}
-      <div
-        onTouchStart={handleSubTouchStart}
-        onTouchEnd={handleSubTouchEnd}
-        className="w-full overflow-hidden"
-      >
-        <div
-          className="flex w-full transition-transform duration-300 md:transition-none ease-out"
-          style={{
-            transform: `translateX(${subTab === 'amigos' ? '0%' : '-100%'})`,
-          }}
-        >
-          {/* PAINEL AMIGOS */}
-          <div className="w-full min-w-full shrink-0 space-y-6">
+      {/* Painel ativo (alternado exclusivamente pelo seletor Amigos / Grupos) */}
+      <div className="w-full">
+        {subTab === 'amigos' ? (
+          /* PAINEL AMIGOS */
+          <div className="w-full space-y-6">
             {/* SOLICITAÇÕES DE AMIZADE PENDENTES */}
             {solicitacoesAmizade.length > 0 && (
               <section className="bg-gradient-to-r from-[#1c1c1e] to-[#252528] rounded-2xl p-4 border border-[#2DD4BF]/30 shadow-lg space-y-3">
@@ -711,9 +678,9 @@ export function Amigos({ onDataChange, dataVersion }: { onDataChange?: () => voi
               </div>
             </section>
           </div>
-
-          {/* PAINEL GRUPOS */}
-          <div className="w-full min-w-full shrink-0 space-y-4">
+        ) : (
+          /* PAINEL GRUPOS */
+          <div className="w-full space-y-4">
             {/* CONVITES DE GRUPO PENDENTES */}
             {convitesGrupo.length > 0 && (
               <div className="bg-gradient-to-r from-[#1c1c1e] to-[#252528] rounded-2xl p-4 border border-[#2DD4BF]/30 shadow-lg space-y-3">
@@ -896,7 +863,7 @@ export function Amigos({ onDataChange, dataVersion }: { onDataChange?: () => voi
               )}
             </div>
           </div>
-        </div>
+        )}
       </div>
 
       <FriendDetailsModal
