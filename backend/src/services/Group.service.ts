@@ -414,39 +414,94 @@ export class GroupService {
 
     if (Array.isArray(data.friendIds) && group.created_by === userId) {
       const uniqueFriendIds = Array.from(new Set(data.friendIds));
-      await prisma.groupMember.deleteMany({
+      const uniqueFriendIdSet = new Set(uniqueFriendIds);
+
+      const existingMembers = await prisma.groupMember.findMany({
         where: {
           group_id: groupId,
           friend_id: { not: null },
         },
+        include: {
+          user: true,
+        },
       });
 
-      if (uniqueFriendIds.length > 0) {
+      const existingFriendIds = new Set(
+        existingMembers.map((m) => m.friend_id).filter((id): id is string => Boolean(id))
+      );
+      const existingUserIds = new Set(
+        existingMembers.map((m) => m.user_id).filter((id): id is string => Boolean(id))
+      );
+
+      // 1. Remove apenas os membros que foram desmarcados pelo criador
+      const removedMembers = existingMembers.filter(
+        (m) => m.friend_id && !uniqueFriendIdSet.has(m.friend_id)
+      );
+
+      if (removedMembers.length > 0) {
+        const friendIdsToRemove: string[] = [];
+        for (const rem of removedMembers) {
+          if (rem.friend_id) {
+            friendIdsToRemove.push(rem.friend_id);
+          }
+          if (rem.user?.phone) {
+            const allFriends = await prisma.friend.findMany({ where: { phone: { not: null } } });
+            for (const f of allFriends) {
+              if (phonesMatch(f.phone, rem.user.phone)) {
+                friendIdsToRemove.push(f.id);
+              }
+            }
+          }
+        }
+
+        if (friendIdsToRemove.length > 0) {
+          await this.removeFriendsFromGroupExpenses(groupId, Array.from(new Set(friendIdsToRemove)));
+        }
+
+        await prisma.groupMember.deleteMany({
+          where: {
+            id: { in: removedMembers.map((m) => m.id) },
+          },
+        });
+      }
+
+      // 2. Adiciona apenas os novos amigos que ainda não estavam no grupo (preservando o status ACCEPTED dos atuais)
+      const addedFriendIds = uniqueFriendIds.filter((fId) => !existingFriendIds.has(fId));
+
+      if (addedFriendIds.length > 0) {
         const allUsers = await prisma.user.findMany({
           select: { id: true, name: true, phone: true, pix_key: true },
         });
         const friends = await prisma.friend.findMany({
-          where: { id: { in: uniqueFriendIds }, user_id: userId },
+          where: { id: { in: addedFriendIds }, user_id: userId },
         });
 
-        const newMembersData = uniqueFriendIds.map((friendId) => {
-          const f = friends.find((x) => x.id === friendId);
-          const regUser = f?.phone
-            ? allUsers.find((u) => u.id !== userId && phonesMatch(u.phone, f.phone))
-            : null;
+        const newMembersData = addedFriendIds
+          .map((friendId) => {
+            const f = friends.find((x) => x.id === friendId);
+            const regUser = f?.phone
+              ? allUsers.find((u) => u.id !== userId && phonesMatch(u.phone, f.phone))
+              : null;
 
-          return {
-            group_id: groupId,
-            friend_id: friendId,
-            user_id: regUser ? regUser.id : null,
-            status: regUser ? 'PENDING' : 'ACCEPTED',
-          };
-        });
+            if (regUser && existingUserIds.has(regUser.id)) {
+              return null;
+            }
 
-        await prisma.groupMember.createMany({
-          data: newMembersData,
-          skipDuplicates: true,
-        });
+            return {
+              group_id: groupId,
+              friend_id: friendId,
+              user_id: regUser ? regUser.id : null,
+              status: regUser ? 'PENDING' : 'ACCEPTED',
+            };
+          })
+          .filter((item): item is NonNullable<typeof item> => item !== null);
+
+        if (newMembersData.length > 0) {
+          await prisma.groupMember.createMany({
+            data: newMembersData,
+            skipDuplicates: true,
+          });
+        }
       }
     }
 
