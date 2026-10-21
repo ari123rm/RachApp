@@ -46,14 +46,14 @@ export class FriendService {
     }
 
     const allUsers = await prisma.user.findMany({
-      select: { id: true, name: true, phone: true, pix_key: true, avatar_url: true } as any,
+      select: { id: true, name: true, phone: true, pix_key: true, avatar_url: true },
     });
 
     // Enriquece e atualiza amigos locais com a chave Pix e foto do usuário cadastrado (priorizando o que ele cadastrou para si)
     for (let i = 0; i < myFriends.length; i++) {
-      const mf = myFriends[i] as any;
+      const mf = myFriends[i];
       if (mf.phone) {
-        const regUser = (allUsers as any[]).find((u) => u.id !== userId && phonesMatch(u.phone, mf.phone));
+        const regUser = allUsers.find((u) => u.id !== userId && phonesMatch(u.phone, mf.phone));
         if (regUser) {
           const regPix = regUser?.pix_key?.trim();
           const regAvatar = regUser?.avatar_url || null;
@@ -65,7 +65,7 @@ export class FriendService {
               data: {
                 ...(needsPix ? { pix_key: regPix } : {}),
                 ...(needsAvatar ? { avatar_url: regAvatar } : {}),
-              } as any,
+              },
             });
             myFriends[i] = updated;
           }
@@ -87,7 +87,7 @@ export class FriendService {
         (f) =>
           (normOwnerPhone && phonesMatch(f.phone, normOwnerPhone)) ||
           (!f.phone && f.name.trim().toLowerCase() === ownerUser.name.trim().toLowerCase())
-      ) as any;
+      );
 
       if (existing) {
         const needsPhone = !existing.phone && normOwnerPhone;
@@ -100,7 +100,7 @@ export class FriendService {
               ...(needsPhone ? { phone: normOwnerPhone } : {}),
               ...(cleanOwnerPix && needsPix ? { pix_key: cleanOwnerPix } : {}),
               ...(needsAvatar ? { avatar_url: cleanOwnerAvatar } : {}),
-            } as any,
+            },
           });
           myFriends = myFriends.map((f) => (f.id === existing!.id ? existing! : f));
         }
@@ -116,7 +116,7 @@ export class FriendService {
           avatar_url: cleanOwnerAvatar,
           color: 'bg-teal-500',
           is_favorite: false,
-        } as any,
+        },
       });
       myFriends.push(created);
       return created;
@@ -152,7 +152,7 @@ export class FriendService {
       },
       include: {
         user: {
-          select: { id: true, name: true, phone: true, pix_key: true, avatar_url: true } as any,
+          select: { id: true, name: true, phone: true, pix_key: true, avatar_url: true },
         },
       },
     });
@@ -331,13 +331,13 @@ export class FriendService {
       },
       include: {
         sender: {
-          select: { id: true, name: true, phone: true, pix_key: true, avatar_url: true } as any,
+          select: { id: true, name: true, phone: true, pix_key: true, avatar_url: true },
         },
       },
       orderBy: { created_at: 'desc' },
     });
 
-    return requests.map((r: any) => ({
+    return requests.map((r) => ({
       id: r.id,
       sender_id: r.sender_id,
       receiver_id: r.receiver_id,
@@ -355,14 +355,14 @@ export class FriendService {
   }
 
   static async acceptRequest(userId: string, requestId: string) {
-    const request: any = await prisma.friendshipRequest.findFirst({
+    const request = await prisma.friendshipRequest.findFirst({
       where: {
         id: requestId,
         receiver_id: userId,
       },
       include: {
-        sender: { select: { id: true, name: true, phone: true, pix_key: true, avatar_url: true } as any },
-        receiver: { select: { id: true, name: true, phone: true, pix_key: true, avatar_url: true } as any },
+        sender: { select: { id: true, name: true, phone: true, pix_key: true, avatar_url: true } },
+        receiver: { select: { id: true, name: true, phone: true, pix_key: true, avatar_url: true } },
       },
     });
 
@@ -391,7 +391,7 @@ export class FriendService {
           avatar_url: request.sender.avatar_url || null,
           color: 'bg-emerald-500',
           is_favorite: false,
-        } as any,
+        },
       });
     }
 
@@ -411,7 +411,7 @@ export class FriendService {
           avatar_url: request.receiver.avatar_url || null,
           color: 'bg-teal-500',
           is_favorite: false,
-        } as any,
+        },
       });
     }
 
@@ -459,7 +459,7 @@ export class FriendService {
 
     // Mapeia todos os usuários para priorizar a chave Pix e foto que o amigo cadastrou para si
     const allUsers = await prisma.user.findMany({
-      select: { id: true, name: true, phone: true, pix_key: true, avatar_url: true } as any,
+      select: { id: true, name: true, phone: true, pix_key: true, avatar_url: true },
     });
 
     return friends.map((friend: any) => {
@@ -495,7 +495,7 @@ export class FriendService {
       let hasAccount = false;
       let registeredUserId: string | null = null;
       if (friend.phone) {
-        const regUser = (allUsers as any[]).find(
+        const regUser = allUsers.find(
           (u) => u.id !== userId && phonesMatch(u.phone, friend.phone)
         );
         if (regUser) {

@@ -675,16 +675,16 @@ export class ExpenseService {
     const group = await prisma.group.findUnique({
       where: { id: groupId },
       include: {
-        owner: { select: { id: true, name: true, pix_key: true, phone: true } },
+        owner: { select: { id: true, name: true, pix_key: true, phone: true, avatar_url: true } },
         members: {
           include: {
             friend: true,
-            user: { select: { id: true, name: true, pix_key: true, phone: true } },
+            user: { select: { id: true, name: true, pix_key: true, phone: true, avatar_url: true } },
           },
         },
         expenses: {
           include: {
-            owner: { select: { id: true, name: true, pix_key: true, phone: true } },
+            owner: { select: { id: true, name: true, pix_key: true, phone: true, avatar_url: true } },
             participants: { include: { friend: true } },
             paidByFriend: true,
           },
@@ -1034,7 +1034,7 @@ export class ExpenseService {
         avatar_url: true,
         created_by: true,
         created_at: true,
-      } as any,
+      },
       orderBy: { created_at: 'desc' },
     });
 

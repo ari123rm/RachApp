@@ -116,7 +116,7 @@ export class GroupService {
     }
 
     const allUsers = await prisma.user.findMany({
-      select: { id: true, name: true, phone: true, pix_key: true, avatar_url: true } as any,
+      select: { id: true, name: true, phone: true, pix_key: true, avatar_url: true },
     });
     const friends = await prisma.friend.findMany({
       where: { id: { in: friendIds }, user_id: userId },
@@ -127,7 +127,7 @@ export class GroupService {
     for (const friendId of friendIds) {
       const f = friends.find((x) => x.id === friendId);
       const regUser = f?.phone
-        ? (allUsers as any[]).find((u) => u.id !== userId && phonesMatch(u.phone, f.phone))
+        ? allUsers.find((u) => u.id !== userId && phonesMatch(u.phone, f.phone))
         : null;
 
       if (regUser) {
@@ -155,12 +155,12 @@ export class GroupService {
         members: {
           create: memberCreates,
         },
-      } as any,
+      },
       include: {
-        owner: { select: { id: true, name: true, pix_key: true, phone: true, avatar_url: true } as any },
+        owner: { select: { id: true, name: true, pix_key: true, phone: true, avatar_url: true } },
         members: {
           include: {
-            user: { select: { id: true, name: true, pix_key: true, phone: true, avatar_url: true } as any },
+            user: { select: { id: true, name: true, pix_key: true, phone: true, avatar_url: true } },
             friend: true,
           },
         },
@@ -184,16 +184,16 @@ export class GroupService {
         ],
       },
       include: {
-        owner: { select: { id: true, name: true, pix_key: true, phone: true, avatar_url: true } as any },
+        owner: { select: { id: true, name: true, pix_key: true, phone: true, avatar_url: true } },
         members: {
           include: {
-            user: { select: { id: true, name: true, pix_key: true, phone: true, avatar_url: true } as any },
+            user: { select: { id: true, name: true, pix_key: true, phone: true, avatar_url: true } },
             friend: true,
           },
         },
         expenses: {
           include: {
-            owner: { select: { id: true, name: true, pix_key: true, phone: true, avatar_url: true } as any },
+            owner: { select: { id: true, name: true, pix_key: true, phone: true, avatar_url: true } },
             participants: { include: { friend: true } },
             paidByFriend: true,
           },
@@ -593,17 +593,17 @@ export class GroupService {
     const group = await prisma.group.findUnique({
       where: { id: groupId },
       include: {
-        owner: { select: { id: true, name: true, pix_key: true, phone: true, avatar_url: true } as any },
+        owner: { select: { id: true, name: true, pix_key: true, phone: true, avatar_url: true } },
         members: {
           include: {
-            user: { select: { id: true, name: true, pix_key: true, phone: true, avatar_url: true } as any },
+            user: { select: { id: true, name: true, pix_key: true, phone: true, avatar_url: true } },
             friend: true,
           },
         },
         expenses: {
           orderBy: { expense_date: 'desc' },
           include: {
-            owner: { select: { id: true, name: true, pix_key: true, phone: true, avatar_url: true } as any },
+            owner: { select: { id: true, name: true, pix_key: true, phone: true, avatar_url: true } },
             paidByFriend: true,
             participants: {
               include: {
