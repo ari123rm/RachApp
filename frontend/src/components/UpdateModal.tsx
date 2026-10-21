@@ -1,6 +1,7 @@
 // src/components/UpdateModal.tsx
+import { useState } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Download, Sparkles, ArrowRight, ExternalLink, ShieldCheck } from 'lucide-react';
+import { X, Download, Sparkles, ArrowRight, ExternalLink, ShieldCheck, Check, RefreshCw } from 'lucide-react';
 import { useModalBackHandler } from '../utils/modalBackHandler';
 import { triggerApkDownload, dismissUpdate, type AppReleaseInfo } from '../services/updateService';
 
@@ -11,12 +12,24 @@ interface UpdateModalProps {
 }
 
 export function UpdateModal({ isOpen, onClose, updateInfo }: UpdateModalProps) {
+  const [isDownloading, setIsDownloading] = useState(false);
+  const [downloadSuccess, setDownloadSuccess] = useState(false);
+
   useModalBackHandler(isOpen, onClose);
 
   if (!isOpen) return null;
 
-  const handleDownload = () => {
-    triggerApkDownload(updateInfo.apkDownloadUrl);
+  const handleDownload = async () => {
+    setIsDownloading(true);
+    setDownloadSuccess(false);
+    try {
+      await triggerApkDownload(updateInfo.apkDownloadUrl);
+      setDownloadSuccess(true);
+    } catch {
+      alert('Erro ao iniciar o download do APK.');
+    } finally {
+      setTimeout(() => setIsDownloading(false), 2500);
+    }
   };
 
   const handleDismiss = () => {
@@ -72,7 +85,7 @@ export function UpdateModal({ isOpen, onClose, updateInfo }: UpdateModalProps) {
         </div>
 
         {/* Informações da Versão */}
-        <div className="mb-6 space-y-2.5">
+        <div className="mb-4 space-y-2.5">
           <p className="text-xs text-gray-300 leading-relaxed">
             Esta versão traz melhorias no desempenho, correções de bugs e aprimoramentos para o app.
           </p>
@@ -83,14 +96,31 @@ export function UpdateModal({ isOpen, onClose, updateInfo }: UpdateModalProps) {
           </div>
         </div>
 
+        {downloadSuccess && (
+          <div className="mb-4 bg-[#2DD4BF]/15 border border-[#2DD4BF]/30 text-[#2DD4BF] text-xs p-3 rounded-2xl flex items-center gap-2 animate-fade-in">
+            <Check size={16} className="shrink-0" />
+            <span>Download iniciado! Acompanhe o progresso na barra de notificações do seu celular.</span>
+          </div>
+        )}
+
         {/* Botões de Ação */}
         <div className="space-y-2.5">
           <button
             onClick={handleDownload}
-            className="w-full bg-[#2DD4BF] hover:bg-[#25b5a3] text-[#05080f] font-bold py-3.5 rounded-xl text-sm flex items-center justify-center gap-2 transition-all active:scale-95 shadow-lg shadow-[#2DD4BF]/10"
+            disabled={isDownloading}
+            className="w-full bg-[#2DD4BF] hover:bg-[#25b5a3] text-[#05080f] font-bold py-3.5 rounded-xl text-sm flex items-center justify-center gap-2 transition-all active:scale-95 shadow-lg shadow-[#2DD4BF]/10 disabled:opacity-50"
           >
-            <Download size={18} />
-            Baixar e Atualizar APK
+            {isDownloading ? (
+              <>
+                <RefreshCw size={18} className="animate-spin" />
+                Iniciando download...
+              </>
+            ) : (
+              <>
+                <Download size={18} />
+                Baixar e Atualizar APK
+              </>
+            )}
           </button>
 
           <div className="flex items-center justify-between gap-2 pt-1">

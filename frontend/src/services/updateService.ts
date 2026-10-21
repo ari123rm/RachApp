@@ -1,5 +1,6 @@
 // src/services/updateService.ts
 import { App as CapApp } from '@capacitor/app';
+import { Browser } from '@capacitor/browser';
 import { Capacitor } from '@capacitor/core';
 
 export interface AppReleaseInfo {
@@ -18,6 +19,7 @@ const GITHUB_REPO = 'ari123rm/RachApp';
 const GITHUB_RELEASES_URL = `https://api.github.com/repos/${GITHUB_REPO}/releases/latest`;
 const DISMISSED_VERSION_KEY = 'rachapp_dismissed_update_version';
 const LAST_CHECK_KEY = 'rachapp_last_update_check';
+const CACHED_RELEASE_KEY = 'rachapp_cached_release_info';
 
 /**
  * Obtém a versão atual do app instalada (pelo Capacitor no APK nativo ou pelo Vite)
@@ -74,9 +76,19 @@ export async function checkAppUpdate(force = false): Promise<AppReleaseInfo | nu
     const lastCheckStr = localStorage.getItem(LAST_CHECK_KEY);
     const lastCheck = lastCheckStr ? parseInt(lastCheckStr, 10) : 0;
 
-    // Se não for verificação manual/forçada, aguarda ao menos 20 min entre checagens para não estourar rate limit
-    if (!force && now - lastCheck < 20 * 60 * 1000) {
-      return null;
+    // Se a última checagem foi recente (< 5 min) e não for verificação manual/forçada,
+    // reutiliza a informação de release cacheada para não bater no rate limit do GitHub
+    if (!force && now - lastCheck < 5 * 60 * 1000) {
+      const cached = localStorage.getItem(CACHED_RELEASE_KEY);
+      if (cached) {
+        try {
+          const parsed = JSON.parse(cached) as AppReleaseInfo;
+          const currentVersion = await getCurrentAppVersion();
+          parsed.currentVersion = currentVersion;
+          parsed.isNewer = isVersionNewer(currentVersion, parsed.tagName);
+          return parsed;
+        } catch {}
+      }
     }
 
     localStorage.setItem(LAST_CHECK_KEY, String(now));
@@ -88,6 +100,17 @@ export async function checkAppUpdate(force = false): Promise<AppReleaseInfo | nu
     });
 
     if (!response.ok) {
+      // Se a requisição falhar (ex: offline), tenta responder com o cache existente
+      const cached = localStorage.getItem(CACHED_RELEASE_KEY);
+      if (cached) {
+        try {
+          const parsed = JSON.parse(cached) as AppReleaseInfo;
+          const currentVersion = await getCurrentAppVersion();
+          parsed.currentVersion = currentVersion;
+          parsed.isNewer = isVersionNewer(currentVersion, parsed.tagName);
+          return parsed;
+        } catch {}
+      }
       return null;
     }
 
@@ -107,7 +130,7 @@ export async function checkAppUpdate(force = false): Promise<AppReleaseInfo | nu
 
     const apkDownloadUrl = apkAsset?.browser_download_url || release.html_url || '';
 
-    return {
+    const releaseInfo: AppReleaseInfo = {
       version: latestTag.replace(/^v/i, ''),
       tagName: latestTag,
       name: release.name || latestTag,
@@ -118,8 +141,26 @@ export async function checkAppUpdate(force = false): Promise<AppReleaseInfo | nu
       isNewer,
       currentVersion,
     };
+
+    // Salva em cache para reaproveitamento rápido
+    try {
+      localStorage.setItem(CACHED_RELEASE_KEY, JSON.stringify(releaseInfo));
+    } catch {}
+
+    return releaseInfo;
   } catch (error) {
     console.warn('Não foi possível verificar atualizações do app:', error);
+    // Tenta fallback do cache se disponível
+    try {
+      const cached = localStorage.getItem(CACHED_RELEASE_KEY);
+      if (cached) {
+        const parsed = JSON.parse(cached) as AppReleaseInfo;
+        const currentVersion = await getCurrentAppVersion();
+        parsed.currentVersion = currentVersion;
+        parsed.isNewer = isVersionNewer(currentVersion, parsed.tagName);
+        return parsed;
+      }
+    } catch {}
     return null;
   }
 }
@@ -146,16 +187,36 @@ export function dismissUpdate(version: string): void {
 }
 
 /**
- * Dispara o download direto do APK no navegador / gerenciador de downloads do Android
+ * Dispara o download direto do APK no Android nativo (DownloadManager / Navegador) ou Web
  */
-export function triggerApkDownload(downloadUrl: string): void {
-  if (!downloadUrl) return;
+export async function triggerApkDownload(downloadUrl: string): Promise<boolean> {
+  if (!downloadUrl) return false;
 
-  if (Capacitor.isNativePlatform()) {
-    // No Android (Capacitor), abre a URL no navegador nativo para disparar o Download Manager
-    window.open(downloadUrl, '_system');
-  } else {
-    // No browser desktop ou PWA
+  console.log('[updateService] Disparando download do APK:', downloadUrl);
+
+  // 1. Tenta via ponte nativa da MainActivity (AndroidReceiptBridge) se disponível
+  try {
+    const bridge = (window as any).AndroidReceiptBridge;
+    if (bridge && typeof bridge.openExternalUrl === 'function') {
+      bridge.openExternalUrl(downloadUrl);
+      return true;
+    }
+  } catch (err) {
+    console.warn('[updateService] Erro ao chamar AndroidReceiptBridge.openExternalUrl:', err);
+  }
+
+  // 2. Tenta via @capacitor/browser (abre no navegador do sistema Android com suporte a download)
+  try {
+    if (Capacitor.isNativePlatform()) {
+      await Browser.open({ url: downloadUrl, windowName: '_system' });
+      return true;
+    }
+  } catch (err) {
+    console.warn('[updateService] Erro ao abrir via @capacitor/browser:', err);
+  }
+
+  // 3. Fallback Web / Desktop
+  try {
     const link = document.createElement('a');
     link.href = downloadUrl;
     link.target = '_blank';
@@ -164,5 +225,9 @@ export function triggerApkDownload(downloadUrl: string): void {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    return true;
+  } catch {
+    window.location.href = downloadUrl;
+    return true;
   }
 }

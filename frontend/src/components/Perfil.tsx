@@ -14,24 +14,28 @@ import {
   CloudCheck,
   RefreshCw,
   ChevronRight,
+  Check,
 } from 'lucide-react';
 import { dbService } from '../services/database';
 import { PixModal } from './PixModal';
 import { ChangePasswordScreen } from './ChangePasswordScreen';
 import { formatPhoneBR, isValidPhoneBR } from '../utils/phoneFormatter';
 import type { SyncStatus } from '../types';
-import { getCurrentAppVersion, checkAppUpdate, type AppReleaseInfo } from '../services/updateService';
+import { getCurrentAppVersion, checkAppUpdate, triggerApkDownload, type AppReleaseInfo } from '../services/updateService';
 
 interface PerfilProps {
   onDataChange: () => void;
   updateInfo?: AppReleaseInfo | null;
   onOpenUpdateModal?: () => void;
+  onUpdateDetected?: (info: AppReleaseInfo) => void;
 }
 
-export function Perfil({ onDataChange, updateInfo, onOpenUpdateModal }: PerfilProps) {
+export function Perfil({ onDataChange, updateInfo, onOpenUpdateModal, onUpdateDetected }: PerfilProps) {
   const [currentVersion, setCurrentVersion] = useState('');
   const [manualUpdateInfo, setManualUpdateInfo] = useState<AppReleaseInfo | null>(updateInfo || null);
   const [isCheckingUpdate, setIsCheckingUpdate] = useState(false);
+  const [isDownloadingApk, setIsDownloadingApk] = useState(false);
+  const [downloadMsg, setDownloadMsg] = useState('');
   const [nome, setNome] = useState('');
   const [telefone, setTelefone] = useState('');
   const [email, setEmail] = useState('');
@@ -273,20 +277,69 @@ export function Perfil({ onDataChange, updateInfo, onOpenUpdateModal }: PerfilPr
         </div>
 
         {(manualUpdateInfo?.isNewer || updateInfo?.isNewer) ? (
-          <div className="bg-[#2c2c2e] p-3 rounded-2xl border border-amber-500/20 flex items-center justify-between gap-2">
-            <div>
-              <p className="text-xs font-bold text-white">
-                Nova versão: {(manualUpdateInfo || updateInfo)?.tagName}
-              </p>
-              <p className="text-[11px] text-gray-400">Toque para baixar o APK atualizado</p>
+          <div className="bg-[#2c2c2e] p-4 rounded-2xl border border-amber-500/30 space-y-3">
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <p className="text-sm font-bold text-white flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+                  Nova versão disponível: {(manualUpdateInfo || updateInfo)?.tagName}
+                </p>
+                <p className="text-xs text-gray-400 mt-0.5">
+                  Baixe o APK para atualizar sem perder nenhum dado.
+                </p>
+              </div>
             </div>
-            <button
-              onClick={() => onOpenUpdateModal?.()}
-              className="bg-[#2DD4BF] hover:bg-[#25b5a3] text-[#05080f] font-bold px-3 py-1.5 rounded-xl text-xs flex items-center gap-1 transition-transform active:scale-95 shrink-0"
-            >
-              <Download size={13} />
-              Atualizar
-            </button>
+
+            {downloadMsg && (
+              <div className="bg-[#2DD4BF]/15 border border-[#2DD4BF]/30 text-[#2DD4BF] text-xs p-2.5 rounded-xl flex items-center gap-2 animate-fade-in">
+                <Check size={15} className="shrink-0" />
+                <span>{downloadMsg}</span>
+              </div>
+            )}
+
+            <div className="flex items-center gap-2 pt-1">
+              <button
+                onClick={async () => {
+                  const targetInfo = manualUpdateInfo || updateInfo;
+                  if (!targetInfo?.apkDownloadUrl) return;
+
+                  setIsDownloadingApk(true);
+                  setDownloadMsg('');
+                  try {
+                    await triggerApkDownload(targetInfo.apkDownloadUrl);
+                    setDownloadMsg('Download iniciado! Verifique a barra de notificações do seu celular.');
+                  } catch {
+                    alert('Não foi possível iniciar o download automaticamente.');
+                  } finally {
+                    setTimeout(() => setIsDownloadingApk(false), 2500);
+                  }
+                }}
+                disabled={isDownloadingApk}
+                className="flex-1 bg-[#2DD4BF] hover:bg-[#25b5a3] text-[#05080f] font-bold py-2.5 px-4 rounded-xl text-xs flex items-center justify-center gap-2 transition-all active:scale-95 shadow-md shadow-[#2DD4BF]/10 disabled:opacity-50"
+              >
+                {isDownloadingApk ? (
+                  <>
+                    <RefreshCw size={14} className="animate-spin" />
+                    Iniciando download...
+                  </>
+                ) : (
+                  <>
+                    <Download size={15} />
+                    Baixar e Atualizar APK
+                  </>
+                )}
+              </button>
+
+              {onOpenUpdateModal && (
+                <button
+                  onClick={() => onOpenUpdateModal()}
+                  className="bg-white/5 hover:bg-white/10 text-gray-300 font-medium py-2.5 px-3 rounded-xl text-xs transition-colors shrink-0"
+                  title="Ver detalhes da versão"
+                >
+                  Ver Detalhes
+                </button>
+              )}
+            </div>
           </div>
         ) : (
           <button
@@ -296,7 +349,7 @@ export function Perfil({ onDataChange, updateInfo, onOpenUpdateModal }: PerfilPr
                 const info = await checkAppUpdate(true);
                 setManualUpdateInfo(info);
                 if (info?.isNewer) {
-                  onOpenUpdateModal?.();
+                  onUpdateDetected?.(info);
                 } else {
                   alert('Você já está usando a versão mais recente do RachApp!');
                 }

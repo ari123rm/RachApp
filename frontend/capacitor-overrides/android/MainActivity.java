@@ -38,7 +38,20 @@ public class MainActivity extends BridgeActivity {
     private void setupBridge() {
         try {
             if (getBridge() != null && getBridge().getWebView() != null) {
-                getBridge().getWebView().addJavascriptInterface(new Object() {
+                WebView webView = getBridge().getWebView();
+
+                // Intercepta requisições de download do WebView para abrir no navegador/DownloadManager nativo
+                webView.setDownloadListener((url, userAgent, contentDisposition, mimetype, contentLength) -> {
+                    try {
+                        Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
+                        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                        startActivity(intent);
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
+                });
+
+                webView.addJavascriptInterface(new Object() {
                     @JavascriptInterface
                     public String getPendingReceipt() {
                         return pendingSharedReceipt;
@@ -47,6 +60,17 @@ public class MainActivity extends BridgeActivity {
                     @JavascriptInterface
                     public void clearPendingReceipt() {
                         pendingSharedReceipt = null;
+                    }
+
+                    @JavascriptInterface
+                    public void openExternalUrl(String url) {
+                        try {
+                            Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
+                            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                            startActivity(intent);
+                        } catch (Exception e) {
+                            e.printStackTrace();
+                        }
                     }
                 }, "AndroidReceiptBridge");
             }

@@ -234,7 +234,15 @@ function App() {
           {/* TAB 3: PERFIL */}
           <div className="w-full min-w-full h-full shrink-0 overflow-hidden">
             <div className="w-full h-full overflow-y-auto p-4 md:p-6 pb-24 max-w-lg md:max-w-xl lg:max-w-2xl mx-auto scrollbar-hide">
-              <Perfil onDataChange={() => setIsAuthenticated(false)} updateInfo={updateInfo} onOpenUpdateModal={() => setIsUpdateModalOpen(true)} />
+              <Perfil
+                onDataChange={() => setIsAuthenticated(false)}
+                updateInfo={updateInfo}
+                onOpenUpdateModal={() => setIsUpdateModalOpen(true)}
+                onUpdateDetected={(info) => {
+                  setUpdateInfo(info);
+                  setIsUpdateModalOpen(true);
+                }}
+              />
             </div>
           </div>
         </div>
