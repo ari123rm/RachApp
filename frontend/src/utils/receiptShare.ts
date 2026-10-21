@@ -5,9 +5,24 @@ declare global {
     AndroidReceiptBridge?: {
       getPendingReceipt: () => string | null;
       clearPendingReceipt: () => void;
+      openExternalUrl?: (url: string) => void;
     };
     __onNativeSharedReceipt?: (dataUrl: string) => void;
   }
+}
+
+/**
+ * Limpa completamente qualquer comprovante pendente no cache/bridge para evitar reaberturas acidentais.
+ */
+export function clearSharedReceipt(): void {
+  try {
+    localStorage.removeItem('rachapp_pending_shared_receipt');
+  } catch {}
+  try {
+    if (window.AndroidReceiptBridge?.clearPendingReceipt) {
+      window.AndroidReceiptBridge.clearPendingReceipt();
+    }
+  } catch {}
 }
 
 /**
@@ -103,9 +118,7 @@ export function listenForSharedReceipt(onReceiptReceived: (receiptDataUrl: strin
   const handleCustomEvent = (e: any) => {
     const dataUrl = e?.detail?.dataUrl;
     if (dataUrl) {
-      try {
-        localStorage.removeItem('rachapp_pending_shared_receipt');
-      } catch {}
+      clearSharedReceipt();
       onReceiptReceived(dataUrl);
     }
   };
@@ -115,9 +128,7 @@ export function listenForSharedReceipt(onReceiptReceived: (receiptDataUrl: strin
   // 4. Hook para chamada direta global do WebView
   window.__onNativeSharedReceipt = (dataUrl: string) => {
     if (dataUrl) {
-      try {
-        localStorage.removeItem('rachapp_pending_shared_receipt');
-      } catch {}
+      clearSharedReceipt();
       onReceiptReceived(dataUrl);
     }
   };

@@ -16,7 +16,7 @@ import { checkAppUpdate, isUpdateDismissed, type AppReleaseInfo } from './servic
 import { App as CapApp } from '@capacitor/app';
 import { dbService } from './services/database';
 import { closeTopModal } from './utils/modalBackHandler';
-import { listenForSharedReceipt } from './utils/receiptShare';
+import { listenForSharedReceipt, clearSharedReceipt } from './utils/receiptShare';
 
 const TABS = ['home', 'viagens', 'amigos', 'perfil'] as const;
 
@@ -277,9 +277,13 @@ function App() {
       <AssignReceiptModal
         isOpen={!!incomingSharedReceipt}
         receiptDataUrl={incomingSharedReceipt}
-        onClose={() => setIncomingSharedReceipt(null)}
+        onClose={() => {
+          setIncomingSharedReceipt(null);
+          clearSharedReceipt();
+        }}
         onSuccess={() => {
           setIncomingSharedReceipt(null);
+          clearSharedReceipt();
           refreshData();
         }}
       />

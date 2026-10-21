@@ -54,7 +54,9 @@ public class MainActivity extends BridgeActivity {
                 webView.addJavascriptInterface(new Object() {
                     @JavascriptInterface
                     public String getPendingReceipt() {
-                        return pendingSharedReceipt;
+                        String res = pendingSharedReceipt;
+                        pendingSharedReceipt = null;
+                        return res;
                     }
 
                     @JavascriptInterface
@@ -88,6 +90,8 @@ public class MainActivity extends BridgeActivity {
             if (type.startsWith("image/") || type.equals("application/pdf")) {
                 Uri imageUri = intent.getParcelableExtra(Intent.EXTRA_STREAM);
                 if (imageUri != null) {
+                    intent.removeExtra(Intent.EXTRA_STREAM);
+                    setIntent(new Intent(Intent.ACTION_MAIN));
                     processUriAndDeliver(imageUri, type);
                 }
             }
@@ -127,7 +131,10 @@ public class MainActivity extends BridgeActivity {
         try {
             WebView webView = getBridge() != null ? getBridge().getWebView() : null;
             if (webView != null) {
-                String quoted = JSONObject.quote(pendingSharedReceipt);
+                String receiptToDeliver = pendingSharedReceipt;
+                pendingSharedReceipt = null; // Evita loop no onResume
+
+                String quoted = JSONObject.quote(receiptToDeliver);
                 String js = "try {" +
                         "  localStorage.setItem('rachapp_pending_shared_receipt', " + quoted + ");" +
                         "  window.dispatchEvent(new CustomEvent('rachappSharedReceipt', { detail: { dataUrl: " + quoted + " } }));" +
