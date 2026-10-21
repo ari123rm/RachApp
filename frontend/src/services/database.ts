@@ -1740,11 +1740,61 @@ export const dbService = {
         }
       }
 
+      const groupRows = await queryAll<{ id: string }>(
+        'SELECT id FROM groups_table ORDER BY created_at DESC'
+      );
+      const gruposPendentes: any[] = [];
+
+      for (const gRow of groupRows) {
+        try {
+          const grupo = await dbService.grupos.getById(gRow.id);
+          const userNet = Number(grupo.userNetBalance || 0);
+          const memberBalances = grupo.memberBalances || [];
+          const transfers = grupo.transfers || [];
+
+          const totalAReceberGrupo = memberBalances.reduce(
+            (acc, m) => (m.owesYou > 0.01 ? acc + m.owesYou : acc),
+            0
+          );
+          const totalAPagarGrupo = memberBalances.reduce(
+            (acc, m) => (m.owesYou < -0.01 ? acc + Math.abs(m.owesYou) : acc),
+            0
+          );
+          const totalTransfers = transfers.reduce((acc, t) => acc + Number(t.amount || 0), 0);
+
+          let saldoLiquido = Number(userNet.toFixed(2));
+          if (Math.abs(saldoLiquido) <= 0.01) {
+            if (totalAPagarGrupo > 0.01) {
+              saldoLiquido = -Number(totalAPagarGrupo.toFixed(2));
+            } else if (totalAReceberGrupo > 0.01) {
+              saldoLiquido = Number(totalAReceberGrupo.toFixed(2));
+            } else if (totalTransfers > 0.01) {
+              saldoLiquido = Number(totalTransfers.toFixed(2));
+            }
+          }
+
+          if (Math.abs(saldoLiquido) > 0.01) {
+            gruposPendentes.push({
+              ...grupo,
+              nome: grupo.name,
+              divida: saldoLiquido > 0.01 ? saldoLiquido : 0,
+              dividaNumerica: saldoLiquido > 0.01 ? saldoLiquido : 0,
+              voceDeve: saldoLiquido < -0.01 ? Math.abs(saldoLiquido) : 0,
+              voceDeveNumerico: saldoLiquido < -0.01 ? Math.abs(saldoLiquido) : 0,
+              saldoLiquido,
+            });
+          }
+        } catch {
+          // ignore if group not found
+        }
+      }
+
       return {
         totalGasto,
         totalAReceber: Number(totalAReceber.toFixed(2)),
         totalAPagar: Number(totalAPagar.toFixed(2)),
         amigosDevedores,
+        gruposPendentes,
       };
     },
   },

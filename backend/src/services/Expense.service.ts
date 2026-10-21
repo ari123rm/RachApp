@@ -1017,11 +1017,72 @@ export class ExpenseService {
       }
     });
 
+    const userGroups = await prisma.group.findMany({
+      where: {
+        OR: [
+          { created_by: userId },
+          { members: { some: { user_id: userId, status: 'ACCEPTED' } } },
+        ],
+      },
+      select: {
+        id: true,
+        name: true,
+        created_by: true,
+        created_at: true,
+      },
+      orderBy: { created_at: 'desc' },
+    });
+
+    const gruposPendentes: any[] = [];
+    for (const g of userGroups) {
+      try {
+        const bal = await this.calculateGroupBalances(g.id, userId);
+        const userNet = Number(bal.userNetBalance || 0);
+        const memberBalances = bal.memberBalances || [];
+        const transfers = bal.transfers || [];
+
+        const totalAReceberGrupo = memberBalances.reduce(
+          (acc, m) => (m.owesYou > 0.01 ? acc + m.owesYou : acc),
+          0
+        );
+        const totalAPagarGrupo = memberBalances.reduce(
+          (acc, m) => (m.owesYou < -0.01 ? acc + Math.abs(m.owesYou) : acc),
+          0
+        );
+        const totalTransfers = transfers.reduce((acc, t) => acc + Number(t.amount || 0), 0);
+
+        let saldoLiquido = Number(userNet.toFixed(2));
+        if (Math.abs(saldoLiquido) <= 0.01) {
+          if (totalAPagarGrupo > 0.01) {
+            saldoLiquido = -Number(totalAPagarGrupo.toFixed(2));
+          } else if (totalAReceberGrupo > 0.01) {
+            saldoLiquido = Number(totalAReceberGrupo.toFixed(2));
+          } else if (totalTransfers > 0.01) {
+            saldoLiquido = Number(totalTransfers.toFixed(2));
+          }
+        }
+
+        if (Math.abs(saldoLiquido) > 0.01) {
+          gruposPendentes.push({
+            ...g,
+            nome: g.name,
+            ...bal,
+            divida: saldoLiquido > 0.01 ? saldoLiquido : 0,
+            voceDeve: saldoLiquido < -0.01 ? Math.abs(saldoLiquido) : 0,
+            saldoLiquido,
+          });
+        }
+      } catch {
+        // ignore
+      }
+    }
+
     return {
       totalGasto: Number(totalGasto.toFixed(2)),
       totalAReceber: Number(totalAReceber.toFixed(2)),
       totalAPagar: Number(totalAPagar.toFixed(2)),
       amigosDevedores,
+      gruposPendentes,
     };
   }
 }

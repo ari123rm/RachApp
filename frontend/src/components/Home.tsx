@@ -4,8 +4,9 @@ import { ArrowUpRight, LoaderCircle, TrendingUp, TrendingDown, RefreshCw, BadgeC
 import type { AppReleaseInfo } from '../services/updateService';
 import { dbService } from '../services/database';
 import { FriendDetailsModal } from './FriendDetailsModal';
+import { GroupDetailsModal } from './GroupDetailsModal';
 import moneyConverter from '../utils/moneyConverter';
-import { getAvatarColor } from '../utils/avatarColor';
+import { getAvatarColor, getGroupAvatarColor } from '../utils/avatarColor';
 import type { SyncStatus } from '../types';
 
 export function Home({
@@ -24,9 +25,11 @@ export function Home({
     totalAReceber: 0,
     totalAPagar: 0,
     amigosDevedores: [] as any[],
+    gruposPendentes: [] as any[],
   });
   const [isLoading, setIsLoading] = useState(true);
   const [amigoSelecionado, setAmigoSelecionado] = useState<any>(null);
+  const [grupoSelecionadoId, setGrupoSelecionadoId] = useState<string | null>(null);
   const [nomeUsuario, setNomeUsuario] = useState('Usuário');
   const [syncStatus, setSyncStatus] = useState<SyncStatus>({
     state: 'synced',
@@ -50,6 +53,7 @@ export function Home({
         totalAReceber: dados.totalAReceber || 0,
         totalAPagar: (dados as any).totalAPagar || 0,
         amigosDevedores: dados.amigosDevedores || [],
+        gruposPendentes: (dados as any).gruposPendentes || [],
       });
     } catch (error) {
       console.error('Erro ao carregar Dashboard:', error);
@@ -69,6 +73,7 @@ export function Home({
             totalAReceber: dados.totalAReceber || 0,
             totalAPagar: (dados as any).totalAPagar || 0,
             amigosDevedores: dados.amigosDevedores || [],
+            gruposPendentes: (dados as any).gruposPendentes || [],
           });
         }).catch(() => {});
       }
@@ -84,6 +89,7 @@ export function Home({
           totalAReceber: dados.totalAReceber || 0,
           totalAPagar: (dados as any).totalAPagar || 0,
           amigosDevedores: dados.amigosDevedores || [],
+          gruposPendentes: (dados as any).gruposPendentes || [],
         });
       }).catch(() => {});
     }
@@ -313,6 +319,78 @@ export function Home({
         )}
       </div>
 
+      {/* Seção Pendências em Grupos */}
+      <div>
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="text-lg font-bold text-gray-200">Grupos com pendências</h3>
+          {dashboard.gruposPendentes.length > 0 && (
+            <span className="text-xs text-gray-500 font-medium">
+              {dashboard.gruposPendentes.length}{' '}
+              {dashboard.gruposPendentes.length === 1 ? 'pendente' : 'pendentes'}
+            </span>
+          )}
+        </div>
+
+        {dashboard.gruposPendentes.length === 0 ? (
+          <div className="bg-[#1c1c1e] p-6 rounded-3xl border border-white/5 text-center">
+            <p className="text-gray-500 text-sm italic">Nenhum grupo com pendências. ✌️</p>
+          </div>
+        ) : (
+          <div className="flex gap-4 overflow-x-auto pt-2.5 pb-4 px-1 scrollbar-hide -mt-2">
+            {dashboard.gruposPendentes.map((grupo) => {
+              const nome = grupo.nome || grupo.name || 'Grupo';
+              const cor = getGroupAvatarColor(grupo.cor || grupo.color || nome || grupo.id);
+              const divida = Number(grupo.divida || 0);
+              const voceDeve = Number(grupo.voceDeve || 0);
+              const saldoLiquido =
+                grupo.saldoLiquido !== undefined
+                  ? Number(grupo.saldoLiquido)
+                  : Number((divida - voceDeve).toFixed(2));
+              const isVoceDeve = saldoLiquido < -0.01;
+              const valorExibido = Math.abs(saldoLiquido);
+
+              return (
+                <div
+                  key={grupo.id}
+                  onClick={() => setGrupoSelecionadoId(grupo.id)}
+                  className="flex flex-col items-center gap-2 min-w-[85px] cursor-pointer active:scale-95 transition-transform"
+                >
+                  <div className="relative">
+                    <div
+                      style={{ backgroundColor: cor }}
+                      className="w-16 h-16 rounded-full flex items-center justify-center shadow-lg border-2 border-[#05080f]"
+                    >
+                      <span className="text-2xl font-black text-white">
+                        {nome[0]?.toUpperCase()}
+                      </span>
+                    </div>
+                    <div
+                      className={`absolute -top-1 -right-1 w-5 h-5 ${
+                        isVoceDeve ? 'bg-red-500' : 'bg-amber-500'
+                      } rounded-full border-2 border-[#05080f] flex items-center justify-center shadow-sm select-none`}
+                    >
+                      <span className="text-[11px] font-black text-white leading-none select-none block">!</span>
+                    </div>
+                  </div>
+                  <div className="text-center w-full">
+                    <p className="text-xs font-semibold text-white truncate max-w-[85px] mx-auto">
+                      {nome}
+                    </p>
+                    <p
+                      className={`text-[11px] font-bold ${
+                        isVoceDeve ? 'text-red-400' : 'text-amber-400'
+                      }`}
+                    >
+                      R$ {moneyConverter(valorExibido)}
+                    </p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
       <FriendDetailsModal
         amigo={amigoSelecionado}
         isOpen={!!amigoSelecionado}
@@ -322,6 +400,19 @@ export function Home({
         }}
         onDelete={handleExcluirAmigo}
         update={() => {
+          carregarDashboard();
+          if (onDataChange) onDataChange();
+        }}
+      />
+
+      <GroupDetailsModal
+        grupoId={grupoSelecionadoId}
+        isOpen={!!grupoSelecionadoId}
+        onClose={() => {
+          setGrupoSelecionadoId(null);
+          carregarDashboard();
+        }}
+        onChanged={() => {
           carregarDashboard();
           if (onDataChange) onDataChange();
         }}

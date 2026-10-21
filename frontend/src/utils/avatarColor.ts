@@ -129,3 +129,27 @@ export function getAvatarColor(cor?: string | null): string {
 
   return TAILWIND_COLOR_MAP[trimmed] || '#0ea5e9';
 }
+
+/**
+ * Retorna uma cor hexadecimal consistente para o avatar de um grupo
+ */
+export function getGroupAvatarColor(seed?: string | null): string {
+  if (!seed || typeof seed !== 'string') return '#6366F1';
+  const trimmed = seed.trim();
+  if (!trimmed) return '#6366F1';
+
+  if (
+    trimmed.startsWith('#') ||
+    trimmed.startsWith('rgb') ||
+    trimmed.startsWith('hsl') ||
+    trimmed.startsWith('bg-')
+  ) {
+    return getAvatarColor(trimmed);
+  }
+
+  let hash = 0;
+  for (let i = 0; i < trimmed.length; i++) {
+    hash = (hash * 31 + trimmed.charCodeAt(i)) >>> 0;
+  }
+  return PRESET_AVATAR_COLORS[hash % PRESET_AVATAR_COLORS.length];
+}
