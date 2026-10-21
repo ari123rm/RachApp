@@ -2,6 +2,8 @@
 import { useState, useEffect } from 'react';
 import {
   User,
+  Sparkles,
+  Download,
   QrCode,
   Lock,
   Trash2,
@@ -18,12 +20,18 @@ import { PixModal } from './PixModal';
 import { ChangePasswordScreen } from './ChangePasswordScreen';
 import { formatPhoneBR, isValidPhoneBR } from '../utils/phoneFormatter';
 import type { SyncStatus } from '../types';
+import { getCurrentAppVersion, checkAppUpdate, type AppReleaseInfo } from '../services/updateService';
 
 interface PerfilProps {
   onDataChange: () => void;
+  updateInfo?: AppReleaseInfo | null;
+  onOpenUpdateModal?: () => void;
 }
 
-export function Perfil({ onDataChange }: PerfilProps) {
+export function Perfil({ onDataChange, updateInfo, onOpenUpdateModal }: PerfilProps) {
+  const [currentVersion, setCurrentVersion] = useState('');
+  const [manualUpdateInfo, setManualUpdateInfo] = useState<AppReleaseInfo | null>(updateInfo || null);
+  const [isCheckingUpdate, setIsCheckingUpdate] = useState(false);
   const [nome, setNome] = useState('');
   const [telefone, setTelefone] = useState('');
   const [email, setEmail] = useState('');
@@ -43,6 +51,7 @@ export function Perfil({ onDataChange }: PerfilProps) {
     const carregarPerfil = async () => {
       setIsLoading(true);
       try {
+        getCurrentAppVersion().then((v) => setCurrentVersion(v)).catch(() => {});
         const user = await dbService.settings.get();
         setNome(user.name || user.nome || '');
         setTelefone(formatPhoneBR(user.phone || user.telefone || ''));
@@ -235,6 +244,74 @@ export function Perfil({ onDataChange }: PerfilProps) {
           </div>
           <ChevronRight size={20} className="text-gray-500 group-hover:text-white transition-colors" />
         </button>
+      </section>
+
+      {/* Versão e Atualizações do Aplicativo */}
+      <section className="bg-[#1c1c1e] rounded-3xl p-5 border border-white/5 space-y-3">
+        <div className="flex justify-between items-center">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-[#2DD4BF]/15 text-[#2DD4BF] flex items-center justify-center">
+              <Sparkles size={18} />
+            </div>
+            <div>
+              <h2 className="text-white font-semibold text-base">Versão do Aplicativo</h2>
+              <p className="text-xs text-gray-400">
+                {currentVersion ? `Versão instalada: v${currentVersion}` : 'RachApp'}
+              </p>
+            </div>
+          </div>
+          <span
+            className={`text-xs px-2.5 py-1 rounded-full font-bold flex items-center gap-1 ${
+              (manualUpdateInfo?.isNewer || updateInfo?.isNewer)
+                ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                : 'bg-[#2DD4BF]/15 text-[#2DD4BF] border border-[#2DD4BF]/30'
+            }`}
+          >
+            {(manualUpdateInfo?.isNewer || updateInfo?.isNewer) ? 'Atualização disponível' : 'Mais recente'}
+          </span>
+        </div>
+
+        {(manualUpdateInfo?.isNewer || updateInfo?.isNewer) ? (
+          <div className="bg-[#2c2c2e] p-3 rounded-2xl border border-amber-500/20 flex items-center justify-between gap-2">
+            <div>
+              <p className="text-xs font-bold text-white">
+                Nova versão: {(manualUpdateInfo || updateInfo)?.tagName}
+              </p>
+              <p className="text-[11px] text-gray-400">Toque para baixar o APK atualizado</p>
+            </div>
+            <button
+              onClick={() => onOpenUpdateModal?.()}
+              className="bg-[#2DD4BF] hover:bg-[#25b5a3] text-[#05080f] font-bold px-3 py-1.5 rounded-xl text-xs flex items-center gap-1 transition-transform active:scale-95 shrink-0"
+            >
+              <Download size={13} />
+              Atualizar
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={async () => {
+              setIsCheckingUpdate(true);
+              try {
+                const info = await checkAppUpdate(true);
+                setManualUpdateInfo(info);
+                if (info?.isNewer) {
+                  onOpenUpdateModal?.();
+                } else {
+                  alert('Você já está usando a versão mais recente do RachApp!');
+                }
+              } catch {
+                alert('Não foi possível verificar atualizações no momento.');
+              } finally {
+                setIsCheckingUpdate(false);
+              }
+            }}
+            disabled={isCheckingUpdate}
+            className="w-full bg-[#2c2c2e] hover:bg-gray-700 text-white font-semibold py-2.5 rounded-xl text-sm flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
+          >
+            <RefreshCw size={15} className={isCheckingUpdate ? 'animate-spin' : ''} />
+            {isCheckingUpdate ? 'Verificando atualizações...' : 'Verificar Atualizações'}
+          </button>
+        )}
       </section>
 
       {/* Logout */}

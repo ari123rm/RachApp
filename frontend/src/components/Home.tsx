@@ -1,13 +1,24 @@
 // src/components/Home.tsx
 import { useState, useEffect } from 'react';
-import { ArrowUpRight, LoaderCircle, TrendingUp, TrendingDown, RefreshCw, BadgeCheck } from 'lucide-react';
+import { ArrowUpRight, LoaderCircle, TrendingUp, TrendingDown, RefreshCw, BadgeCheck, Sparkles, Download } from 'lucide-react';
+import type { AppReleaseInfo } from '../services/updateService';
 import { dbService } from '../services/database';
 import { FriendDetailsModal } from './FriendDetailsModal';
 import moneyConverter from '../utils/moneyConverter';
 import { getAvatarColor } from '../utils/avatarColor';
 import type { SyncStatus } from '../types';
 
-export function Home({ onDataChange, dataVersion }: { onDataChange?: () => void; dataVersion?: number }) {
+export function Home({
+  onDataChange,
+  dataVersion,
+  updateInfo,
+  onOpenUpdateModal,
+}: {
+  onDataChange?: () => void;
+  dataVersion?: number;
+  updateInfo?: AppReleaseInfo | null;
+  onOpenUpdateModal?: () => void;
+}) {
   const [dashboard, setDashboard] = useState({
     totalGasto: 0,
     totalAReceber: 0,
@@ -141,6 +152,32 @@ export function Home({ onDataChange, dataVersion }: { onDataChange?: () => void;
           </div>
         </div>
       </header>
+
+      {/* Banner de Atualização Disponível (Opcional / Não-bloqueante) */}
+      {updateInfo && updateInfo.isNewer && (
+        <div className="bg-gradient-to-r from-[#2DD4BF]/15 via-sky-500/10 to-[#1c1c1e] border border-[#2DD4BF]/30 rounded-2xl p-3.5 flex items-center justify-between gap-3 animate-fade-in shadow-md">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-9 h-9 rounded-xl bg-[#2DD4BF]/20 text-[#2DD4BF] flex items-center justify-center shrink-0 border border-[#2DD4BF]/30">
+              <Sparkles size={18} />
+            </div>
+            <div className="min-w-0">
+              <p className="text-white text-xs font-bold truncate">
+                Nova versão disponível ({updateInfo.tagName})
+              </p>
+              <p className="text-gray-400 text-[10px] truncate">
+                Atualização opcional com melhorias
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={onOpenUpdateModal}
+            className="bg-[#2DD4BF] hover:bg-[#25b5a3] text-[#05080f] px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all active:scale-95 flex items-center gap-1 shrink-0 shadow-sm"
+          >
+            <Download size={13} />
+            Atualizar
+          </button>
+        </div>
+      )}
 
       {/* Card Principal: Total Pago (Figura 2 do Artigo) */}
       <div className="bg-gradient-to-br from-[#1A2b4c] via-[#241b3d] to-[#3B1F42] rounded-3xl p-6 shadow-2xl relative overflow-hidden border border-white/5">

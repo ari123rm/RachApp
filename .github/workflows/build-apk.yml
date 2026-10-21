@@ -56,6 +56,9 @@ jobs:
           else
             echo "⚠️ AVISO: Secret VITE_API_URL não encontrado! Configure VITE_API_URL nos Secrets do repositório."
           fi
+          echo "VITE_APP_VERSION=0.1.${{ github.run_number }}" >> .env.production
+          echo "VITE_APP_VERSION=0.1.${{ github.run_number }}" >> .env
+          echo "✅ VITE_APP_VERSION=0.1.${{ github.run_number }} injetada no build"
           npm run build
 
       - name: Inicializar e Sincronizar Plataforma Android (Capacitor)

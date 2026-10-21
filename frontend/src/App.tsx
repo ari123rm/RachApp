@@ -11,6 +11,8 @@ import { AddRideModal } from './components/AddRideModal';
 import { AddFriendModal } from './components/AddFriendModal';
 import { AddGroupModal } from './components/AddGroupModal';
 import { AssignReceiptModal } from './components/AssignReceiptModal';
+import { UpdateModal } from './components/UpdateModal';
+import { checkAppUpdate, isUpdateDismissed, type AppReleaseInfo } from './services/updateService';
 import { App as CapApp } from '@capacitor/app';
 import { dbService } from './services/database';
 import { closeTopModal } from './utils/modalBackHandler';
@@ -28,6 +30,8 @@ function App() {
   const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
   const [incomingSharedReceipt, setIncomingSharedReceipt] = useState<string | null>(null);
   const [dataVersion, setDataVersion] = useState(0);
+  const [updateInfo, setUpdateInfo] = useState<AppReleaseInfo | null>(null);
+  const [isUpdateModalOpen, setIsUpdateModalOpen] = useState(false);
   const lastSyncedRef = useRef<string | null>(null);
 
   const touchStartRef = useRef<{ x: number; y: number; time: number } | null>(null);
@@ -37,6 +41,19 @@ function App() {
   // Inicializa o banco SQLite local e verifica se há sessão ativa
   useEffect(() => {
     let mounted = true;
+
+    // Checa silenciosamente se há nova versão disponível no GitHub Releases
+    checkAppUpdate(false)
+      .then((info) => {
+        if (mounted && info && info.isNewer) {
+          setUpdateInfo(info);
+          if (!isUpdateDismissed(info.version)) {
+            setIsUpdateModalOpen(true);
+          }
+        }
+      })
+      .catch(() => {});
+
     dbService.auth
       .initSession()
       .then(({ isAuthenticated: auth }) => {
@@ -196,7 +213,7 @@ function App() {
           {/* TAB 0: HOME */}
           <div className="w-full min-w-full h-full shrink-0 overflow-hidden">
             <div className="w-full h-full overflow-y-auto p-4 md:p-6 pb-24 max-w-lg md:max-w-xl lg:max-w-2xl mx-auto scrollbar-hide">
-              <Home dataVersion={dataVersion} onDataChange={refreshData} />
+              <Home dataVersion={dataVersion} onDataChange={refreshData} updateInfo={updateInfo} onOpenUpdateModal={() => setIsUpdateModalOpen(true)} />
             </div>
           </div>
 
@@ -217,7 +234,7 @@ function App() {
           {/* TAB 3: PERFIL */}
           <div className="w-full min-w-full h-full shrink-0 overflow-hidden">
             <div className="w-full h-full overflow-y-auto p-4 md:p-6 pb-24 max-w-lg md:max-w-xl lg:max-w-2xl mx-auto scrollbar-hide">
-              <Perfil onDataChange={() => setIsAuthenticated(false)} />
+              <Perfil onDataChange={() => setIsAuthenticated(false)} updateInfo={updateInfo} onOpenUpdateModal={() => setIsUpdateModalOpen(true)} />
             </div>
           </div>
         </div>
@@ -258,6 +275,14 @@ function App() {
           refreshData();
         }}
       />
+
+      {updateInfo && updateInfo.isNewer && (
+        <UpdateModal
+          isOpen={isUpdateModalOpen}
+          onClose={() => setIsUpdateModalOpen(false)}
+          updateInfo={updateInfo}
+        />
+      )}
     </div>
   );
 }
