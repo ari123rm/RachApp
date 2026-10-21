@@ -734,6 +734,10 @@ export const dbService = {
           }
         }
 
+        const saldoLiquido = Number((dividaNum - voceDeveNum).toFixed(2));
+        const dividaLiquida = saldoLiquido > 0.005 ? saldoLiquido : 0;
+        const voceDeveLiquido = saldoLiquido < -0.005 ? Math.abs(saldoLiquido) : 0;
+
         amigos.push({
           id: r.id,
           nome: r.name,
@@ -749,8 +753,11 @@ export const dbService = {
           is_favorite: !!r.is_favorite,
           has_account: !!r.has_account,
           is_registered: !!r.has_account,
-          dividaNumerica: Number(dividaNum.toFixed(2)),
-          voceDeveNumerico: Number(voceDeveNum.toFixed(2)),
+          divida: dividaLiquida,
+          dividaNumerica: dividaLiquida,
+          voceDeve: voceDeveLiquido,
+          voceDeveNumerico: voceDeveLiquido,
+          saldoLiquido,
           pendingExpensesCount: pendingCount,
         });
       }
@@ -2002,62 +2009,28 @@ export const dbService = {
       amigoId: string,
       valorPago: number,
       groupId?: string,
-      receiptUrl?: string | null
+      receiptUrl?: string | null,
+      direction?: 'to_friend' | 'from_friend'
     ): Promise<void> => {
       const friendRow = await queryOne<any>('SELECT * FROM friends WHERE id = ?', [amigoId]);
       const normPhone = stripCountryCode(friendRow?.phone || '');
       const friendName = (friendRow?.name || '').trim();
 
-      const rows = await queryAll<{
-        expense_id: string;
-        friend_id: string;
-        amount_owed: number;
-        amount_paid: number;
-      }>(
-        `SELECT ep.expense_id, ep.friend_id, ep.amount_owed, ep.amount_paid
-         FROM expense_participants ep
-         JOIN expenses e ON e.id = ep.expense_id
-         LEFT JOIN friends f ON f.id = ep.friend_id
-         WHERE (
-           ep.friend_id = ?
-           OR (? != '' AND f.phone = ?)
-           OR (? != '' AND LOWER(TRIM(f.name)) = LOWER(TRIM(?)))
-         )
-           AND (e.paid_by_friend_id IS NULL OR e.paid_by_friend_id = '')
-           ${groupId ? 'AND e.group_id = ?' : ''}
-         ORDER BY e.expense_date ASC, e.rowid ASC`,
-        groupId
-          ? [amigoId, normPhone, normPhone, friendName, friendName, groupId]
-          : [amigoId, normPhone, normPhone, friendName, friendName]
-      );
+      // Se direction não foi informada, deduz a partir do saldo líquido
+      let effectiveDirection = direction;
+      if (!effectiveDirection) {
+        const allAmigos = await dbService.amigos.getAll();
+        const currentFriend = allAmigos.find((a) => a.id === amigoId);
+        const voceDeve = Number(currentFriend?.voceDeveNumerico || 0);
+        const eleDeve = Number(currentFriend?.dividaNumerica || 0);
+        effectiveDirection = voceDeve > eleDeve ? 'to_friend' : 'from_friend';
+      }
 
       let saldoRestante = Number(valorPago);
 
-      for (const r of rows) {
-        if (saldoRestante <= 0.005) break;
-        const faltaPagar = Number(r.amount_owed) - Number(r.amount_paid);
-        if (faltaPagar > 0.005) {
-          const abater = Math.min(faltaPagar, saldoRestante);
-          const novoPago = Number((Number(r.amount_paid) + abater).toFixed(2));
-          if (receiptUrl) {
-            await runSQL(
-              `UPDATE expense_participants SET amount_paid = ?, receipt_url = ? WHERE expense_id = ? AND friend_id = ?`,
-              [novoPago, receiptUrl, r.expense_id, r.friend_id],
-              false
-            );
-          } else {
-            await runSQL(
-              `UPDATE expense_participants SET amount_paid = ? WHERE expense_id = ? AND friend_id = ?`,
-              [novoPago, r.expense_id, r.friend_id],
-              false
-            );
-          }
-          saldoRestante -= abater;
-        }
-      }
-
-      // Se ainda restar saldo (ou se era pagamento de dívida onde o amigo foi o pagador), abate nas despesas onde paid_by_friend_id = amigoId
-      if (saldoRestante > 0.005) {
+      if (effectiveDirection === 'to_friend') {
+        // VOCÊ ESTÁ PAGANDO O AMIGO:
+        // Abate exclusivamente nas despesas em que o amigo pagou (paid_by_friend_id == amigoId)
         const selfRows = await queryAll<{
           id: string;
           self_amount_owed: number;
@@ -2115,6 +2088,54 @@ export const dbService = {
             saldoRestante -= abater;
           }
         }
+      } else {
+        // O AMIGO ESTÁ PAGANDO VOCÊ:
+        // Abate exclusivamente nas despesas em que Você pagou e o amigo devia
+        const rows = await queryAll<{
+          expense_id: string;
+          friend_id: string;
+          amount_owed: number;
+          amount_paid: number;
+        }>(
+          `SELECT ep.expense_id, ep.friend_id, ep.amount_owed, ep.amount_paid
+           FROM expense_participants ep
+           JOIN expenses e ON e.id = ep.expense_id
+           LEFT JOIN friends f ON f.id = ep.friend_id
+           WHERE (
+             ep.friend_id = ?
+             OR (? != '' AND f.phone = ?)
+             OR (? != '' AND LOWER(TRIM(f.name)) = LOWER(TRIM(?)))
+           )
+             AND (e.paid_by_friend_id IS NULL OR e.paid_by_friend_id = '')
+             ${groupId ? 'AND e.group_id = ?' : ''}
+           ORDER BY e.expense_date ASC, e.rowid ASC`,
+          groupId
+            ? [amigoId, normPhone, normPhone, friendName, friendName, groupId]
+            : [amigoId, normPhone, normPhone, friendName, friendName]
+        );
+
+        for (const r of rows) {
+          if (saldoRestante <= 0.005) break;
+          const faltaPagar = Number(r.amount_owed) - Number(r.amount_paid);
+          if (faltaPagar > 0.005) {
+            const abater = Math.min(faltaPagar, saldoRestante);
+            const novoPago = Number((Number(r.amount_paid) + abater).toFixed(2));
+            if (receiptUrl) {
+              await runSQL(
+                `UPDATE expense_participants SET amount_paid = ?, receipt_url = ? WHERE expense_id = ? AND friend_id = ?`,
+                [novoPago, receiptUrl, r.expense_id, r.friend_id],
+                false
+              );
+            } else {
+              await runSQL(
+                `UPDATE expense_participants SET amount_paid = ? WHERE expense_id = ? AND friend_id = ?`,
+                [novoPago, r.expense_id, r.friend_id],
+                false
+              );
+            }
+            saldoRestante -= abater;
+          }
+        }
       }
 
       await flushSQLite();
@@ -2123,6 +2144,7 @@ export const dbService = {
         amount: Number(valorPago),
         groupId,
         receiptUrl: receiptUrl || null,
+        direction: effectiveDirection,
       });
       syncWithBackend(false).catch(() => {});
     },

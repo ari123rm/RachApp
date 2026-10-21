@@ -509,6 +509,10 @@ export class FriendService {
         }
       }
 
+      const saldoLiquido = Number((divida - voceDeve).toFixed(2));
+      const dividaLiquida = saldoLiquido > 0.005 ? saldoLiquido : 0;
+      const voceDeveLiquido = saldoLiquido < -0.005 ? Math.abs(saldoLiquido) : 0;
+
       const { expenses, ...friendData } = friend;
       return {
         ...friendData,
@@ -518,8 +522,9 @@ export class FriendService {
         has_account: hasAccount,
         is_registered: hasAccount,
         registered_user_id: registeredUserId,
-        divida: Number(divida.toFixed(2)),
-        voceDeve: Number(voceDeve.toFixed(2)),
+        divida: dividaLiquida,
+        voceDeve: voceDeveLiquido,
+        saldoLiquido,
       };
     });
   }

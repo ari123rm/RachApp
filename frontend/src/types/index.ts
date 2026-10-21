@@ -29,6 +29,7 @@ export interface Amigo {
   dividaNumerica?: number;
   voceDeve?: string | number;
   voceDeveNumerico?: number;
+  saldoLiquido?: number;
   pendingExpensesCount?: number;
   has_account?: boolean;
   is_registered?: boolean;

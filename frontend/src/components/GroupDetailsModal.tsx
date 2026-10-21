@@ -157,7 +157,7 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
       return;
     }
     try {
-      await dbService.financeiro.registrarPagamento(friendId, amount, grupo.id);
+      await dbService.financeiro.registrarPagamento(friendId, amount, grupo.id, null, 'from_friend');
       await carregarDetalhes();
       if (onChanged) onChanged();
     } catch {
@@ -172,7 +172,8 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
       payMemberTarget.friendId,
       amount,
       grupo.id,
-      receiptBase64
+      receiptBase64,
+      'to_friend'
     );
     await carregarDetalhes();
     if (onChanged) onChanged();

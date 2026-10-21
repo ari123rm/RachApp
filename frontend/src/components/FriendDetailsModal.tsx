@@ -27,6 +27,7 @@ import { generatePixCopiaECola } from '../utils/pixGenerator';
 import { formatPhoneBR, openWhatsApp, phonesMatchBR, stripCountryCode } from '../utils/phoneFormatter';
 import { useModalBackHandler } from '../utils/modalBackHandler';
 import { getAvatarColor } from '../utils/avatarColor';
+import { applyBilateralNetting } from '../utils/netting';
 
 function parseCurrency(val: any): number {
   if (typeof val === 'number') return isNaN(val) ? 0 : val;
@@ -195,6 +196,8 @@ export function FriendDetailsModal({
         setAmigoAtual({ ...atualizado });
       }
 
+      const nettingMap = applyBilateralNetting(todasCorridas, atualizado, todosAmigos);
+
       const corridasFormatadas = todasCorridas
         .map((corrida) => {
           const amigoFoiPagador = checkIfFriendIsPayer(corrida);
@@ -234,12 +237,17 @@ export function FriendDetailsModal({
               : corrida.valorTotal / qtdPessoas;
           const seuJaPago = Number(corrida.selfAmountPaid || 0);
 
+          const netting = nettingMap.get(corrida.id);
+
           const pendente = amigoFoiPagador
             ? 0
-            : Math.max(0, Number((parte - jaPago).toFixed(2)));
+            : (netting ? netting.pendenteRestante : Math.max(0, Number((parte - jaPago).toFixed(2))));
           const voceDeve = amigoFoiPagador
-            ? Math.max(0, Number((suaParte - seuJaPago).toFixed(2)))
+            ? (netting ? netting.voceDeveRestante : Math.max(0, Number((suaParte - seuJaPago).toFixed(2))))
             : 0;
+
+          const compensado = netting?.compensado || 0;
+          const quitadaPorCompensacao = !!netting?.quitadaPorCompensacao;
 
           const valorExibicaoParte = amigoFoiPagador ? suaParte : parte;
           const pct =
@@ -270,6 +278,9 @@ export function FriendDetailsModal({
             pendenteFormatado: moneyConverter(pendente),
             voceDeve,
             voceDeveFormatado: moneyConverter(voceDeve),
+            compensado,
+            compensadoFormatado: moneyConverter(compensado),
+            quitadaPorCompensacao,
             jaPago: amigoFoiPagador ? seuJaPago : jaPago,
             amigoFoiPagador,
             receiptUrl,
@@ -333,8 +344,8 @@ export function FriendDetailsModal({
   const totalEleDeveFromCorridas = corridasDoAmigo.reduce((acc, curr) => acc + (curr.pendente || 0), 0);
   const totalVoceDeveFromCorridas = corridasDoAmigo.reduce((acc, curr) => acc + (curr.voceDeve || 0), 0);
 
-  const totalEleDeve = Math.max(totalEleDeveFromCorridas, rawDividaFromAmigo);
-  const totalVoceDeve = Math.max(totalVoceDeveFromCorridas, rawVoceDeveFromAmigo);
+  const totalEleDeve = corridasDoAmigo.length > 0 ? totalEleDeveFromCorridas : rawDividaFromAmigo;
+  const totalVoceDeve = corridasDoAmigo.length > 0 ? totalVoceDeveFromCorridas : rawVoceDeveFromAmigo;
 
   const voceDeveNoSaldo = totalVoceDeve > totalEleDeve + 0.005;
   const eleDeveNoSaldo = totalEleDeve > totalVoceDeve + 0.005;
@@ -412,7 +423,7 @@ export function FriendDetailsModal({
 
     setIsProcessingPayment(true);
     try {
-      await dbService.financeiro.registrarPagamento(baseAmigo.id, valor);
+      await dbService.financeiro.registrarPagamento(baseAmigo.id, valor, undefined, null, 'from_friend');
       setPaymentAmount('');
       setIsPaymentModalOpen(false);
       await carregarCorridas();
@@ -437,7 +448,8 @@ export function FriendDetailsModal({
         baseAmigo.id,
         amount,
         undefined,
-        receiptBase64
+        receiptBase64,
+        'to_friend'
       );
     }
     await carregarCorridas();
@@ -742,7 +754,7 @@ export function FriendDetailsModal({
 
                         {isQuitada ? (
                           <span className="bg-[#34C759]/20 text-[#34C759] text-xs px-2.5 py-0.5 rounded-full font-bold flex items-center gap-1">
-                            <Check size={12} /> Pago
+                            <Check size={12} /> {corrida.quitadaPorCompensacao ? 'Quitado (Compensado)' : 'Pago'}
                           </span>
                         ) : corrida.amigoFoiPagador ? (
                           /* Você deve neste racha -> só pode pagar enviando comprovante */
@@ -772,7 +784,7 @@ export function FriendDetailsModal({
                               onClick={() =>
                                 handleQuitarCorridaUnicaCredor(
                                   corrida.id,
-                                  corrida.parteNumero,
+                                  corrida.pendente > 0 ? corrida.pendente : corrida.parteNumero,
                                   corrida.participantFriendId
                                 )
                               }
@@ -814,6 +826,11 @@ export function FriendDetailsModal({
                         <div className="text-xs text-gray-400">
                           {corrida.amigoFoiPagador ? 'Sua parte' : 'Parte dele'} ({corrida.partePct}%): R$ {corrida.parteAmigo}
                         </div>
+                        {corrida.compensado > 0.005 && (
+                          <div className="text-[11px] text-[#2DD4BF] font-medium mt-0.5">
+                            R$ {corrida.compensadoFormatado} compensado{corrida.isQuitada ? 's' : ''}
+                          </div>
+                        )}
                         {!isQuitada && (
                           <div
                             className={`font-bold text-xs mt-0.5 ${

@@ -919,7 +919,8 @@ export class ExpenseService {
     debtorFriendId: string,
     amount: number,
     groupId?: string,
-    receiptUrl?: string | null
+    receiptUrl?: string | null,
+    direction?: 'to_friend' | 'from_friend'
   ) {
     const allExpenses = await this.listExpenses(creditorId);
     const filtered = allExpenses
@@ -928,56 +929,87 @@ export class ExpenseService {
 
     let remainingAmount = Number(amount);
 
-    // 1. Abate nas despesas em que o amigo deve para Você (!paid_by_friend_id)
-    for (const expense of filtered) {
-      if (remainingAmount <= 0.005) break;
-      if (expense.paid_by_friend_id) continue;
-
-      const part = (expense.participants || []).find((p: any) => p.friend_id === debtorFriendId);
-      if (!part) continue;
-
-      const owed = Number(part.amount_owed);
-      const paid = Number(part.amount_paid);
-      const pending = owed - paid;
-
-      if (pending > 0.005) {
-        const amountToPayHere = Math.min(pending, remainingAmount);
-        await this.setParticipantPayment(
-          creditorId,
-          expense.id,
-          debtorFriendId,
-          Number((paid + amountToPayHere).toFixed(2)),
-          receiptUrl
-        );
-        remainingAmount -= amountToPayHere;
+    let effectiveDirection = direction;
+    if (!effectiveDirection) {
+      let divida = 0;
+      let voceDeve = 0;
+      for (const expense of filtered) {
+        if (!expense.paid_by_friend_id) {
+          const part = (expense.participants || []).find((p: any) => p.friend_id === debtorFriendId);
+          if (part) {
+            const pending = Number(part.amount_owed) - Number(part.amount_paid);
+            if (pending > 0.005) divida += pending;
+          }
+        } else if (expense.paid_by_friend_id === debtorFriendId) {
+          const totalParts = (expense.participants?.length || 0) + 1;
+          const selfOwed =
+            expense.self_amount_owed !== null && expense.self_amount_owed !== undefined && Number(expense.self_amount_owed) > 0
+              ? Number(expense.self_amount_owed)
+              : ((expense.participants || []).reduce((acc: number, p: any) => acc + Number(p.amount_owed || 0), 0) >= Number(expense.total_amount) - 0.1)
+              ? 0
+              : Number(expense.total_amount) / totalParts;
+          const selfPaid = Number(expense.self_amount_paid || 0);
+          const pending = selfOwed - selfPaid;
+          if (pending > 0.005) voceDeve += pending;
+        }
       }
+      effectiveDirection = voceDeve > divida ? 'to_friend' : 'from_friend';
     }
 
-    // 2. Se ainda sobrar valor (ou se Você devia para o amigo), abate nas despesas em que o amigo pagou
-    for (const expense of filtered) {
-      if (remainingAmount <= 0.005) break;
-      if (expense.paid_by_friend_id !== debtorFriendId) continue;
+    if (effectiveDirection === 'to_friend') {
+      // VOCÊ ESTÁ PAGANDO O AMIGO:
+      // Abate nas despesas em que o amigo pagou e Você devia para ele
+      for (const expense of filtered) {
+        if (remainingAmount <= 0.005) break;
+        if (expense.paid_by_friend_id !== debtorFriendId) continue;
 
-      const totalParts = (expense.participants?.length || 0) + 1;
-      const selfOwed =
-        expense.self_amount_owed !== null && expense.self_amount_owed !== undefined && Number(expense.self_amount_owed) > 0
-          ? Number(expense.self_amount_owed)
-          : ((expense.participants || []).reduce((acc: number, p: any) => acc + Number(p.amount_owed || 0), 0) >= Number(expense.total_amount) - 0.1)
-          ? 0
-          : Number(expense.total_amount) / totalParts;
-      const selfPaid = Number(expense.self_amount_paid || 0);
-      const pending = selfOwed - selfPaid;
+        const totalParts = (expense.participants?.length || 0) + 1;
+        const selfOwed =
+          expense.self_amount_owed !== null && expense.self_amount_owed !== undefined && Number(expense.self_amount_owed) > 0
+            ? Number(expense.self_amount_owed)
+            : ((expense.participants || []).reduce((acc: number, p: any) => acc + Number(p.amount_owed || 0), 0) >= Number(expense.total_amount) - 0.1)
+            ? 0
+            : Number(expense.total_amount) / totalParts;
+        const selfPaid = Number(expense.self_amount_paid || 0);
+        const pending = selfOwed - selfPaid;
 
-      if (pending > 0.005) {
-        const amountToPayHere = Math.min(pending, remainingAmount);
-        await this.setParticipantPayment(
-          creditorId,
-          expense.id,
-          'self',
-          Number((selfPaid + amountToPayHere).toFixed(2)),
-          receiptUrl
-        );
-        remainingAmount -= amountToPayHere;
+        if (pending > 0.005) {
+          const amountToPayHere = Math.min(pending, remainingAmount);
+          await this.setParticipantPayment(
+            creditorId,
+            expense.id,
+            'self',
+            Number((selfPaid + amountToPayHere).toFixed(2)),
+            receiptUrl
+          );
+          remainingAmount -= amountToPayHere;
+        }
+      }
+    } else {
+      // O AMIGO ESTÁ PAGANDO VOCÊ:
+      // Abate nas despesas em que Você pagou e o amigo devia para Você
+      for (const expense of filtered) {
+        if (remainingAmount <= 0.005) break;
+        if (expense.paid_by_friend_id) continue;
+
+        const part = (expense.participants || []).find((p: any) => p.friend_id === debtorFriendId);
+        if (!part) continue;
+
+        const owed = Number(part.amount_owed);
+        const paid = Number(part.amount_paid);
+        const pending = owed - paid;
+
+        if (pending > 0.005) {
+          const amountToPayHere = Math.min(pending, remainingAmount);
+          await this.setParticipantPayment(
+            creditorId,
+            expense.id,
+            debtorFriendId,
+            Number((paid + amountToPayHere).toFixed(2)),
+            receiptUrl
+          );
+          remainingAmount -= amountToPayHere;
+        }
       }
     }
 

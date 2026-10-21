@@ -21,6 +21,7 @@ import { PayWithReceiptModal, ReceiptViewerModal } from './ReceiptModals';
 import { dbService } from '../services/database';
 import { useModalBackHandler } from '../utils/modalBackHandler';
 import { getAvatarColor } from '../utils/avatarColor';
+import { applyBilateralNetting } from '../utils/netting';
 
 interface RideDetailsProps {
   ride?: Corrida;
@@ -42,6 +43,7 @@ export function RideDetailsModal({
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isPaySelfOpen, setIsPaySelfOpen] = useState(false);
   const [myAvatarUrl, setMyAvatarUrl] = useState<string | null>(null);
+  const [nettingMap, setNettingMap] = useState<Map<string, any>>(new Map());
   const [receiptToView, setReceiptToView] = useState<{
     isOpen: boolean;
     url: string | null;
@@ -60,8 +62,31 @@ export function RideDetailsModal({
         .getSessionUser()
         .then((u) => setMyAvatarUrl(u?.avatar_url || null))
         .catch(() => {});
+
+      if (ride) {
+        Promise.all([dbService.corridas.getAll(), dbService.amigos.getAll()])
+          .then(([allRides, allFriends]) => {
+            const map = new Map<string, any>();
+            if (ride.paidByFriendId) {
+              const friendPayer = allFriends.find((f) => f.id === ride.paidByFriendId);
+              if (friendPayer) {
+                const res = applyBilateralNetting(allRides, friendPayer, allFriends);
+                const info = res.get(ride.id);
+                if (info) map.set('self', info);
+              }
+            } else {
+              for (const p of participantes) {
+                const res = applyBilateralNetting(allRides, p, allFriends);
+                const info = res.get(ride.id);
+                if (info) map.set(p.id, info);
+              }
+            }
+            setNettingMap(map);
+          })
+          .catch(() => {});
+      }
     }
-  }, [isOpen]);
+  }, [isOpen, ride?.id]);
 
   if (!isOpen || !ride) return null;
 
@@ -88,7 +113,8 @@ export function RideDetailsModal({
   };
 
   const voceEhPagador = !ride.paidByFriendId;
-  const isSelfQuitado = voceEhPagador || meuValorPago >= minhaParte - 0.01;
+  const selfNetting = nettingMap.get('self');
+  const isSelfQuitado = voceEhPagador || meuValorPago >= minhaParte - 0.01 || !!selfNetting?.isQuitada;
   const pagadorAmigo = participantes.find((p: any) => p.id === ride.paidByFriendId);
   const pagadorNome = pagadorAmigo?.nome || pagadorAmigo?.name || ride.paidByName || 'Amigo';
   const pagadorPix =
@@ -235,7 +261,8 @@ export function RideDetailsModal({
                   valorNumerico > 0 ? ((valorParte / valorNumerico) * 100).toFixed(1) : '0';
                 const valorPago = ride.pagamentos?.[p.id] || 0;
                 const isFriendPayer = ride.paidByFriendId === p.id;
-                const isQuitado = isFriendPayer || valorPago >= valorParte - 0.01;
+                const pNetting = nettingMap.get(p.id);
+                const isQuitado = isFriendPayer || valorPago >= valorParte - 0.01 || !!pNetting?.isQuitada;
                 const receiptDoAmigo = ride.comprovantes?.[p.id] || null;
 
                 return (

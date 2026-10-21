@@ -186,7 +186,8 @@ export function AssignReceiptModal({
           selectedFriend.id,
           valorNumerico,
           undefined,
-          receiptDataUrl
+          receiptDataUrl,
+          'to_friend'
         );
       } else {
         if (!selectedRide) {
