@@ -1666,7 +1666,25 @@ export const dbService = {
     },
 
     rejectInvitation: async (invitationId: string): Promise<any> => {
+      const invRow = await queryOne<any>(
+        'SELECT group_id FROM group_members WHERE id = ? OR group_id = ?',
+        [invitationId, invitationId]
+      );
+      const groupId = invRow?.group_id;
+
       const { data } = await api.post(`/groups/invitations/${invitationId}/reject`);
+
+      if (groupId) {
+        const session = await queryOne<any>('SELECT user_id FROM auth_session WHERE id = 1');
+        const myUserId = session?.user_id;
+        await runSQL(
+          'DELETE FROM expenses WHERE group_id = ? AND (created_by_user_id != ? OR created_by_user_id IS NULL)',
+          [groupId, myUserId || ''],
+          false
+        );
+        await runSQL('DELETE FROM group_members WHERE group_id = ?', [groupId], false);
+      }
+
       await syncWithBackend(true);
       return data;
     },

@@ -1,11 +1,11 @@
 // src/components/AddFriendModal.tsx
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { X, User, Phone, QrCode, Palette } from 'lucide-react';
+import { X, User, Phone, QrCode, Palette, Check } from 'lucide-react';
 import { dbService } from '../services/database';
 import { formatPhoneBR, isValidPhoneBR, stripCountryCode } from '../utils/phoneFormatter';
 import { useModalBackHandler } from '../utils/modalBackHandler';
-import { getAvatarColor, PRESET_AVATAR_COLORS } from '../utils/avatarColor';
+import { getAvatarColor, PRESET_AVATAR_COLORS, hslToHex, hexToHsl } from '../utils/avatarColor';
 import type { Amigo } from '../types';
 
 interface AddFriendModalProps {
@@ -20,6 +20,9 @@ export function AddFriendModal({ isOpen, onClose, onSuccess, friendToEdit }: Add
   const [telefone, setTelefone] = useState('');
   const [pixKey, setPixKey] = useState('');
   const [corSelecionada, setCorSelecionada] = useState(PRESET_AVATAR_COLORS[0]);
+  const [isCustomMode, setIsCustomMode] = useState(false);
+  const [hue, setHue] = useState(172);
+  const [hexInput, setHexInput] = useState(getAvatarColor(PRESET_AVATAR_COLORS[0]));
   const [erro, setErro] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const colorInputRef = useRef<HTMLInputElement>(null);
@@ -35,12 +38,23 @@ export function AddFriendModal({ isOpen, onClose, onSuccess, friendToEdit }: Add
         setNome(friendToEdit.nome || friendToEdit.name || '');
         setTelefone(formatPhoneBR(friendToEdit.telefone || friendToEdit.phone || ''));
         setPixKey(friendToEdit.pix_key || friendToEdit.pix || '');
-        setCorSelecionada(friendToEdit.cor || friendToEdit.color || PRESET_AVATAR_COLORS[0]);
+        const initialCor = friendToEdit.cor || friendToEdit.color || PRESET_AVATAR_COLORS[0];
+        const hex = getAvatarColor(initialCor);
+        setCorSelecionada(initialCor);
+        setHexInput(hex);
+        setHue(hexToHsl(hex).h);
+        const isPreset = PRESET_AVATAR_COLORS.some(
+          (c) => c.toLowerCase() === hex.toLowerCase()
+        );
+        setIsCustomMode(!isPreset);
       } else {
         setNome('');
         setTelefone('');
         setPixKey('');
         setCorSelecionada(PRESET_AVATAR_COLORS[0]);
+        setHexInput(PRESET_AVATAR_COLORS[0]);
+        setHue(hexToHsl(PRESET_AVATAR_COLORS[0]).h);
+        setIsCustomMode(false);
       }
     }
   }, [isOpen, friendToEdit]);
@@ -48,10 +62,6 @@ export function AddFriendModal({ isOpen, onClose, onSuccess, friendToEdit }: Add
   if (!isOpen) return null;
 
   const inicial = nome ? nome.trim().charAt(0).toUpperCase() : '?';
-
-  const isCustomColor = !PRESET_AVATAR_COLORS.some(
-    (c) => c.toLowerCase() === getAvatarColor(corSelecionada).toLowerCase()
-  );
 
   const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setErro('');
@@ -159,10 +169,9 @@ export function AddFriendModal({ isOpen, onClose, onSuccess, friendToEdit }: Add
 
         {/* Campo: WhatsApp formatado */}
         <div className="mb-4">
-          <div className="flex justify-between items-center mb-2">
-            <label className="text-gray-400 text-xs uppercase font-bold">WhatsApp (com DDD)</label>
-            <span className="text-[10px] text-gray-500">Aceita com ou sem +55</span>
-          </div>
+          <label className="block text-gray-400 text-xs uppercase font-bold mb-2">
+            WhatsApp com DDD (Opcional)
+          </label>
           <div className="bg-[#2c2c2e] rounded-xl p-3.5 flex items-center text-white focus-within:ring-2 focus-within:ring-[#2DD4BF]">
             <Phone size={18} className="text-gray-400 mr-3 shrink-0" />
             <input
@@ -170,13 +179,14 @@ export function AddFriendModal({ isOpen, onClose, onSuccess, friendToEdit }: Add
               placeholder="(85) 99999-8888"
               value={telefone}
               onChange={handlePhoneChange}
+              maxLength={15}
               className="bg-transparent w-full outline-none text-white placeholder:text-gray-600"
             />
           </div>
         </div>
 
-        {/* Campo: Chave Pix */}
-        <div className="mb-5">
+        {/* Campo: Pix */}
+        <div className="mb-4">
           <label className="block text-gray-400 text-xs uppercase font-bold mb-2">
             Chave Pix do Amigo (Opcional)
           </label>
@@ -194,73 +204,151 @@ export function AddFriendModal({ isOpen, onClose, onSuccess, friendToEdit }: Add
 
         {/* Escolha de Cor */}
         <div className="mb-6">
-          <div className="flex justify-between items-center mb-2">
-            <label className="text-gray-400 text-xs uppercase font-bold">
-              Cor de Destaque
+          <div className="flex justify-between items-center mb-2.5">
+            <label className="text-gray-400 text-xs uppercase font-bold tracking-wider">
+              Cor do Avatar
             </label>
-            <span className="text-[10px] text-gray-500">
-              {isCustomColor ? 'Cor personalizada' : 'Selecione ou personalize'}
-            </span>
-          </div>
-          <div className="flex justify-between items-center gap-2 bg-[#2c2c2e] p-3 rounded-2xl border border-white/5">
-            {PRESET_AVATAR_COLORS.map((cor) => {
-              const isActive =
-                getAvatarColor(corSelecionada).toLowerCase() === cor.toLowerCase();
-              return (
-                <button
-                  key={cor}
-                  type="button"
-                  style={{ backgroundColor: cor }}
-                  onClick={() => setCorSelecionada(cor)}
-                  className={`w-9 h-9 rounded-full transition-all duration-200 relative ${
-                    isActive
-                      ? 'scale-110 ring-4 ring-white/30 shadow-lg'
-                      : 'hover:scale-105 opacity-80 hover:opacity-100'
-                  }`}
-                >
-                  {isActive && (
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <div className="w-2.5 h-2.5 bg-white rounded-full"></div>
-                    </div>
-                  )}
-                </button>
-              );
-            })}
-
-            {/* 7ª Bolinha: Seletor de Cor Personalizada */}
-            <div className="relative">
-              <input
-                ref={colorInputRef}
-                type="color"
-                value={getAvatarColor(corSelecionada)}
-                onChange={(e) => setCorSelecionada(e.target.value)}
-                className="sr-only"
-                id="custom-color-picker"
-              />
-              <button
-                type="button"
-                onClick={() => colorInputRef.current?.click()}
-                style={
-                  isCustomColor
-                    ? { backgroundColor: getAvatarColor(corSelecionada) }
-                    : undefined
+            <button
+              type="button"
+              onClick={() => {
+                const nextMode = !isCustomMode;
+                setIsCustomMode(nextMode);
+                if (nextMode) {
+                  const currentHex = getAvatarColor(corSelecionada);
+                  setHexInput(currentHex);
+                  setHue(hexToHsl(currentHex).h);
                 }
-                className={`w-9 h-9 rounded-full transition-all duration-200 relative flex items-center justify-center ${
-                  isCustomColor
-                    ? 'scale-110 ring-4 ring-white/30 shadow-lg'
-                    : 'bg-gradient-to-tr from-pink-500 via-amber-400 to-cyan-400 hover:scale-105 opacity-90 hover:opacity-100'
-                }`}
-                title="Escolher qualquer cor personalizada"
-              >
-                <Palette
-                  size={16}
-                  className={
-                    isCustomColor ? 'text-white drop-shadow' : 'text-[#05080f] drop-shadow-sm'
-                  }
-                />
-              </button>
+              }}
+              className={`text-xs px-2.5 py-1 rounded-full font-semibold transition-all flex items-center gap-1.5 active:scale-95 ${
+                isCustomMode
+                  ? 'bg-[#2DD4BF]/20 text-[#2DD4BF] border border-[#2DD4BF]/40'
+                  : 'bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white border border-white/5'
+              }`}
+            >
+              <Palette size={13} />
+              {isCustomMode ? 'Cores Rápidas' : 'Personalizar'}
+            </button>
+          </div>
+
+          {/* Grid de 14 Cores Rápidas */}
+          <div className="bg-[#2c2c2e] p-3 rounded-2xl border border-white/5">
+            <div className="grid grid-cols-7 gap-2.5">
+              {PRESET_AVATAR_COLORS.map((cor) => {
+                const isActive =
+                  !isCustomMode &&
+                  getAvatarColor(corSelecionada).toLowerCase() === cor.toLowerCase();
+                return (
+                  <button
+                    key={cor}
+                    type="button"
+                    style={{ backgroundColor: cor }}
+                    onClick={() => {
+                      setCorSelecionada(cor);
+                      setHexInput(cor);
+                      setHue(hexToHsl(cor).h);
+                      setIsCustomMode(false);
+                    }}
+                    className={`aspect-square w-full rounded-full transition-all duration-150 relative flex items-center justify-center active:scale-90 shadow-sm ${
+                      isActive
+                        ? 'scale-110 ring-2 ring-white ring-offset-2 ring-offset-[#2c2c2e] shadow-md z-10'
+                        : 'opacity-85 hover:opacity-100 hover:scale-105'
+                    }`}
+                  >
+                    {isActive && (
+                      <Check size={14} className="text-white drop-shadow stroke-[3]" />
+                    )}
+                  </button>
+                );
+              })}
             </div>
           </div>
+
+          {/* Painel Avançado / Personalizado */}
+          {isCustomMode && (
+            <div className="mt-3 bg-[#2c2c2e] p-3.5 rounded-2xl border border-white/10 space-y-3.5 animate-slide-up">
+              {/* Slider de Matiz / Hue */}
+              <div>
+                <div className="flex justify-between items-center text-xs text-gray-400 mb-2 font-medium">
+                  <span className="flex items-center gap-1.5">
+                    <span
+                      style={{ backgroundColor: getAvatarColor(corSelecionada) }}
+                      className="w-3 h-3 rounded-full inline-block shadow-sm"
+                    />
+                    Ajustar Tom
+                  </span>
+                  <span className="text-gray-500 font-mono text-[11px]">{hue}°</span>
+                </div>
+                <input
+                  type="range"
+                  min="0"
+                  max="360"
+                  value={hue}
+                  onChange={(e) => {
+                    const val = Number(e.target.value);
+                    setHue(val);
+                    const newHex = hslToHex(val, 85, 52);
+                    setCorSelecionada(newHex);
+                    setHexInput(newHex);
+                  }}
+                  className="hue-slider w-full h-3 rounded-full appearance-none cursor-pointer outline-none transition-all"
+                  style={{
+                    background:
+                      'linear-gradient(to right, #ff0000 0%, #ffff00 17%, #00ff00 33%, #00ffff 50%, #0000ff 67%, #ff00ff 83%, #ff0000 100%)',
+                  }}
+                />
+              </div>
+
+              {/* Input Hexadecimal e Conta-Gotas */}
+              <div className="flex items-center gap-2 pt-0.5">
+                <div
+                  style={{ backgroundColor: getAvatarColor(corSelecionada) }}
+                  className="w-10 h-10 rounded-xl border border-white/20 shrink-0 shadow-inner transition-colors duration-200"
+                />
+                <div className="flex-1 bg-[#1c1c1e] rounded-xl px-3 py-2 flex items-center border border-white/10 focus-within:border-[#2DD4BF] transition-colors">
+                  <span className="text-gray-500 text-sm font-mono mr-1">#</span>
+                  <input
+                    type="text"
+                    value={hexInput.replace(/^#/, '')}
+                    maxLength={6}
+                    onChange={(e) => {
+                      const raw = e.target.value.replace(/[^0-9A-Fa-f]/g, '').toUpperCase();
+                      setHexInput(`#${raw}`);
+                      if (raw.length === 6) {
+                        const fullHex = `#${raw}`;
+                        setCorSelecionada(fullHex);
+                        setHue(hexToHsl(fullHex).h);
+                      }
+                    }}
+                    placeholder="2DD4BF"
+                    className="bg-transparent w-full outline-none text-white font-mono text-sm uppercase placeholder:text-gray-600"
+                  />
+                </div>
+
+                {/* Seletor do Sistema (opcional para quem quiser o contagotas nativo) */}
+                <input
+                  ref={colorInputRef}
+                  type="color"
+                  value={getAvatarColor(corSelecionada)}
+                  onChange={(e) => {
+                    const val = e.target.value.toUpperCase();
+                    setCorSelecionada(val);
+                    setHexInput(val);
+                    setHue(hexToHsl(val).h);
+                  }}
+                  className="sr-only"
+                  id="system-color-picker"
+                />
+                <button
+                  type="button"
+                  onClick={() => colorInputRef.current?.click()}
+                  title="Abrir seletor do sistema / conta-gotas"
+                  className="bg-[#1c1c1e] hover:bg-[#333] text-gray-400 hover:text-white p-2.5 rounded-xl border border-white/10 transition-colors shrink-0 active:scale-95 flex items-center justify-center"
+                >
+                  <Palette size={18} />
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         <button

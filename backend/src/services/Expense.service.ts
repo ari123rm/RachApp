@@ -166,15 +166,31 @@ export class ExpenseService {
           },
         },
         group: {
-          select: { id: true, name: true },
+          select: {
+            id: true,
+            name: true,
+            created_by: true,
+            members: {
+              select: { user_id: true, status: true },
+            },
+          },
         },
         paidByFriend: true,
       },
       orderBy: { expense_date: 'desc' },
     });
 
+    const filteredExpenses = expenses.filter((exp) => {
+      if (!exp.group_id || !exp.group) return true;
+      if (exp.user_id === userId) return true;
+      if (exp.group.created_by === userId) return true;
+      return exp.group.members.some(
+        (m) => m.user_id === userId && m.status === 'ACCEPTED'
+      );
+    });
+
     const transformed = [];
-    for (const exp of expenses) {
+    for (const exp of filteredExpenses) {
       transformed.push(await this.transformExpenseForUser(exp, userId, reverseContext));
     }
 

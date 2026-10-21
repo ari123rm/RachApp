@@ -78,7 +78,16 @@ export function Viagens({ onDataChange, dataVersion }: { onDataChange?: () => vo
   }, [dataVersion]);
 
   const getParticipantesCompletos = (ids: string[]) => {
-    return amigos.filter((a) => ids.includes(a.id));
+    return ids.map((id) => {
+      const found = amigos.find((a) => a.id === id);
+      return (
+        found || {
+          id,
+          nome: 'Amigo',
+          cor: '#0ea5e9',
+        }
+      );
+    });
   };
 
   const deletarCorrida = async (id: string) => {
@@ -591,11 +600,11 @@ export function Viagens({ onDataChange, dataVersion }: { onDataChange?: () => vo
                       titulo={corrida.titulo}
                       valorTotal={moneyConverter(corrida.valorTotal)}
                       participantes={[
-                        { id: 0, nome: 'Você', cor: 'bg-[#2DD4BF]' },
+                        { id: 0, nome: 'Você', cor: '#2DD4BF' },
                         ...getParticipantesCompletos(corrida.participantesIds).map((a, idx) => ({
-                          id: idx + 1,
+                          id: a.id || idx + 1,
                           nome: a.nome || a.name || 'Amigo',
-                          cor: a.cor || a.color || 'bg-sky-500',
+                          cor: a.cor || a.color || '#0ea5e9',
                         })),
                       ]}
                       onClick={() => setCorridaSelecionadaId(corrida.id)}

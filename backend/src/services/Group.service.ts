@@ -263,6 +263,79 @@ export class GroupService {
     return { message: 'Convite aceito com sucesso!' };
   }
 
+  static async removeFriendsFromGroupExpenses(groupId: string, friendIds: string[]) {
+    if (!groupId || !friendIds.length) return;
+
+    const friendIdSet = new Set(friendIds);
+
+    const expenses = await prisma.expense.findMany({
+      where: { group_id: groupId },
+      include: {
+        participants: true,
+      },
+    });
+
+    for (const exp of expenses) {
+      const hasParticipant = exp.participants.some((p) => friendIdSet.has(p.friend_id));
+      const hasPayer = exp.paid_by_friend_id && friendIdSet.has(exp.paid_by_friend_id);
+
+      if (!hasParticipant && !hasPayer) {
+        continue;
+      }
+
+      if (hasPayer) {
+        await prisma.expense.update({
+          where: { id: exp.id },
+          data: { paid_by_friend_id: null },
+        });
+      }
+
+      if (hasParticipant) {
+        await prisma.expenseParticipant.deleteMany({
+          where: {
+            expense_id: exp.id,
+            friend_id: { in: friendIds },
+          },
+        });
+
+        const remainingParticipants = exp.participants.filter(
+          (p) => !friendIdSet.has(p.friend_id)
+        );
+
+        if (remainingParticipants.length === 0) {
+          await prisma.expense.delete({
+            where: { id: exp.id },
+          });
+        } else {
+          const totalPeople = remainingParticipants.length + 1;
+          const newSplitAmount = Number((Number(exp.total_amount) / totalPeople).toFixed(2));
+
+          await prisma.expense.update({
+            where: { id: exp.id },
+            data: {
+              self_amount_owed: newSplitAmount,
+              self_amount_paid: hasPayer ? newSplitAmount : (exp.paid_by_friend_id ? 0 : newSplitAmount),
+            },
+          });
+
+          for (const rem of remainingParticipants) {
+            await prisma.expenseParticipant.update({
+              where: {
+                expense_id_friend_id: {
+                  expense_id: exp.id,
+                  friend_id: rem.friend_id,
+                },
+              },
+              data: {
+                amount_owed: newSplitAmount,
+              },
+            });
+          }
+        }
+      }
+    }
+  }
+
   static async rejectInvitation(userId: string, invitationId: string) {
     const member = await prisma.groupMember.findFirst({
       where: {
@@ -273,6 +346,28 @@ export class GroupService {
 
     if (!member) {
       throw new Error('Convite de grupo não encontrado.');
+    }
+
+    const groupId = member.group_id;
+
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    const targetFriendIds = new Set<string>();
+    if (member.friend_id) {
+      targetFriendIds.add(member.friend_id);
+    }
+    if (user?.phone) {
+      const allFriends = await prisma.friend.findMany({
+        where: { phone: { not: null } },
+      });
+      for (const f of allFriends) {
+        if (phonesMatch(f.phone, user.phone)) {
+          targetFriendIds.add(f.id);
+        }
+      }
+    }
+
+    if (targetFriendIds.size > 0) {
+      await this.removeFriendsFromGroupExpenses(groupId, Array.from(targetFriendIds));
     }
 
     await prisma.groupMember.delete({
@@ -444,10 +539,39 @@ export class GroupService {
   }
 
   static async removeMember(groupId: string, userId: string, memberOrFriendId: string) {
+    const member = await prisma.groupMember.findFirst({
+      where: {
+        group_id: groupId,
+        OR: [{ id: memberOrFriendId }, { friend_id: memberOrFriendId }, { user_id: memberOrFriendId }],
+      },
+      include: {
+        user: true,
+      },
+    });
+
+    const friendIdsToRemove: string[] = [];
+    if (member?.friend_id) {
+      friendIdsToRemove.push(member.friend_id);
+    }
+    if (member?.user?.phone) {
+      const allFriends = await prisma.friend.findMany({ where: { phone: { not: null } } });
+      for (const f of allFriends) {
+        if (phonesMatch(f.phone, member.user.phone)) {
+          friendIdsToRemove.push(f.id);
+        }
+      }
+    } else if (memberOrFriendId) {
+      friendIdsToRemove.push(memberOrFriendId);
+    }
+
+    if (friendIdsToRemove.length > 0) {
+      await this.removeFriendsFromGroupExpenses(groupId, Array.from(new Set(friendIdsToRemove)));
+    }
+
     await prisma.groupMember.deleteMany({
       where: {
         group_id: groupId,
-        OR: [{ id: memberOrFriendId }, { friend_id: memberOrFriendId }],
+        OR: [{ id: memberOrFriendId }, { friend_id: memberOrFriendId }, { user_id: memberOrFriendId }],
       },
     });
   }
