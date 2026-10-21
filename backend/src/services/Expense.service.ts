@@ -748,6 +748,13 @@ export class ExpenseService {
     const netBalances: Record<string, number> = { [ownerKey]: 0 };
     const memberPendingCount: Record<string, number> = {};
     const memberOwesOwner: Record<string, number> = {};
+    const pairwiseDebts: Record<string, Record<string, number>> = {};
+
+    const addPairwiseDebt = (from: string, to: string, amount: number) => {
+      if (!from || !to || from === to || amount <= 0.005) return;
+      if (!pairwiseDebts[from]) pairwiseDebts[from] = {};
+      pairwiseDebts[from][to] = (pairwiseDebts[from][to] || 0) + amount;
+    };
 
     Object.keys(entityMeta).forEach((k) => {
       netBalances[k] = 0;
@@ -782,7 +789,7 @@ export class ExpenseService {
             netBalances[ownerKey] = (netBalances[ownerKey] || 0) + pending;
             netBalances[part.friend_id] = (netBalances[part.friend_id] || 0) - pending;
             memberPendingCount[part.friend_id] = (memberPendingCount[part.friend_id] || 0) + 1;
-            memberOwesOwner[part.friend_id] = (memberOwesOwner[part.friend_id] || 0) + pending;
+            addPairwiseDebt(part.friend_id, ownerKey, pending);
           }
         });
       } else {
@@ -803,6 +810,7 @@ export class ExpenseService {
             netBalances[payerFriendId] = (netBalances[payerFriendId] || 0) + pending;
             netBalances[part.friend_id] = (netBalances[part.friend_id] || 0) - pending;
             memberPendingCount[part.friend_id] = (memberPendingCount[part.friend_id] || 0) + 1;
+            addPairwiseDebt(part.friend_id, payerFriendId, pending);
           }
         });
 
@@ -818,12 +826,20 @@ export class ExpenseService {
         if (selfPending > 0.005) {
           netBalances[payerFriendId] = (netBalances[payerFriendId] || 0) + selfPending;
           netBalances[ownerKey] = (netBalances[ownerKey] || 0) - selfPending;
-          memberOwesOwner[payerFriendId] = (memberOwesOwner[payerFriendId] || 0) - selfPending;
+          addPairwiseDebt(ownerKey, payerFriendId, selfPending);
         }
       }
     }
 
-    const transfers = this.simplifyDebts(netBalances, entityMeta);
+    // Calcula dívida líquida direta entre cada membro e Você
+    for (const key of Object.keys(entityMeta)) {
+      if (key === ownerKey) continue;
+      const debtMemberToOwner = pairwiseDebts[key]?.[ownerKey] || 0;
+      const debtOwnerToMember = pairwiseDebts[ownerKey]?.[key] || 0;
+      memberOwesOwner[key] = Number((debtMemberToOwner - debtOwnerToMember).toFixed(2));
+    }
+
+    const transfers = this.calculateDirectTransfers(pairwiseDebts, entityMeta);
 
     const memberBalances = Object.entries(entityMeta)
       .filter(([key]) => key !== ownerKey)
@@ -845,38 +861,35 @@ export class ExpenseService {
     };
   }
 
-  // 7. Algoritmo de Minimização de Transferências Cruzadas
-  private static simplifyDebts(
-    balances: Record<string, number>,
+  // 7. Cálculo de Rotas Diretas entre Membros do Grupo (Sem triangulações artificiais)
+  private static calculateDirectTransfers(
+    pairwiseDebts: Record<string, Record<string, number>>,
     entityMeta: Record<
       string,
       { id: string; name: string; phone?: string | null; pix_key?: string | null; color: string; isOwner?: boolean }
     >
   ): Transfer[] {
-    const debtors: { key: string; amount: number }[] = [];
-    const creditors: { key: string; amount: number }[] = [];
-
-    for (const [key, balance] of Object.entries(balances)) {
-      if (balance < -0.01) debtors.push({ key, amount: Math.abs(balance) });
-      else if (balance > 0.01) creditors.push({ key, amount: balance });
-    }
-
-    debtors.sort((a, b) => b.amount - a.amount);
-    creditors.sort((a, b) => b.amount - a.amount);
-
-    let i = 0;
-    let j = 0;
     const transfers: Transfer[] = [];
+    const keys = Object.keys(entityMeta);
 
-    while (i < debtors.length && j < creditors.length) {
-      const debtor = debtors[i];
-      const creditor = creditors[j];
+    for (let a = 0; a < keys.length; a++) {
+      for (let b = a + 1; b < keys.length; b++) {
+        const keyA = keys[a];
+        const keyB = keys[b];
 
-      const transferAmount = Math.min(debtor.amount, creditor.amount);
-      const fromMeta = entityMeta[debtor.key] || { id: debtor.key, name: 'Participante', color: 'bg-gray-600' };
-      const toMeta = entityMeta[creditor.key] || { id: creditor.key, name: 'Credor', color: 'bg-teal-500' };
+        const debtAtoB = pairwiseDebts[keyA]?.[keyB] || 0;
+        const debtBtoA = pairwiseDebts[keyB]?.[keyA] || 0;
+        const net = Number((debtAtoB - debtBtoA).toFixed(2));
 
-      if (transferAmount >= 0.01) {
+        if (Math.abs(net) < 0.01) continue;
+
+        const fromKey = net > 0 ? keyA : keyB;
+        const toKey = net > 0 ? keyB : keyA;
+        const amount = Math.abs(net);
+
+        const fromMeta = entityMeta[fromKey] || { id: fromKey, name: 'Participante', color: 'bg-gray-600' };
+        const toMeta = entityMeta[toKey] || { id: toKey, name: 'Credor', color: 'bg-teal-500' };
+
         transfers.push({
           fromId: fromMeta.id,
           fromName: fromMeta.isOwner ? 'Você' : fromMeta.name,
@@ -887,17 +900,12 @@ export class ExpenseService {
           toPhone: toMeta.phone,
           toPixKey: toMeta.pix_key,
           toColor: toMeta.color,
-          amount: Number(transferAmount.toFixed(2)),
+          amount,
         });
       }
-
-      debtor.amount -= transferAmount;
-      creditor.amount -= transferAmount;
-
-      if (debtor.amount < 0.01) i++;
-      if (creditor.amount < 0.01) j++;
     }
 
+    transfers.sort((t1, t2) => t2.amount - t1.amount);
     return transfers;
   }
 

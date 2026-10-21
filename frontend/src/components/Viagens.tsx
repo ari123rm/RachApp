@@ -77,14 +77,18 @@ export function Viagens({ onDataChange, dataVersion }: { onDataChange?: () => vo
     }
   }, [dataVersion]);
 
-  const getParticipantesCompletos = (ids: string[]) => {
+  const getParticipantesCompletos = (ids: string[]): Amigo[] => {
     return ids.map((id) => {
       const found = amigos.find((a) => a.id === id);
       return (
         found || {
           id,
           nome: 'Amigo',
+          name: 'Amigo',
+          telefone: '',
           cor: '#0ea5e9',
+          color: '#0ea5e9',
+          favorito: false,
         }
       );
     });
@@ -603,8 +607,8 @@ export function Viagens({ onDataChange, dataVersion }: { onDataChange?: () => vo
                         { id: 0, nome: 'Você', cor: '#2DD4BF' },
                         ...getParticipantesCompletos(corrida.participantesIds).map((a, idx) => ({
                           id: a.id || idx + 1,
-                          nome: a.nome || a.name || 'Amigo',
-                          cor: a.cor || a.color || '#0ea5e9',
+                          nome: a.nome || 'Amigo',
+                          cor: a.cor || '#0ea5e9',
                         })),
                       ]}
                       onClick={() => setCorridaSelecionadaId(corrida.id)}

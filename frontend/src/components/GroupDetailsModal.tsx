@@ -221,7 +221,7 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
     const isToMe = t.toName === 'Você';
     const pixKey = isToMe ? myPix : t.toPixKey || '';
     const recipient = isToMe ? myName : t.toName;
-    const msg = `Fala ${t.fromName}! Pelo cálculo otimizado do grupo *${grupo?.name}* no RachApp, o acerto ficou:\n\n• *${t.fromName} ➔ ${t.toName}: R$ ${moneyConverter(t.amount)}*\n${
+    const msg = `Fala ${t.fromName}! Pelo acerto de contas do grupo *${grupo?.name}* no RachApp, o acerto ficou:\n\n• *${t.fromName} ➔ ${t.toName}: R$ ${moneyConverter(t.amount)}*\n${
       pixKey ? `🔑 Chave Pix: ${pixKey}` : ''
     }`;
 
@@ -546,13 +546,13 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
               </div>
             </div>
 
-            {/* Algoritmo de Minimização de Transferências Cruzadas */}
+            {/* Rotas de Acerto Direto entre Participantes */}
             {grupo.transfers && grupo.transfers.length > 0 && (
               <div className="bg-[#141923] rounded-2xl p-4 border border-[#2DD4BF]/20">
                 <div className="flex justify-between items-center mb-3">
                   <h4 className="text-white font-bold text-sm flex items-center gap-2">
                     <QrCode size={16} className="text-[#2DD4BF]" />
-                    Transferências Otimizadas (Pix)
+                    Rotas de Acerto (Pix)
                   </h4>
                   <span className="text-[10px] bg-[#2DD4BF]/15 text-[#2DD4BF] px-2 py-0.5 rounded-full font-bold">
                     {grupo.transfers.length} {grupo.transfers.length === 1 ? 'repasse' : 'repasses'}
