@@ -2,6 +2,9 @@
 import { initializeApp, cert, getApps, App, ServiceAccount } from 'firebase-admin/app';
 import fs from 'fs';
 import path from 'path';
+import dotenv from 'dotenv';
+
+dotenv.config();
 
 let firebaseApp: App | null = null;
 
@@ -64,7 +67,7 @@ function loadServiceAccount(): ServiceAccount | null {
   try {
     const rootFiles = fs.readdirSync(process.cwd());
     const serviceAccountFile = rootFiles.find(
-      (f) => f.includes('firebase-adminsdk') && f.endsWith('.json')
+      (f) => (f.includes('firebase-adminsdk') || f.includes('firebase-service-account')) && f.endsWith('.json')
     );
     if (serviceAccountFile) {
       const filePath = path.resolve(process.cwd(), serviceAccountFile);

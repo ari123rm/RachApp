@@ -39,12 +39,14 @@ export function initSocketServer(httpServer: HttpServer): SocketIOServer {
     if (userId) {
       // Cada usuário se conecta em sua sala exclusiva
       socket.join(`user:${userId}`);
-      console.log(`🔌 [Socket.io] Usuário ${userId} conectado (socket ${socket.id})`);
     }
 
-    socket.on('disconnect', () => {
-      if (userId) {
-        console.log(`❌ [Socket.io] Usuário ${userId} desconectado`);
+    socket.on('disconnect', (reason) => {
+      // Só loga desconexões anormais (evita flood com navegação rápida ou fechamento de aba)
+      if (reason !== 'client namespace disconnect' && reason !== 'transport close') {
+        if (userId) {
+          console.log(`ℹ️ [Socket.io] Usuário ${userId} desconectado (${reason})`);
+        }
       }
     });
   });
