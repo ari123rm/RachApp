@@ -36,6 +36,7 @@ jobs:
           FRONTEND_PORT=${{ secrets.FRONTEND_PORT || '5173' }}
           VITE_API_URL=${{ secrets.VITE_API_URL || vars.VITE_API_URL || '' }}
           JWT_SECRET=${{ secrets.JWT_SECRET || 'rachapp_secret_key_prod' }}
+          FIREBASE_SERVICE_ACCOUNT=${{ secrets.FIREBASE_SERVICE_ACCOUNT || '' }}
           ALLOWED_ORIGINS=*
           EOF
 
