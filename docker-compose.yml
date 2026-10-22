@@ -36,6 +36,7 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-rachapp}?schema=public
       JWT_SECRET: ${JWT_SECRET:-rachapp_secret_key_change_me}
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-*}
+      FIREBASE_SERVICE_ACCOUNT: ./firebase-service-account.json
     healthcheck:
       test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:5000/health || exit 1"]
       interval: 15s

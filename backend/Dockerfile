@@ -8,6 +8,7 @@ WORKDIR /app
 # Copia arquivos de dependências e schema do Prisma
 COPY package*.json ./
 COPY prisma ./prisma/
+COPY firebase-service-account*.json ./
 
 # Instala dependências e gera o Prisma Client
 RUN npm install
