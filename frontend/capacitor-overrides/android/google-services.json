@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "489981836478",
+    "project_id": "rachapp-fundao",
+    "storage_bucket": "rachapp-fundao.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:489981836478:android:141dc2824682dd078372ef",
+        "android_client_info": {
+          "package_name": "com.ariel.rachapp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAwNVaMHv_X7WgjObMZ6RLb4bQtlrxDip4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

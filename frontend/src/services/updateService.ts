@@ -37,7 +37,7 @@ export async function getCurrentAppVersion(): Promise<string> {
   const envVersion = import.meta.env.VITE_APP_VERSION;
   if (envVersion) return String(envVersion).trim();
 
-  return '0.1.24';
+  return '0.1.38';
 }
 
 /**
@@ -71,6 +71,10 @@ export function isVersionNewer(current: string, latest: string): boolean {
  * Consulta a última Release no GitHub e compara com a versão instalada.
  */
 export async function checkAppUpdate(force = false): Promise<AppReleaseInfo | null> {
+  // Se estiver no ambiente de desenvolvimento local (npm run dev) ou na web comum, não checa atualização de APK
+  if (!Capacitor.isNativePlatform() || import.meta.env.DEV) {
+    return null;
+  }
   try {
     const now = Date.now();
     const lastCheckStr = localStorage.getItem(LAST_CHECK_KEY);
