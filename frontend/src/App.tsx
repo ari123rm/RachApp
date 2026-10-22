@@ -150,7 +150,7 @@ function App() {
     initSocket();
     initPushNotifications();
 
-    const unsubNotif = onSocketNotification((notif) => {
+    const unsubNotif = onSocketNotification((notif: AppNotification) => {
       setInAppToast(notif);
       refreshData();
       setTimeout(() => {
