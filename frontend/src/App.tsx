@@ -1,6 +1,6 @@
 // src/App.tsx
 import { useState, useEffect, useRef } from 'react';
-import { Plus, LoaderCircle } from 'lucide-react';
+import { Plus, LoaderCircle, Bell, X } from 'lucide-react';
 import { BottomNav } from './components/BottomNav';
 import { Home } from './components/Home';
 import { Viagens } from './components/Viagens';
@@ -12,11 +12,20 @@ import { AddFriendModal } from './components/AddFriendModal';
 import { AddGroupModal } from './components/AddGroupModal';
 import { AssignReceiptModal } from './components/AssignReceiptModal';
 import { UpdateModal } from './components/UpdateModal';
+import { NotificationModal } from './components/NotificationModal';
 import { checkAppUpdate, isUpdateDismissed, type AppReleaseInfo } from './services/updateService';
 import { App as CapApp } from '@capacitor/app';
-import { dbService } from './services/database';
+import {
+  dbService,
+  initSocket,
+  disconnectSocket,
+  onSocketNotification,
+  initPushNotifications,
+  unregisterPushNotifications,
+} from './services/api';
 import { closeTopModal } from './utils/modalBackHandler';
 import { listenForSharedReceipt, clearSharedReceipt } from './utils/receiptShare';
+import type { AppNotification } from './types';
 
 const TABS = ['home', 'viagens', 'amigos', 'perfil'] as const;
 
@@ -46,6 +55,8 @@ function App() {
   const [dataVersion, setDataVersion] = useState(0);
   const [updateInfo, setUpdateInfo] = useState<AppReleaseInfo | null>(null);
   const [isUpdateModalOpen, setIsUpdateModalOpen] = useState(false);
+  const [isNotificationModalOpen, setIsNotificationModalOpen] = useState(false);
+  const [inAppToast, setInAppToast] = useState<AppNotification | null>(null);
   const lastSyncedRef = useRef<string | null>(null);
 
   const containerRef = useRef<HTMLElement | null>(null);
@@ -128,6 +139,54 @@ function App() {
     return unsubShared;
   }, []);
 
+  // Conexão em tempo real via WebSocket (Socket.io), Push Notifications e auto-sync ao focar no app
+  useEffect(() => {
+    if (!isAuthenticated) {
+      disconnectSocket();
+      unregisterPushNotifications();
+      return;
+    }
+
+    initSocket();
+    initPushNotifications();
+
+    const unsubNotif = onSocketNotification((notif) => {
+      setInAppToast(notif);
+      refreshData();
+      setTimeout(() => {
+        setInAppToast((curr) => (curr?.id === notif.id ? null : curr));
+      }, 5000);
+    });
+
+    let appStateHandle: any = null;
+    CapApp.addListener('appStateChange', (state) => {
+      if (state.isActive) {
+        dbService.sync.now().catch(() => {});
+      }
+    })
+      .then((h) => {
+        appStateHandle = h;
+      })
+      .catch(() => {});
+
+    const handleVisibility = () => {
+      if (!document.hidden) {
+        dbService.sync.now().catch(() => {});
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    window.addEventListener('focus', handleVisibility);
+
+    return () => {
+      unsubNotif();
+      if (appStateHandle && typeof appStateHandle.remove === 'function') {
+        appStateHandle.remove();
+      }
+      document.removeEventListener('visibilitychange', handleVisibility);
+      window.removeEventListener('focus', handleVisibility);
+    };
+  }, [isAuthenticated]);
+
   // Listener do botão voltar (Android / Capacitor)
   useEffect(() => {
     let listenerHandle: any = null;
@@ -148,6 +207,8 @@ function App() {
             setIsRideModalOpen(false);
             setIsFriendModalOpen(false);
             setIsGroupModalOpen(false);
+            setIsNotificationModalOpen(false);
+            setInAppToast(null);
           } else if (activeTab !== 'home') {
             setActiveTab('home');
           } else {
@@ -321,6 +382,7 @@ function App() {
                 onDataChange={refreshData}
                 updateInfo={updateInfo}
                 onOpenUpdateModal={() => setIsUpdateModalOpen(true)}
+                onOpenNotifications={() => setIsNotificationModalOpen(true)}
               />
             </div>
           </div>
@@ -404,6 +466,42 @@ function App() {
           onClose={() => setIsUpdateModalOpen(false)}
           updateInfo={updateInfo}
         />
+      )}
+
+      <NotificationModal
+        isOpen={isNotificationModalOpen}
+        onClose={() => setIsNotificationModalOpen(false)}
+        onDataChange={refreshData}
+      />
+
+      {/* Toast flutuante de notificação em tempo real */}
+      {inAppToast && (
+        <div
+          onClick={() => {
+            setIsNotificationModalOpen(true);
+            setInAppToast(null);
+          }}
+          className="fixed top-4 left-4 right-4 max-w-md mx-auto z-50 bg-[#141a23]/95 border border-[#2DD4BF]/50 rounded-2xl p-3.5 shadow-2xl flex items-start gap-3 cursor-pointer animate-fade-in backdrop-blur-md"
+        >
+          <div className="w-8 h-8 rounded-xl bg-[#2DD4BF]/20 text-[#2DD4BF] flex items-center justify-center shrink-0 mt-0.5 border border-[#2DD4BF]/30">
+            <Bell size={18} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-bold text-white truncate">{inAppToast.title}</p>
+            <p className="text-xs text-gray-300 line-clamp-2 mt-0.5 leading-relaxed">
+              {inAppToast.message}
+            </p>
+          </div>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setInAppToast(null);
+            }}
+            className="text-gray-400 hover:text-white p-1 rounded-lg hover:bg-gray-800/40"
+          >
+            <X size={16} />
+          </button>
+        </div>
       )}
     </div>
   );

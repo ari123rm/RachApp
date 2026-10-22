@@ -4,6 +4,7 @@ import { ExpenseService } from '../services/Expense.service';
 import { FriendService } from '../services/Friend.service';
 import { GroupService } from '../services/Group.service';
 import { AuthService } from '../services/Auth.service';
+import { NotificationService } from '../services/Notification.service';
 
 export class FinanciesController {
   static async listExpenses(req: Request, res: Response) {
@@ -171,13 +172,14 @@ export class FinanciesController {
       const userId = req.user?.userId;
       if (!userId) return res.status(401).json({ error: 'Não autorizado.' });
 
-      // 1. Primeiro sincroniza vínculos reversos por telefone, grupos, despesas, solicitações e convites
-      const [user, groups, expenses, friendRequests, groupInvitations] = await Promise.all([
+      // 1. Primeiro sincroniza vínculos reversos por telefone, grupos, despesas, solicitações, convites e notificações
+      const [user, groups, expenses, friendRequests, groupInvitations, notifs] = await Promise.all([
         AuthService.getMe(userId),
         GroupService.getUserGroups(userId),
         ExpenseService.listExpenses(userId),
         FriendService.listPendingRequests(userId),
         GroupService.listPendingInvitations(userId),
+        NotificationService.listNotifications(userId, 50),
       ]);
 
       // 2. Depois carrega a lista completa de amigos (já com novos vínculos criados) e dashboard
@@ -194,6 +196,8 @@ export class FinanciesController {
         dashboard,
         friendRequests,
         groupInvitations,
+        notifications: notifs.notifications,
+        unreadNotificationsCount: notifs.unreadCount,
         syncedAt: new Date().toISOString(),
       });
     } catch (error: any) {

@@ -2,6 +2,8 @@
 import { prisma } from '../config/db';
 import { phonesMatch } from './Auth.service';
 import { FriendService } from './Friend.service';
+import { NotificationService } from './Notification.service';
+import { notifySync } from './socket.service';
 
 export interface Transfer {
   fromId: string;
@@ -286,6 +288,47 @@ export class ExpenseService {
         paidByFriend: true,
       },
     });
+
+    // Notifica em background os participantes cadastrados no RachApp
+    (async () => {
+      try {
+        const creator = await prisma.user.findUnique({
+          where: { id: data.userId },
+          select: { name: true },
+        });
+        const creatorName = creator?.name || 'Um amigo';
+        const allUsers = await prisma.user.findMany({
+          select: { id: true, name: true, phone: true },
+        });
+
+        for (const p of expense.participants) {
+          const friendPhone = p.friend?.phone;
+          if (!friendPhone) continue;
+
+          const targetUser = allUsers.find(
+            (u) => u.id !== data.userId && phonesMatch(u.phone, friendPhone)
+          );
+
+          if (targetUser) {
+            const amountOwedNum = Number(p.amount_owed);
+            const formatted = amountOwedNum.toFixed(2).replace('.', ',');
+            await NotificationService.createNotification({
+              userId: targetUser.id,
+              type: 'EXPENSE_ADDED',
+              title: 'Novo racha adicionado',
+              message: `${creatorName} adicionou você ao racha "${expense.title}" (sua parte: R$ ${formatted})`,
+              data: {
+                expenseId: expense.id,
+                groupId: expense.group_id,
+                amount: amountOwedNum,
+              },
+            });
+          }
+        }
+      } catch (err) {
+        console.warn('Erro ao disparar notificações de nova despesa:', err);
+      }
+    })();
 
     return expense;
   }
@@ -601,7 +644,7 @@ export class ExpenseService {
         }
       }
 
-      return prisma.expenseParticipant.update({
+      const updatedPart = await prisma.expenseParticipant.update({
         where: {
           expense_id_friend_id: {
             expense_id: expenseId,
@@ -613,6 +656,35 @@ export class ExpenseService {
           receipt_url: targetAmount <= 0 ? null : receiptUrl || myPart.receipt_url || null,
         } as any,
       });
+
+      // Notifica o credor (dono da despesa) sobre o pagamento
+      if (targetAmount > 0 && expense.owner?.id) {
+        (async () => {
+          try {
+            const payer = await prisma.user.findUnique({
+              where: { id: userId },
+              select: { name: true },
+            });
+            const payerName = payer?.name || 'Um amigo';
+            const formatted = targetAmount.toFixed(2).replace('.', ',');
+            await NotificationService.createNotification({
+              userId: expense.owner.id,
+              type: 'PAYMENT_RECEIVED',
+              title: 'Pagamento recebido',
+              message: `${payerName} registrou o pagamento de R$ ${formatted} no racha "${expense.title}"`,
+              data: {
+                expenseId: expense.id,
+                amount: targetAmount,
+                receiptUrl: receiptUrl || myPart.receipt_url || null,
+              },
+            });
+          } catch (err) {
+            console.warn('Erro ao notificar dono sobre pagamento:', err);
+          }
+        })();
+      }
+
+      return updatedPart;
     }
 
     if (!iAmCreditor) {
@@ -1012,6 +1084,50 @@ export class ExpenseService {
         }
       }
     }
+
+    // Dispara notificação e auto-sync para a outra ponta do pagamento
+    (async () => {
+      try {
+        const debtorFriend = await prisma.friend.findUnique({
+          where: { id: debtorFriendId },
+          select: { phone: true, name: true },
+        });
+
+        if (debtorFriend?.phone) {
+          const allUsers = await prisma.user.findMany({
+            select: { id: true, name: true, phone: true },
+          });
+          const targetUser = allUsers.find(
+            (u) => u.id !== creditorId && phonesMatch(u.phone, debtorFriend.phone)
+          );
+
+          if (targetUser) {
+            const payer = await prisma.user.findUnique({
+              where: { id: creditorId },
+              select: { name: true },
+            });
+            const payerName = payer?.name || 'Um amigo';
+            const formatted = Number(amount).toFixed(2).replace('.', ',');
+
+            if (effectiveDirection === 'to_friend') {
+              // Creditor pagou o amigo (targetUser recebeu)
+              await NotificationService.createNotification({
+                userId: targetUser.id,
+                type: 'PAYMENT_RECEIVED',
+                title: 'Pagamento recebido',
+                message: `${payerName} registrou um pagamento de R$ ${formatted} para você`,
+                data: { amount: Number(amount) },
+              });
+            } else {
+              // Creditor deu baixa no pagamento que o amigo fez
+              notifySync(targetUser.id, 'PAYMENT_CONFIRMED');
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('Erro ao notificar no registerPayment:', err);
+      }
+    })();
 
     return { message: 'Pagamento registado e dívidas atualizadas com sucesso.' };
   }

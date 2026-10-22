@@ -9,22 +9,24 @@ datasource db {
 }
 
 model User {
-  id                String        @id @default(uuid())
-  name              String
-  phone             String        @unique
-  email             String        @unique
-  password_hash     String
-  pix_key           String?
-  avatar_url        String?
-  created_at        DateTime      @default(now())
-  phone_verified    Boolean       @default(false)
-  verification_code String?
-  expensesOwned     Expense[]     @relation("ExpenseOwner")
-  friends           Friend[]
-  groupsOwned       Group[]       @relation("GroupOwner")
-  groups            GroupMember[]
+  id                     String              @id @default(uuid())
+  name                   String
+  phone                  String              @unique
+  email                  String              @unique
+  password_hash          String
+  pix_key                String?
+  avatar_url             String?
+  fcm_token              String?
+  created_at             DateTime            @default(now())
+  phone_verified         Boolean             @default(false)
+  verification_code      String?
+  expensesOwned          Expense[]           @relation("ExpenseOwner")
+  friends                Friend[]
+  groupsOwned            Group[]             @relation("GroupOwner")
+  groups                 GroupMember[]
   sentFriendRequests     FriendshipRequest[] @relation("SentFriendRequests")
   receivedFriendRequests FriendshipRequest[] @relation("ReceivedFriendRequests")
+  notifications          Notification[]
 }
 
 model Friend {
@@ -109,4 +111,19 @@ model FriendshipRequest {
   receiver User @relation("ReceivedFriendRequests", fields: [receiver_id], references: [id], onDelete: Cascade)
 
   @@unique([sender_id, receiver_id])
+}
+
+model Notification {
+  id         String   @id @default(uuid())
+  user_id    String
+  type       String   // 'EXPENSE_ADDED', 'PAYMENT_RECEIVED', 'GROUP_INVITE'
+  title      String
+  message    String
+  data       Json?
+  read       Boolean  @default(false)
+  created_at DateTime @default(now())
+
+  user       User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id, created_at])
 }

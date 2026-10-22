@@ -1,3 +1,4 @@
+import http from 'http';
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
@@ -5,23 +6,50 @@ import authRoutes from './routes/Auth.routes';
 import groupRoutes from './routes/Group.routes';
 import financesRoutes from './routes/Financies.routes';
 import friendRoutes from './routes/Friend.routes';
+import notificationRoutes from './routes/Notification.routes';
+import { initSocketServer } from './services/socket.service';
+import { initFirebase } from './config/firebase';
 
 import { PORT } from './config/env';
 import { prisma } from './config/db';
 
 const app = express();
+const httpServer = http.createServer(app);
 
-// Garante que as colunas de avatar existam mesmo antes de rodar migração manual
-async function ensureAvatarColumns() {
+// Inicializa WebSocket (Socket.io) e Firebase Admin
+initSocketServer(httpServer);
+initFirebase();
+
+// Garante que tabelas e colunas complementares existam mesmo antes de rodar migração manual
+async function ensureDatabaseSchema() {
   try {
     await prisma.$executeRawUnsafe(`ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "avatar_url" TEXT;`);
+    await prisma.$executeRawUnsafe(`ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "fcm_token" TEXT;`);
     await prisma.$executeRawUnsafe(`ALTER TABLE "Friend" ADD COLUMN IF NOT EXISTS "avatar_url" TEXT;`);
     await prisma.$executeRawUnsafe(`ALTER TABLE "Group" ADD COLUMN IF NOT EXISTS "avatar_url" TEXT;`);
+
+    await prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "Notification" (
+        "id" TEXT NOT NULL PRIMARY KEY,
+        "user_id" TEXT NOT NULL,
+        "type" TEXT NOT NULL,
+        "title" TEXT NOT NULL,
+        "message" TEXT NOT NULL,
+        "data" JSONB,
+        "read" BOOLEAN NOT NULL DEFAULT false,
+        "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT "Notification_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE
+      );
+    `);
+
+    await prisma.$executeRawUnsafe(`
+      CREATE INDEX IF NOT EXISTS "Notification_user_id_created_at_idx" ON "Notification"("user_id", "created_at");
+    `);
   } catch (err) {
-    console.warn('Aviso ao verificar colunas de avatar:', err);
+    console.warn('Aviso ao verificar schema complementar:', err);
   }
 }
-ensureAvatarColumns();
+ensureDatabaseSchema();
 
 app.use(helmet());
 app.use(
@@ -41,7 +69,8 @@ app.use('/api/auth', authRoutes);
 app.use('/api/groups', groupRoutes);
 app.use('/api/finances', financesRoutes);
 app.use('/api/friends', friendRoutes);
+app.use('/api/notifications', notificationRoutes);
 
-app.listen(PORT, () => {
-  console.log(`🚀 Servidor rodando na porta ${PORT}`);
+httpServer.listen(PORT, () => {
+  console.log(`🚀 Servidor rodando na porta ${PORT} (HTTP + WebSocket)`);
 });

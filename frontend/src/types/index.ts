@@ -125,3 +125,14 @@ export interface SyncStatus {
   pendingCount: number;
   lastSyncedAt: string | null;
 }
+
+export interface AppNotification {
+  id: string;
+  user_id: string;
+  type: 'EXPENSE_ADDED' | 'PAYMENT_RECEIVED' | 'GROUP_INVITE' | string;
+  title: string;
+  message: string;
+  data?: Record<string, any> | null;
+  read: boolean;
+  created_at: string;
+}

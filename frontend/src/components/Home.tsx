@@ -10,6 +10,7 @@ import {
   Download,
   Calendar,
   ChevronDown,
+  Bell,
 } from 'lucide-react';
 import type { AppReleaseInfo } from '../services/updateService';
 import { dbService } from '../services/database';
@@ -37,11 +38,13 @@ export function Home({
   dataVersion,
   updateInfo,
   onOpenUpdateModal,
+  onOpenNotifications,
 }: {
   onDataChange?: () => void;
   dataVersion?: number;
   updateInfo?: AppReleaseInfo | null;
   onOpenUpdateModal?: () => void;
+  onOpenNotifications?: () => void;
 }) {
   const dataAtual = new Date();
   const ymAtual = `${dataAtual.getFullYear()}-${String(dataAtual.getMonth() + 1).padStart(2, '0')}`;
@@ -57,6 +60,7 @@ export function Home({
     amigosDevedores: [] as any[],
     gruposPendentes: [] as any[],
   });
+  const [unreadNotifCount, setUnreadNotifCount] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const isFirstLoadRef = useRef(true);
 
@@ -87,6 +91,13 @@ export function Home({
         amigosDevedores: dados.amigosDevedores || [],
         gruposPendentes: (dados as any).gruposPendentes || [],
       });
+
+      try {
+        const notifCount = await dbService.notifications.getUnreadCount();
+        setUnreadNotifCount(notifCount);
+      } catch {
+        // Ignora erro de contagem
+      }
     } catch (error) {
       console.error('Erro ao carregar Dashboard:', error);
     } finally {
@@ -177,7 +188,23 @@ export function Home({
             </span>
           </button>
 
-          <div className="w-10 h-10 bg-[#2DD4BF] text-[#05080f] rounded-full overflow-hidden flex items-center justify-center font-bold shadow-md border border-[#2DD4BF]/30">
+          {/* Botão de Notificações */}
+          {onOpenNotifications && (
+            <button
+              onClick={onOpenNotifications}
+              title="Notificações"
+              className="relative w-9 h-9 rounded-full bg-[#18202c] border border-gray-800 text-gray-300 hover:text-white flex items-center justify-center transition-colors shadow-sm shrink-0"
+            >
+              <Bell size={17} />
+              {unreadNotifCount > 0 && (
+                <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-[#2DD4BF] text-[#05080f] text-[10px] font-black flex items-center justify-center border-2 border-[#0a0f16]">
+                  {unreadNotifCount > 9 ? '9+' : unreadNotifCount}
+                </span>
+              )}
+            </button>
+          )}
+
+          <div className="w-10 h-10 bg-[#2DD4BF] text-[#05080f] rounded-full overflow-hidden flex items-center justify-center font-bold shadow-md border border-[#2DD4BF]/30 shrink-0">
             {avatarUsuario ? (
               <img
                 src={avatarUsuario}

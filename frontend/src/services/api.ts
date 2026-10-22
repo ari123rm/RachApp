@@ -1,2 +1,4 @@
 // src/services/api.ts
-export { api, dbService, syncWithBackend } from './database';
+export { api, dbService, syncWithBackend, getApiBaseUrl, setCustomApiUrl } from './database';
+export { initSocket, disconnectSocket, onSocketNotification } from './socket';
+export { initPushNotifications, unregisterPushNotifications } from './pushNotifications';

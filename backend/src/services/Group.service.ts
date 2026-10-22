@@ -3,6 +3,8 @@ import { prisma } from '../config/db';
 import { ExpenseService } from './Expense.service';
 import { FriendService } from './Friend.service';
 import { normalizePhoneBackend, phonesMatch } from './Auth.service';
+import { NotificationService } from './Notification.service';
+import { notifySync } from './socket.service';
 
 export class GroupService {
   static async transformGroupForUser(
@@ -169,6 +171,31 @@ export class GroupService {
         },
       },
     });
+
+    // Notifica membros registrados que foram adicionados ao grupo
+    (async () => {
+      try {
+        const creator = await prisma.user.findUnique({
+          where: { id: userId },
+          select: { name: true },
+        });
+        const creatorName = creator?.name || 'Um amigo';
+
+        for (const m of group.members) {
+          if (m.user_id && m.user_id !== userId) {
+            await NotificationService.createNotification({
+              userId: m.user_id,
+              type: 'GROUP_INVITE',
+              title: 'Novo grupo',
+              message: `${creatorName} adicionou você ao grupo "${group.name}"`,
+              data: { groupId: group.id, groupName: group.name },
+            });
+          }
+        }
+      } catch (err) {
+        console.warn('Erro ao disparar notificações de grupo:', err);
+      }
+    })();
 
     return group;
   }
@@ -601,6 +628,27 @@ export class GroupService {
         user: { select: { id: true, name: true, pix_key: true, phone: true } },
       },
     });
+
+    if (newMember.user_id) {
+      (async () => {
+        try {
+          const inviter = await prisma.user.findUnique({
+            where: { id: userId },
+            select: { name: true },
+          });
+          const inviterName = inviter?.name || 'Um amigo';
+          await NotificationService.createNotification({
+            userId: newMember.user_id!,
+            type: 'GROUP_INVITE',
+            title: 'Novo grupo',
+            message: `${inviterName} adicionou você ao grupo "${group.name}"`,
+            data: { groupId: group.id, groupName: group.name },
+          });
+        } catch (err) {
+          console.warn('Erro ao notificar novo membro do grupo:', err);
+        }
+      })();
+    }
 
     return newMember;
   }

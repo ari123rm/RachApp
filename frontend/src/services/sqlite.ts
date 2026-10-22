@@ -152,9 +152,36 @@ function createSchema(db: Database) {
       payload TEXT,
       created_at TEXT NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS notifications (
+      id TEXT PRIMARY KEY,
+      user_id TEXT,
+      type TEXT NOT NULL,
+      title TEXT NOT NULL,
+      message TEXT NOT NULL,
+      data TEXT,
+      read INTEGER DEFAULT 0,
+      created_at TEXT NOT NULL
+    );
   `);
 
   // Migrações incrementais para bancos SQLite locais já existentes
+  try {
+    db.run(`
+      CREATE TABLE IF NOT EXISTS notifications (
+        id TEXT PRIMARY KEY,
+        user_id TEXT,
+        type TEXT NOT NULL,
+        title TEXT NOT NULL,
+        message TEXT NOT NULL,
+        data TEXT,
+        read INTEGER DEFAULT 0,
+        created_at TEXT NOT NULL
+      )
+    `);
+  } catch {
+    // Tabela já existe
+  }
     try {
     db.run('ALTER TABLE expenses ADD COLUMN created_by_user_id TEXT');
   } catch {

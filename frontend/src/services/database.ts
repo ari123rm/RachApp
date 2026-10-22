@@ -2,7 +2,7 @@
 import axios from 'axios';
 import { getSQLiteDB, runSQL, queryAll, queryOne, flushSQLite } from './sqlite';
 import { stripCountryCode } from '../utils/phoneFormatter';
-import type { Amigo, Corrida, Grupo, MembroSaldo, SyncStatus, Transferencia, UserProfile } from '../types';
+import type { Amigo, Corrida, Grupo, MembroSaldo, SyncStatus, Transferencia, UserProfile, AppNotification } from '../types';
 
 function generateUUID(): string {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
@@ -118,6 +118,7 @@ async function saveRemoteSnapshotToSQLite(data: {
   friends?: any[];
   groups?: any[];
   expenses?: any[];
+  notifications?: any[];
 }) {
   const db = await getSQLiteDB();
 
@@ -261,6 +262,26 @@ async function saveRemoteSnapshotToSQLite(data: {
             );
           }
         }
+      }
+    }
+
+    if (Array.isArray(data.notifications)) {
+      db.run('DELETE FROM notifications');
+      for (const n of data.notifications) {
+        db.run(
+          `INSERT OR REPLACE INTO notifications (id, user_id, type, title, message, data, read, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            n.id,
+            n.user_id,
+            n.type,
+            n.title,
+            n.message,
+            n.data ? (typeof n.data === 'string' ? n.data : JSON.stringify(n.data)) : null,
+            n.read ? 1 : 0,
+            n.created_at || new Date().toISOString(),
+          ]
+        );
       }
     }
 
@@ -2226,6 +2247,46 @@ export const dbService = {
 
     clearAllData: async () => {
       await dbService.auth.logout();
+    },
+  },
+
+  notifications: {
+    list: async (): Promise<AppNotification[]> => {
+      const rows = await queryAll<any>('SELECT * FROM notifications ORDER BY created_at DESC LIMIT 50');
+      return rows.map((r) => {
+        let parsedData = null;
+        try {
+          parsedData = r.data ? JSON.parse(r.data) : null;
+        } catch {
+          parsedData = null;
+        }
+        return {
+          id: r.id,
+          user_id: r.user_id,
+          type: r.type,
+          title: r.title,
+          message: r.message,
+          data: parsedData,
+          read: Boolean(r.read),
+          created_at: r.created_at,
+        };
+      });
+    },
+    getUnreadCount: async (): Promise<number> => {
+      const row = await queryOne<{ cnt: number }>('SELECT COUNT(*) as cnt FROM notifications WHERE read = 0');
+      return Number(row?.cnt || 0);
+    },
+    markAsRead: async (id: string): Promise<void> => {
+      await runSQL('UPDATE notifications SET read = 1 WHERE id = ?', [id], true);
+      api.patch(`/notifications/${id}/read`).catch(() => {});
+    },
+    markAllAsRead: async (): Promise<void> => {
+      await runSQL('UPDATE notifications SET read = 1 WHERE read = 0', [], true);
+      api.patch('/notifications/read-all').catch(() => {});
+    },
+    delete: async (id: string): Promise<void> => {
+      await runSQL('DELETE FROM notifications WHERE id = ?', [id], true);
+      api.delete(`/notifications/${id}`).catch(() => {});
     },
   },
 };
