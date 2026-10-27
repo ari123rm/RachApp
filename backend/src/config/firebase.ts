@@ -72,7 +72,7 @@ function loadServiceAccount(): ServiceAccount | null {
     if (serviceAccountFile) {
       const filePath = path.resolve(process.cwd(), serviceAccountFile);
       const content = fs.readFileSync(filePath, 'utf8');
-      console.log(`🔥 [Firebase] Carregando credenciais do arquivo local: ${serviceAccountFile}`);
+      console.log(`[Firebase] Carregando credenciais do arquivo local: ${serviceAccountFile}`);
       return JSON.parse(content);
     }
   } catch {
@@ -92,7 +92,7 @@ export function initFirebase(): App | null {
     const serviceAccount = loadServiceAccount();
     if (!serviceAccount) {
       console.warn(
-        '⚠️ [Firebase Admin] Credenciais não configuradas. Push notifications desativadas até configurar FIREBASE_SERVICE_ACCOUNT no .env.'
+        '[Firebase Admin] Credenciais não configuradas. Push notifications desativadas até configurar FIREBASE_SERVICE_ACCOUNT no .env.'
       );
       return null;
     }
@@ -101,10 +101,10 @@ export function initFirebase(): App | null {
       credential: cert(serviceAccount),
     });
 
-    console.log('🔥 [Firebase Admin] Inicializado com sucesso!');
+    console.log('[Firebase Admin] Inicializado com sucesso!');
     return firebaseApp;
   } catch (error) {
-    console.error('❌ [Firebase Admin] Erro ao inicializar:', error);
+    console.error('[Firebase Admin] Erro ao inicializar:', error);
     return null;
   }
 }

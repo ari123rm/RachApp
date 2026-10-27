@@ -1,7 +1,7 @@
 import { createPortal } from 'react-dom';
 // src/components/PixModal.tsx
 import React, { useState, useEffect } from 'react';
-import { X, Copy, Check, QrCode, Share2 } from 'lucide-react';
+import { X, Copy, Check, QrCode, Share2, Lightbulb } from 'lucide-react';
 import { generatePixCopiaECola, generatePixQRCodeDataUrl } from '../utils/pixGenerator';
 import moneyConverter from '../utils/moneyConverter';
 import { openWhatsApp } from '../utils/phoneFormatter';
@@ -244,8 +244,9 @@ export function PixModal({
             </div>
 
             {currentAmount === 0 ? (
-              <p className="text-[11px] text-amber-300/80 mt-2">
-                💡 QR Code aberto: o valor será digitado no app do banco.
+              <p className="text-[11px] text-amber-300/80 mt-2 flex items-center justify-center gap-1.5">
+                <Lightbulb size={13} className="shrink-0 text-amber-300" />
+                <span>QR Code aberto: o valor será digitado no app do banco.</span>
               </p>
             ) : (
               <p className="text-[10px] text-gray-400 mt-2">

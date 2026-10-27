@@ -1,6 +1,6 @@
 // src/App.tsx
 import { useState, useEffect, useRef } from 'react';
-import { Plus, LoaderCircle, Bell, X, Sparkles, RefreshCw, Clock } from 'lucide-react';
+import { Plus, LoaderCircle, Bell, X, Sparkles, RefreshCw, Clock, UserPlus, Users } from 'lucide-react';
 import { BottomNav } from './components/BottomNav';
 import { Home } from './components/Home';
 import { Viagens } from './components/Viagens';
@@ -48,6 +48,7 @@ function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   const [activeTab, setActiveTab] = useState('home');
+  const [amigosSubTab, setAmigosSubTab] = useState<'amigos' | 'grupos'>('amigos');
   const [isRideModalOpen, setIsRideModalOpen] = useState(false);
   const [isFriendModalOpen, setIsFriendModalOpen] = useState(false);
   const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
@@ -241,8 +242,15 @@ function App() {
   }, [tabIndex]);
 
   const handleFabClick = () => {
-    if (activeTab === 'amigos') setIsFriendModalOpen(true);
-    else setIsRideModalOpen(true);
+    if (activeTab === 'amigos') {
+      if (amigosSubTab === 'grupos') {
+        setIsGroupModalOpen(true);
+      } else {
+        setIsFriendModalOpen(true);
+      }
+    } else {
+      setIsRideModalOpen(true);
+    }
   };
 
   // Arraste horizontal em tempo real (acompanhando o dedo a 60/120fps via GPU translate3d)
@@ -456,10 +464,15 @@ function App() {
             </div>
           </div>
 
-          {/* TAB 2: AMIGOS (com Amigos e Grupos internos) */}
+          {/* TAB 2: CONTATOS (com Amigos e Grupos internos) */}
           <div className="w-full min-w-full h-full shrink-0 overflow-hidden">
             <div className="w-full h-full overflow-y-auto p-4 md:p-6 pb-24 max-w-lg md:max-w-xl lg:max-w-2xl mx-auto scrollbar-hide touch-pan-y">
-              <Amigos dataVersion={dataVersion} onDataChange={refreshData} />
+              <Amigos
+                dataVersion={dataVersion}
+                onDataChange={refreshData}
+                subTab={amigosSubTab}
+                onSubTabChange={setAmigosSubTab}
+              />
             </div>
           </div>
 
@@ -487,9 +500,27 @@ function App() {
       {(activeTab === 'home' || activeTab === 'viagens' || activeTab === 'amigos') && (
         <button
           onClick={handleFabClick}
+          title={
+            activeTab === 'amigos'
+              ? amigosSubTab === 'grupos'
+                ? 'Novo Grupo'
+                : 'Adicionar Amigo'
+              : 'Novo Racha'
+          }
           className="fixed bottom-20 right-6 md:right-[max(1.5rem,calc(50%-22rem))] w-14 h-14 bg-[#2DD4BF] hover:bg-[#25b5a3] rounded-full flex items-center justify-center shadow-lg shadow-teal-500/30 transition-transform active:scale-95 z-40"
         >
-          <Plus size={32} className="text-[#05080f] stroke-[2.5px]" />
+          {activeTab === 'amigos' ? (
+            amigosSubTab === 'grupos' ? (
+              <div className="relative flex items-center justify-center">
+                <Users size={24} className="text-[#05080f] stroke-[2.5px]" />
+                <Plus size={14} className="text-[#05080f] stroke-[3px] -ml-1 -mt-3" />
+              </div>
+            ) : (
+              <UserPlus size={26} className="text-[#05080f] stroke-[2.5px]" />
+            )
+          ) : (
+            <Plus size={32} className="text-[#05080f] stroke-[2.5px]" />
+          )}
         </button>
       )}
 

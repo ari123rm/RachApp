@@ -189,15 +189,15 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
     const transfers = grupo.transfers || [];
 
     const linhasTransferencias = transfers
-      .map((t) => `• ${t.fromName} ➔ ${t.toName}: R$ ${moneyConverter(t.amount)}`)
+      .map((t) => `• ${t.fromName} -> ${t.toName}: R$ ${moneyConverter(t.amount)}`)
       .join('\n');
 
     const msg =
-      `📊 *Resumo do Grupo: ${grupo.name} (RachApp)*\n\n` +
+      `*Resumo do Grupo: ${grupo.name} (RachApp)*\n\n` +
       (linhasTransferencias
         ? `*Transferências Otimizadas:*\n${linhasTransferencias}\n\n`
         : 'Todas as contas estão em dia!\n\n') +
-      (myPix ? `🔑 *Meu Pix (${myName}):* ${myPix}` : '');
+      (myPix ? `*Meu Pix (${myName}):* ${myPix}` : '');
 
     setPixModalData({
       isOpen: true,
@@ -229,8 +229,8 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
     const isToMe = t.toName === 'Você';
     const pixKey = isToMe ? myPix : t.toPixKey || '';
     const recipient = isToMe ? myName : t.toName;
-    const msg = `Fala ${t.fromName}! Pelo acerto de contas do grupo *${grupo?.name}* no RachApp, o acerto ficou:\n\n• *${t.fromName} ➔ ${t.toName}: R$ ${moneyConverter(t.amount)}*\n${
-      pixKey ? `🔑 Chave Pix: ${pixKey}` : ''
+    const msg = `Fala ${t.fromName}! Pelo acerto de contas do grupo *${grupo?.name}* no RachApp, o acerto ficou:\n\n• *${t.fromName} -> ${t.toName}: R$ ${moneyConverter(t.amount)}*\n${
+      pixKey ? `Chave Pix: ${pixKey}` : ''
     }`;
 
     setPixModalData({

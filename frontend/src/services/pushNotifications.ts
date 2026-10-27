@@ -12,7 +12,7 @@ export async function initPushNotifications(): Promise<void> {
   }
 
   if (!Capacitor.isPluginAvailable('PushNotifications')) {
-    console.warn('ℹ️ Plugin PushNotifications não disponível neste ambiente.');
+    console.warn('[Capacitor Push] Plugin PushNotifications não disponível neste ambiente.');
     return;
   }
 
@@ -46,7 +46,7 @@ export async function initPushNotifications(): Promise<void> {
     }
 
     if (permStatus?.receive !== 'granted') {
-      console.log('ℹ️ Permissão para Push Notifications não foi concedida pelo usuário.');
+      console.log('[Capacitor Push] Permissão para Push Notifications não foi concedida pelo usuário.');
       return;
     }
 
@@ -60,7 +60,7 @@ export async function initPushNotifications(): Promise<void> {
     // 4. Listener de registro (recebe o FCM Token do Google)
     try {
       await PushNotifications.addListener('registration', async (token) => {
-        console.log('📲 [Capacitor Push] Token FCM registrado com sucesso:', token?.value);
+        console.log('[Capacitor Push] Token FCM registrado com sucesso:', token?.value);
         if (token?.value) {
           try {
             await api.post('/notifications/fcm-token', { fcmToken: token.value });
@@ -71,18 +71,18 @@ export async function initPushNotifications(): Promise<void> {
       });
 
       await PushNotifications.addListener('registrationError', (error) => {
-        console.warn('⚠️ [Capacitor Push] Registro no FCM retornou erro:', error);
+        console.warn('[Capacitor Push] Registro no FCM retornou erro:', error);
       });
 
       // 5. Notificação recebida com o app em primeiro plano
       await PushNotifications.addListener('pushNotificationReceived', (notification) => {
-        console.log('🔔 [Capacitor Push] Notificação recebida em foreground:', notification);
+        console.log('[Capacitor Push] Notificação recebida em foreground:', notification);
         syncWithBackend(true).catch(() => {});
       });
 
       // 6. Usuário tocou na notificação na barra do sistema operacional
       await PushNotifications.addListener('pushNotificationActionPerformed', (action) => {
-        console.log('👆 [Capacitor Push] Notificação tocada pelo usuário:', action);
+        console.log('[Capacitor Push] Notificação tocada pelo usuário:', action);
         syncWithBackend(true).catch(() => {});
       });
     } catch (listenerErr) {
@@ -94,7 +94,7 @@ export async function initPushNotifications(): Promise<void> {
       await PushNotifications.register();
       isPushInitialized = true;
     } catch (regErr) {
-      console.warn('⚠️ [Capacitor Push] Falha ao chamar register():', regErr);
+      console.warn('[Capacitor Push] Falha ao chamar register():', regErr);
     }
   } catch (err) {
     console.warn('Aviso geral ao inicializar Push Notifications:', err);

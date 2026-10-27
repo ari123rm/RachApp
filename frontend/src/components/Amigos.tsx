@@ -4,7 +4,6 @@ import {
   Search,
   Star,
   LoaderCircle,
-  UserPlus,
   ChevronRight,
   Check,
   UserCheck,
@@ -22,8 +21,23 @@ import moneyConverter from '../utils/moneyConverter';
 import { getAvatarColor } from '../utils/avatarColor';
 import type { Grupo } from '../types';
 
-export function Amigos({ onDataChange, dataVersion }: { onDataChange?: () => void; dataVersion?: number }) {
-  const [subTab, setSubTab] = useState<'amigos' | 'grupos'>('amigos');
+export function Amigos({
+  onDataChange,
+  dataVersion,
+  subTab: externalSubTab,
+  onSubTabChange,
+}: {
+  onDataChange?: () => void;
+  dataVersion?: number;
+  subTab?: 'amigos' | 'grupos';
+  onSubTabChange?: (tab: 'amigos' | 'grupos') => void;
+}) {
+  const [internalSubTab, setInternalSubTab] = useState<'amigos' | 'grupos'>('amigos');
+  const subTab = externalSubTab ?? internalSubTab;
+  const setSubTab = (tab: 'amigos' | 'grupos') => {
+    setInternalSubTab(tab);
+    onSubTabChange?.(tab);
+  };
   const [buscaAmigos, setBuscaAmigos] = useState('');
   const [buscaGrupos, setBuscaGrupos] = useState('');
   const [filtroAmigos, setFiltroAmigos] = useState<'todos' | 'verificados' | 'favoritos' | 'pendentes'>('todos');
@@ -323,10 +337,10 @@ export function Amigos({ onDataChange, dataVersion }: { onDataChange?: () => voi
     <div className="space-y-6 relative">
       <header className="mt-2 space-y-3.5">
         <div className="flex justify-between items-center">
-          <h1 className="text-3xl font-bold text-white">Amigos & Grupos</h1>
+          <h1 className="text-3xl font-bold text-white">Contatos</h1>
         </div>
 
-        {/* Barra de alternância Amigos / Grupos com indicador deslizante + Botão Novo */}
+        {/* Barra de alternância Amigos / Grupos com indicador deslizante */}
         <div className="flex items-center justify-between gap-2">
           <div className="relative bg-[#1c1c1e] p-1 rounded-full flex items-center border border-white/5 flex-1">
             <div
@@ -365,15 +379,6 @@ export function Amigos({ onDataChange, dataVersion }: { onDataChange?: () => voi
               )}
             </button>
           </div>
-
-          <button
-            onClick={() =>
-              subTab === 'amigos' ? setIsAddFriendOpen(true) : setIsAddGroupOpen(true)
-            }
-            className="bg-[#1c1c1e] hover:bg-[#2c2c2e] text-[#2DD4BF] border border-[#2DD4BF]/30 px-4 py-2.5 rounded-full text-xs font-bold flex items-center gap-1.5 shrink-0 transition-colors"
-          >
-            <UserPlus size={15} /> Novo
-          </button>
         </div>
 
         {/* Barra de Busca Dinâmica */}

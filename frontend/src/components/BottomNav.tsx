@@ -10,7 +10,7 @@ export function BottomNav({ activeTab, setActiveTab }: BottomNavProps) {
   const navItems = [
     { id: 'home', label: 'Home', icon: Home },
     { id: 'viagens', label: 'Rachas', icon: ListOrdered },
-    { id: 'amigos', label: 'Amigos', icon: Users },
+    { id: 'amigos', label: 'Contatos', icon: Users },
     { id: 'perfil', label: 'Perfil', icon: User },
   ];
 

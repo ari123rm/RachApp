@@ -353,8 +353,9 @@ export function AuthScreen({ onLogin }: { onLogin: () => void }) {
           {step === 'verify' && (
             <div className="space-y-4">
               {simulatedCode && (
-                <div className="bg-[#2DD4BF]/10 border border-[#2DD4BF]/30 text-[#2DD4BF] rounded-xl p-3 text-xs text-center">
-                  📱 <strong>Código de Verificação:</strong>{' '}
+                <div className="bg-[#2DD4BF]/10 border border-[#2DD4BF]/30 text-[#2DD4BF] rounded-xl p-3 text-xs flex items-center justify-center gap-1.5">
+                  <Phone size={14} className="shrink-0" />
+                  <strong>Código de Verificação:</strong>{' '}
                   <span className="font-mono font-bold text-sm underline">{simulatedCode}</span>
                 </div>
               )}

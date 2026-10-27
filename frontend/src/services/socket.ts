@@ -55,12 +55,12 @@ export function initSocket(): Promise<Socket | null> {
       socket = newSocket;
 
       newSocket.on('connect', () => {
-        console.log('🔌 [Socket.io] Conectado ao servidor');
+        console.log('[Socket.io] Conectado ao servidor');
       });
 
       // Recebe sinal de que algum dado foi alterado no backend e invalida o cache local
       newSocket.on('sync:invalidate', (payload) => {
-        console.log('🔄 [Socket.io] Invalidação recebida do servidor:', payload);
+        console.log('[Socket.io] Invalidação recebida do servidor:', payload);
         syncWithBackend(true).catch((err) => {
           console.warn('Erro na sincronização disparada pelo WebSocket:', err);
         });
@@ -68,7 +68,7 @@ export function initSocket(): Promise<Socket | null> {
 
       // Recebe notificação nova em tempo real
       newSocket.on('notification:new', (notif: AppNotification) => {
-        console.log('🔔 [Socket.io] Nova notificação recebida:', notif);
+        console.log('[Socket.io] Nova notificação recebida:', notif);
 
         // Puxa snapshot atualizado
         syncWithBackend(true).catch(() => {});
@@ -85,7 +85,7 @@ export function initSocket(): Promise<Socket | null> {
 
       newSocket.on('disconnect', (reason) => {
         if (reason !== 'io client disconnect') {
-          console.log('❌ [Socket.io] Desconectado:', reason);
+          console.log('[Socket.io] Desconectado:', reason);
         }
       });
 

@@ -13,7 +13,7 @@ export default defineConfig({
       devOptions: {
         enabled: false,
       },
-      // 🟢 1. Avisamos quais arquivos extras ele deve incluir na instalação
+      // 1. Avisamos quais arquivos extras ele deve incluir na instalação
       includeAssets: ['favicon.ico', 'favicon-32x32.png', 'favicon-16x16.png', 'apple-touch-icon.png'],
       manifest: {
         name: 'Rachapp',
@@ -22,20 +22,20 @@ export default defineConfig({
         theme_color: '#05080f',
         background_color: '#05080f',
         display: 'standalone',
-        start_url: '/', // 🟢 Muito importante para o PWABuilder
-        lang: 'pt-BR',  // 🟢 Exigência nova
-        orientation: 'portrait', // 🟢 Trava o app na vertical (como app de celular)
+        start_url: '/', // Muito importante para o PWABuilder
+        lang: 'pt-BR',  // Exigência nova
+        orientation: 'portrait', // Trava o app na vertical (como app de celular)
         icons: [
           {
-            src: '/android-chrome-192x192.png', // 🟢 Barra inicial garantida
+            src: '/android-chrome-192x192.png',
             sizes: '192x192',
             type: 'image/png'
           },
           {
-            src: '/android-chrome-512x512.png', // 🟢 Barra inicial garantida
+            src: '/android-chrome-512x512.png',
             sizes: '512x512',
             type: 'image/png',
-            purpose: 'any maskable' // PWABuilder ama isso
+            purpose: 'any maskable'
           }
         ],
         share_target: {

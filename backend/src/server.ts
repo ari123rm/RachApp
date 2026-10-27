@@ -72,5 +72,5 @@ app.use('/api/friends', friendRoutes);
 app.use('/api/notifications', notificationRoutes);
 
 httpServer.listen(PORT, () => {
-  console.log(`🚀 Servidor rodando na porta ${PORT} (HTTP + WebSocket)`);
+  console.log(`Servidor rodando na porta ${PORT} (HTTP + WebSocket)`);
 });

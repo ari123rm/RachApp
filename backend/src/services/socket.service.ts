@@ -45,7 +45,7 @@ export function initSocketServer(httpServer: HttpServer): SocketIOServer {
       // Só loga desconexões anormais (evita flood com navegação rápida ou fechamento de aba)
       if (reason !== 'client namespace disconnect' && reason !== 'transport close') {
         if (userId) {
-          console.log(`ℹ️ [Socket.io] Usuário ${userId} desconectado (${reason})`);
+          console.log(`[Socket.io] Usuário ${userId} desconectado (${reason})`);
         }
       }
     });

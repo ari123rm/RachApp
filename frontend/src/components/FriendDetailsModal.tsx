@@ -491,9 +491,9 @@ export function FriendDetailsModal({
     return (
       `Fala ${nome.split(' ')[0]}! Segue o resumo dos nossos rachas pelo RachApp:\n\n` +
       `${pendentesTexto || 'Sem pendências detalhadas'}\n\n` +
-      `💰 *Total Pendente: R$ ${totalFmt}*\n` +
-      `🔑 *Minha Chave Pix:* ${pix || 'Não informada no perfil'}` +
-      (copiaECola ? `\n\n📋 *Pix Copia e Cola:*\n${copiaECola}` : '') +
+      `*Total Pendente: R$ ${totalFmt}*\n` +
+      `*Minha Chave Pix:* ${pix || 'Não informada no perfil'}` +
+      (copiaECola ? `\n\n*Pix Copia e Cola:*\n${copiaECola}` : '') +
       `\n\nValeu!`
     );
   };

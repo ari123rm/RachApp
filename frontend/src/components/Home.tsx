@@ -11,6 +11,7 @@ import {
   Calendar,
   ChevronDown,
   Bell,
+  CheckCircle2,
 } from 'lucide-react';
 import type { AppReleaseInfo } from '../services/updateService';
 import { dbService } from '../services/database';
@@ -339,7 +340,10 @@ export function Home({
 
         {dashboard.amigosDevedores.length === 0 ? (
           <div className="bg-[#1c1c1e] p-6 rounded-3xl border border-white/5 text-center">
-            <p className="text-gray-500 text-sm italic">Nenhuma dívida pendente. ✌️</p>
+            <p className="text-gray-500 text-sm italic flex items-center justify-center gap-2">
+              <CheckCircle2 size={16} className="text-[#2DD4BF] shrink-0" />
+              <span>Nenhuma dívida pendente.</span>
+            </p>
           </div>
         ) : (
           <div className="flex gap-4 overflow-x-auto pt-2.5 pb-4 px-1 scrollbar-hide -mt-2">
@@ -432,7 +436,10 @@ export function Home({
 
         {dashboard.gruposPendentes.length === 0 ? (
           <div className="bg-[#1c1c1e] p-6 rounded-3xl border border-white/5 text-center">
-            <p className="text-gray-500 text-sm italic">Nenhum grupo com pendências. ✌️</p>
+            <p className="text-gray-500 text-sm italic flex items-center justify-center gap-2">
+              <CheckCircle2 size={16} className="text-[#2DD4BF] shrink-0" />
+              <span>Nenhum grupo com pendências.</span>
+            </p>
           </div>
         ) : (
           <div className="flex gap-4 overflow-x-auto pt-2.5 pb-4 px-1 scrollbar-hide -mt-2">

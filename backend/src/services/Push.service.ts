@@ -66,11 +66,11 @@ export class PushService {
       };
 
       const response = await messaging.send(message);
-      console.log(`📲 [Push Notification] Enviado com sucesso para usuário ${userId || 'avulso'} (${response})`);
+      console.log(`[Push Notification] Enviado com sucesso para usuário ${userId || 'avulso'} (${response})`);
       return true;
     } catch (error: any) {
       const errorCode = error?.code || error?.errorInfo?.code;
-      console.warn(`⚠️ [Push Notification] Falha ao enviar para o token: ${errorCode || error.message}`);
+      console.warn(`[Push Notification] Falha ao enviar para o token: ${errorCode || error.message}`);
 
       // Se o token foi invalidado ou o app foi desinstalado, limpa o token do banco
       if (
@@ -83,7 +83,7 @@ export class PushService {
             where: { id: userId },
             data: { fcm_token: null },
           });
-          console.log(`🧹 [Push Notification] Token FCM inválido removido do usuário ${userId}`);
+          console.log(`[Push Notification] Token FCM inválido removido do usuário ${userId}`);
         } catch {
           // Ignora erro ao limpar
         }

@@ -117,7 +117,7 @@ export class AuthService {
       console.error('Erro ao vincular solicitações no registro:', err);
     }
 
-    console.log(`📱 SMS SIMULADO PARA ${cleanPhone}: Seu código RachApp é ${verificationCode}`);
+    console.log(`[SMS SIMULADO] Para ${cleanPhone}: Seu código RachApp é ${verificationCode}`);
 
     const token = jwt.sign(
       { userId: user.id, name: user.name },

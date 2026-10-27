@@ -594,7 +594,7 @@ export function Viagens({ onDataChange, dataVersion }: { onDataChange?: () => vo
           <div className="space-y-6">
             {Object.entries(corridasAgrupadas).map(([mes, corridasDoMes]) => (
               <div key={mes}>
-                <h3 className="text-gray-400 mb-3 text-sm font-medium sticky top-0 bg-[#05080f]/90 py-2 backdrop-blur-sm z-10">
+                <h3 className="text-gray-400 mb-3 text-sm font-semibold py-1">
                   {mes}
                 </h3>
 
