@@ -19,13 +19,21 @@ import {
   Camera,
   X,
 } from 'lucide-react';
+import { Capacitor } from '@capacitor/core';
 import { dbService } from '../services/database';
 import { PixModal } from './PixModal';
 import { ChangePasswordScreen } from './ChangePasswordScreen';
 import { formatPhoneBR, isValidPhoneBR } from '../utils/phoneFormatter';
 import { compressAvatarImage } from '../utils/modalBackHandler';
 import type { SyncStatus } from '../types';
-import { getCurrentAppVersion, checkAppUpdate, triggerApkDownload, type AppReleaseInfo } from '../services/updateService';
+import {
+  getCurrentAppVersion,
+  checkAppUpdate,
+  triggerApkDownload,
+  downloadAndStageOtaUpdate,
+  applyOtaUpdateNow,
+  type AppReleaseInfo,
+} from '../services/updateService';
 
 interface PerfilProps {
   dataVersion?: number;
@@ -503,7 +511,9 @@ export function Perfil({
                   Nova versão disponível: {(manualUpdateInfo || updateInfo)?.tagName}
                 </p>
                 <p className="text-xs text-gray-400 mt-0.5">
-                  Baixe o APK para atualizar sem perder nenhum dado.
+                  {(manualUpdateInfo || updateInfo)?.otaZipUrl && Capacitor.isNativePlatform()
+                    ? 'Atualize instantaneamente (OTA) sem precisar reinstalar o APK.'
+                    : 'Baixe o APK para atualizar sem perder nenhum dado.'}
                 </p>
               </div>
             </div>
@@ -519,15 +529,35 @@ export function Perfil({
               <button
                 onClick={async () => {
                   const targetInfo = manualUpdateInfo || updateInfo;
-                  if (!targetInfo?.apkDownloadUrl) return;
+                  if (!targetInfo) return;
 
                   setIsDownloadingApk(true);
                   setDownloadMsg('');
                   try {
-                    await triggerApkDownload(targetInfo.apkDownloadUrl);
-                    setDownloadMsg('Download iniciado! Verifique a barra de notificações do seu celular.');
+                    if (Capacitor.isNativePlatform() && targetInfo.otaZipUrl) {
+                      setDownloadMsg('Baixando pacote OTA em segundo plano...');
+                      const staged = await downloadAndStageOtaUpdate(targetInfo, (pct) => {
+                        setDownloadMsg(`Baixando atualização OTA (${pct}%)...`);
+                      });
+                      if (staged) {
+                        setDownloadMsg(
+                          'Nova atualização pronta! O app será recarregado em 3 segundos...'
+                        );
+                        setTimeout(() => {
+                          applyOtaUpdateNow(staged);
+                        }, 3000);
+                        return;
+                      }
+                    }
+
+                    if (targetInfo.apkDownloadUrl) {
+                      await triggerApkDownload(targetInfo.apkDownloadUrl);
+                      setDownloadMsg(
+                        'Download iniciado! Verifique a barra de notificações do seu celular.'
+                      );
+                    }
                   } catch {
-                    alert('Não foi possível iniciar o download automaticamente.');
+                    alert('Não foi possível iniciar a atualização automaticamente.');
                   } finally {
                     setTimeout(() => setIsDownloadingApk(false), 2500);
                   }
@@ -538,12 +568,14 @@ export function Perfil({
                 {isDownloadingApk ? (
                   <>
                     <RefreshCw size={14} className="animate-spin" />
-                    Iniciando download...
+                    Atualizando...
                   </>
                 ) : (
                   <>
                     <Download size={15} />
-                    Baixar e Atualizar APK
+                    {(manualUpdateInfo || updateInfo)?.otaZipUrl && Capacitor.isNativePlatform()
+                      ? 'Atualizar Agora (OTA)'
+                      : 'Baixar e Atualizar APK'}
                   </>
                 )}
               </button>

@@ -1,9 +1,26 @@
 // src/components/UpdateModal.tsx
 import { useState } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Download, Sparkles, ArrowRight, ExternalLink, ShieldCheck, Check, RefreshCw } from 'lucide-react';
+import {
+  X,
+  Download,
+  Sparkles,
+  ArrowRight,
+  ExternalLink,
+  ShieldCheck,
+  Check,
+  RefreshCw,
+  Zap,
+} from 'lucide-react';
+import { Capacitor } from '@capacitor/core';
 import { useModalBackHandler } from '../utils/modalBackHandler';
-import { triggerApkDownload, dismissUpdate, type AppReleaseInfo } from '../services/updateService';
+import {
+  triggerApkDownload,
+  dismissUpdate,
+  downloadAndStageOtaUpdate,
+  applyOtaUpdateNow,
+  type AppReleaseInfo,
+} from '../services/updateService';
 
 interface UpdateModalProps {
   isOpen: boolean;
@@ -13,18 +30,54 @@ interface UpdateModalProps {
 
 export function UpdateModal({ isOpen, onClose, updateInfo }: UpdateModalProps) {
   const [isDownloading, setIsDownloading] = useState(false);
+  const [otaProgress, setOtaProgress] = useState<number>(0);
   const [downloadSuccess, setDownloadSuccess] = useState(false);
+  const [statusMessage, setStatusMessage] = useState('');
 
   useModalBackHandler(isOpen, onClose);
 
   if (!isOpen) return null;
 
-  const handleDownload = async () => {
+  const canUseOta = Capacitor.isNativePlatform() && Boolean(updateInfo.otaZipUrl);
+
+  const handleOtaUpdate = async () => {
+    setIsDownloading(true);
+    setDownloadSuccess(false);
+    setOtaProgress(0);
+    setStatusMessage('Baixando pacote de atualização em segundo plano...');
+    try {
+      const staged = await downloadAndStageOtaUpdate(updateInfo, (pct) => {
+        setOtaProgress(pct);
+      });
+      if (staged) {
+        setDownloadSuccess(true);
+        setStatusMessage('Nova atualização pronta! Recarregando o aplicativo...');
+        setTimeout(() => {
+          applyOtaUpdateNow(staged);
+        }, 1200);
+      } else if (updateInfo.apkDownloadUrl) {
+        await triggerApkDownload(updateInfo.apkDownloadUrl);
+        setDownloadSuccess(true);
+        setStatusMessage(
+          'Download do APK iniciado! Acompanhe na barra de notificações do seu celular.'
+        );
+        setTimeout(() => setIsDownloading(false), 2000);
+      }
+    } catch {
+      alert('Erro ao baixar atualização.');
+      setIsDownloading(false);
+    }
+  };
+
+  const handleApkDownload = async () => {
     setIsDownloading(true);
     setDownloadSuccess(false);
     try {
       await triggerApkDownload(updateInfo.apkDownloadUrl);
       setDownloadSuccess(true);
+      setStatusMessage(
+        'Download do APK iniciado! Acompanhe o progresso na barra de notificações do seu celular.'
+      );
     } catch {
       alert('Erro ao iniciar o download do APK.');
     } finally {
@@ -92,28 +145,59 @@ export function UpdateModal({ isOpen, onClose, updateInfo }: UpdateModalProps) {
 
           <div className="flex items-center gap-2 text-[11px] text-gray-400 bg-white/5 p-2.5 rounded-xl border border-white/5">
             <ShieldCheck size={16} className="text-[#2DD4BF] shrink-0" />
-            <span>Atualização opcional e segura. Seus dados e rachas não serão perdidos.</span>
+            <span>
+              {canUseOta
+                ? 'Atualização OTA rápida e transparente sem precisar reinstalar o APK.'
+                : 'Atualização opcional e segura. Seus dados e rachas não serão perdidos.'}
+            </span>
           </div>
         </div>
+
+        {isDownloading && canUseOta && otaProgress > 0 && otaProgress < 100 && (
+          <div className="mb-4 space-y-1.5">
+            <div className="flex justify-between text-[11px] text-gray-400">
+              <span>Baixando atualização OTA...</span>
+              <span className="text-[#2DD4BF] font-bold">{otaProgress}%</span>
+            </div>
+            <div className="w-full h-2 bg-[#2c2c2e] rounded-full overflow-hidden">
+              <div
+                className="h-full bg-[#2DD4BF] transition-all duration-200"
+                style={{ width: `${otaProgress}%` }}
+              />
+            </div>
+          </div>
+        )}
 
         {downloadSuccess && (
           <div className="mb-4 bg-[#2DD4BF]/15 border border-[#2DD4BF]/30 text-[#2DD4BF] text-xs p-3 rounded-2xl flex items-center gap-2 animate-fade-in">
             <Check size={16} className="shrink-0" />
-            <span>Download iniciado! Acompanhe o progresso na barra de notificações do seu celular.</span>
+            <span>
+              {statusMessage ||
+                'Download iniciado! Acompanhe o progresso na barra de notificações do seu celular.'}
+            </span>
           </div>
         )}
 
         {/* Botões de Ação */}
         <div className="space-y-2.5">
           <button
-            onClick={handleDownload}
+            onClick={canUseOta ? handleOtaUpdate : handleApkDownload}
             disabled={isDownloading}
             className="w-full bg-[#2DD4BF] hover:bg-[#25b5a3] text-[#05080f] font-bold py-3.5 rounded-xl text-sm flex items-center justify-center gap-2 transition-all active:scale-95 shadow-lg shadow-[#2DD4BF]/10 disabled:opacity-50"
           >
             {isDownloading ? (
               <>
                 <RefreshCw size={18} className="animate-spin" />
-                Iniciando download...
+                {canUseOta
+                  ? otaProgress > 0
+                    ? `Atualizando (${otaProgress}%)...`
+                    : 'Preparando atualização...'
+                  : 'Iniciando download...'}
+              </>
+            ) : canUseOta ? (
+              <>
+                <Zap size={18} />
+                Atualizar Agora (OTA Rápido)
               </>
             ) : (
               <>
@@ -122,6 +206,17 @@ export function UpdateModal({ isOpen, onClose, updateInfo }: UpdateModalProps) {
               </>
             )}
           </button>
+
+          {canUseOta && updateInfo.apkDownloadUrl && (
+            <button
+              onClick={handleApkDownload}
+              disabled={isDownloading}
+              className="w-full bg-[#2c2c2e] hover:bg-white/10 text-gray-300 font-semibold py-2.5 rounded-xl text-xs flex items-center justify-center gap-1.5 transition-colors disabled:opacity-50"
+            >
+              <Download size={14} />
+              Baixar instalador APK completo
+            </button>
+          )}
 
           <div className="flex items-center justify-between gap-2 pt-1">
             <button

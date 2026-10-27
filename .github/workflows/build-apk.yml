@@ -1,4 +1,4 @@
-name: Build Android APK
+name: Build Android APK & OTA Bundle
 
 on:
   push:
@@ -7,6 +7,8 @@ on:
       - feature/backend
       - feature/full-integration
       - feature/fix-backend
+    tags:
+      - 'v*'
   workflow_dispatch:
 
 permissions:
@@ -14,7 +16,7 @@ permissions:
 
 jobs:
   build-apk:
-    name: Gerar APK (React + Capacitor)
+    name: Gerar APK e Pacote OTA (React + Capacitor)
     runs-on: ubuntu-latest
 
     defaults:
@@ -38,6 +40,23 @@ jobs:
           distribution: 'temurin'
           java-version: '21'
 
+      - name: Definir Versão da Release (Tag ou Run Number)
+        run: |
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            RAW_TAG="${GITHUB_REF_NAME}"
+            VERSION_NAME="${RAW_TAG#v}"
+            TAG_NAME="v${VERSION_NAME}"
+          else
+            VERSION_NAME="0.1.${{ github.run_number }}"
+            TAG_NAME="v0.1.${{ github.run_number }}"
+          fi
+          VERSION_CODE=$((100 + ${{ github.run_number }}))
+
+          echo "VERSION_NAME=${VERSION_NAME}" >> $GITHUB_ENV
+          echo "TAG_NAME=${TAG_NAME}" >> $GITHUB_ENV
+          echo "VERSION_CODE=${VERSION_CODE}" >> $GITHUB_ENV
+          echo "✅ Release configurada: TAG_NAME=${TAG_NAME} | VERSION_NAME=${VERSION_NAME} | VERSION_CODE=${VERSION_CODE}"
+
       - name: Aceitar Licenças do Android SDK
         run: |
           yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
@@ -52,14 +71,41 @@ jobs:
           if [ -n "$RAW_API_URL" ]; then
             echo "VITE_API_URL=$RAW_API_URL" > .env.production
             echo "VITE_API_URL=$RAW_API_URL" > .env
-            echo "✅ VITE_API_URL injetada no build do APK"
+            echo "✅ VITE_API_URL injetada no build do APK e OTA"
           else
             echo "⚠️ AVISO: Secret VITE_API_URL não encontrado! Configure VITE_API_URL nos Secrets do repositório."
           fi
-          echo "VITE_APP_VERSION=0.1.${{ github.run_number }}" >> .env.production
-          echo "VITE_APP_VERSION=0.1.${{ github.run_number }}" >> .env
-          echo "✅ VITE_APP_VERSION=0.1.${{ github.run_number }} injetada no build"
+          echo "VITE_APP_VERSION=${VERSION_NAME}" >> .env.production
+          echo "VITE_APP_VERSION=${VERSION_NAME}" >> .env
+          echo "✅ VITE_APP_VERSION=${VERSION_NAME} injetada no build"
           npm run build
+
+      - name: Compactar pasta dist em update.zip e gerar version.json (OTA Self-Hosted)
+        run: |
+          mkdir -p ../apk-output
+
+          # Compacta o conteúdo da pasta dist diretamente na raiz do update.zip (exigido pelo @capgo/capacitor-updater)
+          (cd dist && zip -r -q ../../apk-output/update.zip .)
+          echo "✅ Pacote OTA update.zip gerado com sucesso"
+
+          REPO="${{ github.repository }}"
+          UPDATE_ZIP_URL="https://github.com/${REPO}/releases/download/${TAG_NAME}/update.zip"
+          APK_URL="https://github.com/${REPO}/releases/download/${TAG_NAME}/app-release.apk"
+          PUBLISHED_AT=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+          cat <<EOF > ../apk-output/version.json
+          {
+            "version": "${VERSION_NAME}",
+            "tagName": "${TAG_NAME}",
+            "url": "${UPDATE_ZIP_URL}",
+            "updateZipUrl": "${UPDATE_ZIP_URL}",
+            "apkUrl": "${APK_URL}",
+            "publishedAt": "${PUBLISHED_AT}"
+          }
+          EOF
+
+          echo "✅ Manifesto version.json gerado:"
+          cat ../apk-output/version.json
 
       - name: Inicializar e Sincronizar Plataforma Android (Capacitor)
         run: |
@@ -160,11 +206,9 @@ jobs:
 
       - name: Atualizar versionCode e versionName do Android automaticamente
         run: |
-          VERSION_CODE=$((100 + ${{ github.run_number }}))
-          VERSION_NAME="0.1.${{ github.run_number }}"
-          sed -i "s/versionCode [0-9]\+/versionCode $VERSION_CODE/g" android/app/build.gradle
-          sed -i "s/versionName \"[^\"]*\"/versionName \"$VERSION_NAME\"/g" android/app/build.gradle
-          echo "✅ Versão do APK definida para versionName=$VERSION_NAME (versionCode=$VERSION_CODE)"
+          sed -i "s/versionCode [0-9]\+/versionCode ${VERSION_CODE}/g" android/app/build.gradle
+          sed -i "s/versionName \"[^\"]*\"/versionName \"${VERSION_NAME}\"/g" android/app/build.gradle
+          echo "✅ Versão do APK definida para versionName=${VERSION_NAME} (versionCode=${VERSION_CODE})"
 
       - name: Compilar APK Release via Gradle
         run: |
@@ -185,28 +229,40 @@ jobs:
             --ks-key-alias rachapp \
             --ks-pass pass:rachapp123 \
             --key-pass pass:rachapp123 \
-            --out ../apk-output/RachApp-release.apk \
+            --out ../apk-output/app-release.apk \
             app-release-aligned.apk
 
-      - name: Publicar APKs nos Artifacts do GitHub Actions
+          # Mantém cópia com o nome antigo para retrocompatibilidade
+          cp -f ../apk-output/app-release.apk ../apk-output/RachApp-release.apk
+
+      - name: Publicar APKs e Pacote OTA nos Artifacts do GitHub Actions
         uses: actions/upload-artifact@v4
         with:
-          name: RachApp-APK-${{ github.sha }}
-          path: apk-output/*.apk
+          name: RachApp-Release-${{ env.TAG_NAME }}-${{ github.sha }}
+          path: |
+            apk-output/app-release.apk
+            apk-output/RachApp-release.apk
+            apk-output/update.zip
+            apk-output/version.json
           if-no-files-found: error
           retention-days: 30
 
-      - name: Publicar Release Automática com o APK
+      - name: Publicar Release Automática (APK + update.zip OTA + version.json)
         uses: softprops/action-gh-release@v2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          tag_name: v0.1.${{ github.run_number }}
-          name: "RachApp APK - v0.1.${{ github.run_number }} (${{ github.ref_name }})"
+          tag_name: ${{ env.TAG_NAME }}
+          name: "RachApp - ${{ env.TAG_NAME }} (${{ github.ref_name }})"
           body: |
-            APK gerado automaticamente a partir do commit `${{ github.sha }}` na branch `${{ github.ref_name }}`.
-            - **RachApp-release.apk**: Versão otimizada e assinada (recomendada para instalar no celular).
-            - **RachApp-debug.apk**: Versão de depuração.
-          files: apk-output/*.apk
+            Release gerada automaticamente a partir do commit `${{ github.sha }}` na ref `${{ github.ref_name }}`.
+            - **app-release.apk** / **RachApp-release.apk**: Instalador completo do Android (para novas instalações).
+            - **update.zip**: Bundle web compilado para atualização automática em background (OTA Self-Hosted).
+            - **version.json**: Manifesto de versão e URLs da release para checagem OTA.
+          files: |
+            apk-output/app-release.apk
+            apk-output/RachApp-release.apk
+            apk-output/update.zip
+            apk-output/version.json
           draft: false
           prerelease: false
           make_latest: true

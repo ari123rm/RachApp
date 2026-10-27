@@ -1,6 +1,6 @@
 // src/App.tsx
 import { useState, useEffect, useRef } from 'react';
-import { Plus, LoaderCircle, Bell, X } from 'lucide-react';
+import { Plus, LoaderCircle, Bell, X, Sparkles, RefreshCw, Clock } from 'lucide-react';
 import { BottomNav } from './components/BottomNav';
 import { Home } from './components/Home';
 import { Viagens } from './components/Viagens';
@@ -13,7 +13,7 @@ import { AddGroupModal } from './components/AddGroupModal';
 import { AssignReceiptModal } from './components/AssignReceiptModal';
 import { UpdateModal } from './components/UpdateModal';
 import { NotificationModal } from './components/NotificationModal';
-import { checkAppUpdate, isUpdateDismissed, type AppReleaseInfo } from './services/updateService';
+import { useOtaUpdater } from './services/updateService';
 import { App as CapApp } from '@capacitor/app';
 import {
   dbService,
@@ -53,11 +53,25 @@ function App() {
   const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
   const [incomingSharedReceipt, setIncomingSharedReceipt] = useState<string | null>(null);
   const [dataVersion, setDataVersion] = useState(0);
-  const [updateInfo, setUpdateInfo] = useState<AppReleaseInfo | null>(null);
   const [isUpdateModalOpen, setIsUpdateModalOpen] = useState(false);
   const [isNotificationModalOpen, setIsNotificationModalOpen] = useState(false);
   const [inAppToast, setInAppToast] = useState<AppNotification | null>(null);
   const lastSyncedRef = useRef<string | null>(null);
+
+  // Serviço/Hook de atualização OTA Self-Hosted em background
+  const {
+    otaStatus,
+    readyBundle,
+    releaseInfo: updateInfo,
+    countdown,
+    applyNow,
+    applyOnNextBoot,
+    setReleaseInfo: setUpdateInfo,
+  } = useOtaUpdater({
+    onApkFallbackDetected: () => {
+      setIsUpdateModalOpen(true);
+    },
+  });
 
   const containerRef = useRef<HTMLElement | null>(null);
   const trackRef = useRef<HTMLDivElement | null>(null);
@@ -78,18 +92,6 @@ function App() {
   // Inicializa o banco SQLite local e verifica se há sessão ativa
   useEffect(() => {
     let mounted = true;
-
-    // Checa silenciosamente se há nova versão disponível no GitHub Releases
-    checkAppUpdate(false)
-      .then((info) => {
-        if (mounted && info && info.isNewer) {
-          setUpdateInfo(info);
-          if (!isUpdateDismissed(info.version)) {
-            setIsUpdateModalOpen(true);
-          }
-        }
-      })
-      .catch(() => {});
 
     dbService.auth
       .initSession()
@@ -335,6 +337,63 @@ function App() {
     }
   };
 
+  // Toast suave de Atualização OTA Pronta (Blue-Green)
+  const otaReadyToast =
+    (otaStatus === 'ready' || otaStatus === 'applying') && readyBundle ? (
+      <div className="fixed bottom-24 left-4 right-4 max-w-md mx-auto z-[95] bg-[#141a23]/95 border border-[#2DD4BF]/50 rounded-2xl p-4 shadow-2xl animate-fade-in backdrop-blur-md">
+        <div className="flex items-start gap-3">
+          <div className="w-9 h-9 rounded-xl bg-[#2DD4BF]/20 text-[#2DD4BF] flex items-center justify-center shrink-0 border border-[#2DD4BF]/30">
+            {otaStatus === 'applying' ? (
+              <RefreshCw size={18} className="animate-spin" />
+            ) : (
+              <Sparkles size={18} />
+            )}
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-bold text-white">
+              Nova atualização pronta! ({readyBundle.tagName})
+            </p>
+            <p className="text-xs text-gray-300 mt-0.5 leading-relaxed">
+              {otaStatus === 'applying'
+                ? 'Aplicando atualização e recarregando o app...'
+                : `Nova atualização pronta! O app será recarregado em ${countdown ?? 3} segundo${
+                    (countdown ?? 3) === 1 ? '' : 's'
+                  }.`}
+            </p>
+
+            {otaStatus === 'ready' && (
+              <div className="flex items-center gap-2 mt-3">
+                <button
+                  onClick={applyNow}
+                  className="bg-[#2DD4BF] hover:bg-[#25b5a3] text-[#05080f] text-xs font-bold px-3 py-1.5 rounded-xl flex items-center gap-1.5 transition-transform active:scale-95"
+                >
+                  <RefreshCw size={12} />
+                  Recarregar agora
+                </button>
+                <button
+                  onClick={applyOnNextBoot}
+                  className="bg-white/10 hover:bg-white/15 text-gray-300 hover:text-white text-xs font-medium px-3 py-1.5 rounded-xl flex items-center gap-1 transition-colors"
+                >
+                  <Clock size={12} />
+                  No próximo boot
+                </button>
+              </div>
+            )}
+          </div>
+
+          {otaStatus === 'ready' && (
+            <button
+              onClick={applyOnNextBoot}
+              title="Aplicar no próximo boot"
+              className="text-gray-400 hover:text-white p-1 rounded-lg hover:bg-gray-800/40"
+            >
+              <X size={16} />
+            </button>
+          )}
+        </div>
+      </div>
+    ) : null;
+
   if (isInitializing) {
     return (
       <div className="min-h-screen bg-[#05080f] flex flex-col items-center justify-center text-[#2DD4BF]">
@@ -346,12 +405,15 @@ function App() {
 
   if (!isAuthenticated) {
     return (
-      <AuthScreen
-        onLogin={() => {
-          setIsAuthenticated(true);
-          refreshData();
-        }}
-      />
+      <>
+        <AuthScreen
+          onLogin={() => {
+            setIsAuthenticated(true);
+            refreshData();
+          }}
+        />
+        {otaReadyToast}
+      </>
     );
   }
 
@@ -473,6 +535,9 @@ function App() {
         onClose={() => setIsNotificationModalOpen(false)}
         onDataChange={refreshData}
       />
+
+      {/* Toast suave de Atualização OTA Pronta (3 segundos / próximo boot) */}
+      {otaReadyToast}
 
       {/* Toast flutuante de notificação em tempo real */}
       {inAppToast && (
