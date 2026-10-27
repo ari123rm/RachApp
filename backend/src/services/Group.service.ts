@@ -128,6 +128,7 @@ export class GroupService {
 
     for (const friendId of friendIds) {
       const f = friends.find((x) => x.id === friendId);
+      if (!f) continue;
       const regUser = f?.phone
         ? allUsers.find((u) => u.id !== userId && phonesMatch(u.phone, f.phone))
         : null;
@@ -200,14 +201,21 @@ export class GroupService {
     return group;
   }
 
-  static async getUserGroups(userId: string) {
-    const reverseContext = await FriendService.syncReverseLinks(userId);
+  static async getUserGroups(
+    userId: string,
+    existingReverseContext?: Awaited<ReturnType<typeof FriendService.syncReverseLinks>>
+  ) {
+    const reverseContext = existingReverseContext || (await FriendService.syncReverseLinks(userId));
+    const { reverseFriendIds } = reverseContext;
 
     const groups = await prisma.group.findMany({
       where: {
         OR: [
           { created_by: userId },
           { members: { some: { user_id: userId, status: 'ACCEPTED' } } },
+          ...(reverseFriendIds.length > 0
+            ? [{ members: { some: { friend_id: { in: reverseFriendIds }, status: 'ACCEPTED' } } }]
+            : []),
         ],
       },
       include: {
@@ -251,25 +259,30 @@ export class GroupService {
       include: {
         group: {
           include: {
-            owner: { select: { id: true, name: true, phone: true } },
-            _count: { select: { members: true, expenses: true } },
+            owner: {
+              select: { id: true, name: true, phone: true, pix_key: true },
+            },
+            _count: {
+              select: { members: true, expenses: true },
+            },
           },
         },
       },
-      orderBy: { id: 'desc' },
+      orderBy: { group: { created_at: 'desc' } },
     });
 
-    return invitations.map((inv: any) => ({
+    return invitations.map((inv) => ({
       id: inv.id,
       group_id: inv.group_id,
       status: inv.status,
       group: {
         id: inv.group.id,
         name: inv.group.name,
-        avatar_url: inv.group.avatar_url || null,
+        created_by: inv.group.created_by,
+        created_at: inv.group.created_at,
         creator_name: inv.group.owner?.name || 'Amigo',
-        members_count: inv.group._count.members,
-        expenses_count: inv.group._count.expenses,
+        members_count: inv.group._count?.members || 1,
+        expenses_count: inv.group._count?.expenses || 0,
       },
     }));
   }
@@ -279,6 +292,9 @@ export class GroupService {
       where: {
         id: invitationId,
         user_id: userId,
+      },
+      include: {
+        group: { select: { created_by: true } },
       },
     });
 
@@ -290,6 +306,10 @@ export class GroupService {
       where: { id: invitationId },
       data: { status: 'ACCEPTED' },
     });
+
+    if (member.group?.created_by) {
+      notifySync(member.group.created_by, 'GROUP_INVITE_ACCEPTED');
+    }
 
     return { message: 'Convite aceito com sucesso!' };
   }
@@ -373,6 +393,9 @@ export class GroupService {
         id: invitationId,
         user_id: userId,
       },
+      include: {
+        group: { select: { created_by: true } },
+      },
     });
 
     if (!member) {
@@ -404,6 +427,10 @@ export class GroupService {
     await prisma.groupMember.delete({
       where: { id: invitationId },
     });
+
+    if (member.group?.created_by) {
+      notifySync(member.group.created_by, 'GROUP_INVITE_REJECTED');
+    }
 
     return { message: 'Convite recusado com sucesso.' };
   }
@@ -506,6 +533,7 @@ export class GroupService {
         const newMembersData = addedFriendIds
           .map((friendId) => {
             const f = friends.find((x) => x.id === friendId);
+            if (!f) return null;
             const regUser = f?.phone
               ? allUsers.find((u) => u.id !== userId && phonesMatch(u.phone, f.phone))
               : null;
@@ -723,7 +751,7 @@ export class GroupService {
     }
 
     const transformedGroup = await this.transformGroupForUser(group, userId, reverseContext);
-    const balanceSummary = await ExpenseService.calculateGroupBalances(groupId, userId);
+    const balanceSummary = await ExpenseService.calculateGroupBalances(groupId, userId, reverseContext);
 
     return {
       ...transformedGroup,

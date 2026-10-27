@@ -45,7 +45,7 @@ export function initSocket(): Promise<Socket | null> {
       const wsUrl = getWebSocketUrl();
       const newSocket = io(wsUrl, {
         auth: { token: session.token },
-        transports: ['websocket'], // Conexão direta via WebSocket puro (evita o ciclo de polling -> upgrade)
+        transports: ['websocket', 'polling'],
         reconnection: true,
         reconnectionAttempts: Infinity,
         reconnectionDelay: 2500,
@@ -56,6 +56,7 @@ export function initSocket(): Promise<Socket | null> {
 
       newSocket.on('connect', () => {
         console.log('[Socket.io] Conectado ao servidor');
+        syncWithBackend(true).catch(() => {});
       });
 
       // Recebe sinal de que algum dado foi alterado no backend e invalida o cache local

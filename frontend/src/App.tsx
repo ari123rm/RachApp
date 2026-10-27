@@ -109,17 +109,13 @@ function App() {
         }
       });
 
-    let lastSyncTrigger = 0;
     const unsub = dbService.sync.subscribe((st) => {
-      const now = Date.now();
       if (
         st.state === 'synced' &&
         st.lastSyncedAt &&
-        st.lastSyncedAt !== lastSyncedRef.current &&
-        now - lastSyncTrigger > 800
+        st.lastSyncedAt !== lastSyncedRef.current
       ) {
         lastSyncedRef.current = st.lastSyncedAt;
-        lastSyncTrigger = now;
         if (mounted) {
           setDataVersion((prev) => prev + 1);
         }
@@ -164,6 +160,7 @@ function App() {
     let appStateHandle: any = null;
     CapApp.addListener('appStateChange', (state) => {
       if (state.isActive) {
+        initSocket();
         dbService.sync.now().catch(() => {});
       }
     })
@@ -174,21 +171,39 @@ function App() {
 
     const handleVisibility = () => {
       if (!document.hidden) {
+        initSocket();
         dbService.sync.now().catch(() => {});
       }
     };
     document.addEventListener('visibilitychange', handleVisibility);
     window.addEventListener('focus', handleVisibility);
+    window.addEventListener('online', handleVisibility);
+
+    // Sincronização periódica de segurança enquanto o app está aberto e ativo
+    const syncInterval = setInterval(() => {
+      if (!document.hidden) {
+        dbService.sync.now().catch(() => {});
+      }
+    }, 25000);
 
     return () => {
       unsubNotif();
+      clearInterval(syncInterval);
       if (appStateHandle && typeof appStateHandle.remove === 'function') {
         appStateHandle.remove();
       }
       document.removeEventListener('visibilitychange', handleVisibility);
       window.removeEventListener('focus', handleVisibility);
+      window.removeEventListener('online', handleVisibility);
     };
   }, [isAuthenticated]);
+
+  // Ao trocar de aba, dispara sincronização em background para garantir dados frescos
+  useEffect(() => {
+    if (isAuthenticated) {
+      dbService.sync.now().catch(() => {});
+    }
+  }, [activeTab, isAuthenticated]);
 
   // Listener do botão voltar (Android / Capacitor)
   useEffect(() => {

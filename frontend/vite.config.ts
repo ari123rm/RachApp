@@ -13,6 +13,9 @@ export default defineConfig({
       devOptions: {
         enabled: false,
       },
+      workbox: {
+        navigateFallbackDenylist: [/^\/api/, /^\/socket\.io/],
+      },
       // 1. Avisamos quais arquivos extras ele deve incluir na instalação
       includeAssets: ['favicon.ico', 'favicon-32x32.png', 'favicon-16x16.png', 'apple-touch-icon.png'],
       manifest: {

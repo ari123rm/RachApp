@@ -1,19 +1,46 @@
 // src/services/Friend.service.ts
 import { prisma } from '../config/db';
 import { normalizePhoneBackend, phonesMatch } from './Auth.service';
+import { notifySync } from './socket.service';
+
+type SyncReverseLinksResult = Awaited<ReturnType<typeof FriendService['_runSyncReverseLinks']>>;
+const syncReverseLinksLocks = new Map<string, Promise<SyncReverseLinksResult>>();
 
 export class FriendService {
   /**
    * Sincroniza vínculos reversos pelo número de telefone:
    * Se outro usuário (User B) cadastrou o usuário atual (User A) como amigo usando o telefone de User A,
    * encontra todos os registros Friend que apontam para User A (reverseFriendIds) e garante que User B
-   * também exista na lista de amigos de User A, APENAS SE A AMIZADE FOI ACEITA.
+   * também exista na lista de amigos de User A quando a amizade é aceita ou há racha compartilhado.
    */
-  static async syncReverseLinks(userId: string) {
-    const currentUser = await prisma.user.findUnique({ where: { id: userId } });
-    let myFriends = await prisma.friend.findMany({ where: { user_id: userId } });
+  static async syncReverseLinks(userId: string): Promise<SyncReverseLinksResult> {
+    const existingLock = syncReverseLinksLocks.get(userId);
+    if (existingLock) {
+      try {
+        return await existingLock;
+      } catch {
+        // Prossegue caso a chamada anterior tenha falhado
+      }
+    }
 
-    // Deduplica amigos locais que tenham o mesmo telefone para evitar listas duplicadas
+    const promise = this._runSyncReverseLinks(userId).finally(() => {
+      if (syncReverseLinksLocks.get(userId) === promise) {
+        syncReverseLinksLocks.delete(userId);
+      }
+    });
+
+    syncReverseLinksLocks.set(userId, promise);
+    return promise;
+  }
+
+  private static async _runSyncReverseLinks(userId: string) {
+    const currentUser = await prisma.user.findUnique({ where: { id: userId } });
+    let myFriends = await prisma.friend.findMany({
+      where: { user_id: userId },
+      orderBy: { id: 'asc' },
+    });
+
+    // Deduplica amigos locais que tenham o mesmo telefone de forma segura (sem violar constraint composta)
     const seenPhones = new Map<string, string>();
     const toDeleteIds: string[] = [];
     for (const f of myFriends) {
@@ -21,28 +48,97 @@ export class FriendService {
       if (norm) {
         if (seenPhones.has(norm)) {
           const keepId = seenPhones.get(norm)!;
-          await prisma.expenseParticipant.updateMany({
-            where: { friend_id: f.id },
-            data: { friend_id: keepId },
-          });
-          await prisma.expense.updateMany({
-            where: { paid_by_friend_id: f.id },
-            data: { paid_by_friend_id: keepId },
-          });
-          await prisma.groupMember.deleteMany({
-            where: { friend_id: f.id },
-          });
-          toDeleteIds.push(f.id);
+          try {
+            const dupParticipants = await prisma.expenseParticipant.findMany({
+              where: { friend_id: f.id },
+            });
+            for (const dp of dupParticipants) {
+              const existingKeep = await prisma.expenseParticipant.findUnique({
+                where: {
+                  expense_id_friend_id: {
+                    expense_id: dp.expense_id,
+                    friend_id: keepId,
+                  },
+                },
+              });
+              if (existingKeep) {
+                const mergedPaid = Math.max(
+                  Number(existingKeep.amount_paid || 0),
+                  Number(dp.amount_paid || 0)
+                );
+                await prisma.expenseParticipant.update({
+                  where: {
+                    expense_id_friend_id: {
+                      expense_id: dp.expense_id,
+                      friend_id: keepId,
+                    },
+                  },
+                  data: {
+                    amount_paid: mergedPaid,
+                    receipt_url: existingKeep.receipt_url || dp.receipt_url || null,
+                  },
+                });
+                await prisma.expenseParticipant.delete({
+                  where: {
+                    expense_id_friend_id: {
+                      expense_id: dp.expense_id,
+                      friend_id: f.id,
+                    },
+                  },
+                });
+              } else {
+                await prisma.expenseParticipant.update({
+                  where: {
+                    expense_id_friend_id: {
+                      expense_id: dp.expense_id,
+                      friend_id: f.id,
+                    },
+                  },
+                  data: { friend_id: keepId },
+                });
+              }
+            }
+
+            await prisma.expense.updateMany({
+              where: { paid_by_friend_id: f.id },
+              data: { paid_by_friend_id: keepId },
+            });
+
+            const dupGroupMembers = await prisma.groupMember.findMany({
+              where: { friend_id: f.id },
+            });
+            for (const dgm of dupGroupMembers) {
+              const existingGroupKeep = await prisma.groupMember.findFirst({
+                where: { group_id: dgm.group_id, friend_id: keepId },
+              });
+              if (existingGroupKeep) {
+                await prisma.groupMember.delete({ where: { id: dgm.id } });
+              } else {
+                await prisma.groupMember.update({
+                  where: { id: dgm.id },
+                  data: { friend_id: keepId },
+                });
+              }
+            }
+
+            toDeleteIds.push(f.id);
+          } catch (err) {
+            console.warn('Aviso ao deduplicar amigo local:', err);
+          }
         } else {
           seenPhones.set(norm, f.id);
         }
       }
     }
     if (toDeleteIds.length > 0) {
-      await prisma.friend.deleteMany({
-        where: { id: { in: toDeleteIds } },
-      });
-      myFriends = myFriends.filter((f) => !toDeleteIds.includes(f.id));
+      try {
+        await prisma.friend.deleteMany({
+          where: { id: { in: toDeleteIds } },
+        });
+        myFriends = myFriends.filter((f) => !toDeleteIds.includes(f.id));
+      } catch (err) {
+        console.warn('Aviso ao remover amigos duplicados:', err);
+      }
     }
 
     const allUsers = await prisma.user.findMany({
@@ -132,17 +228,21 @@ export class FriendService {
       };
     }
 
-    // Busca solicitações de amizade já aceitas
-    const acceptedRequests = await prisma.friendshipRequest.findMany({
+    // Busca todas as solicitações de amizade envolvendo o usuário atual
+    const allRequests = await prisma.friendshipRequest.findMany({
       where: {
-        status: 'ACCEPTED',
         OR: [{ sender_id: userId }, { receiver_id: userId }],
       },
     });
 
     const acceptedUserIds = new Set<string>();
-    for (const req of acceptedRequests) {
-      acceptedUserIds.add(req.sender_id === userId ? req.receiver_id : req.sender_id);
+    const requestByOtherUserId = new Map<string, (typeof allRequests)[number]>();
+    for (const req of allRequests) {
+      const otherId = req.sender_id === userId ? req.receiver_id : req.sender_id;
+      requestByOtherUserId.set(otherId, req);
+      if (req.status === 'ACCEPTED') {
+        acceptedUserIds.add(otherId);
+      }
     }
 
     const otherFriendsWithPhone = await prisma.friend.findMany({
@@ -154,36 +254,77 @@ export class FriendService {
         user: {
           select: { id: true, name: true, phone: true, pix_key: true, avatar_url: true },
         },
+        expenses: {
+          select: { expense_id: true },
+          take: 1,
+        },
+        expensesPaid: {
+          select: { id: true },
+          take: 1,
+        },
       },
     });
 
-    // Compatibilidade reversa: se ambos os usuários já se adicionaram mutuamente no passado, considera aceito
+    // Sincroniza solicitações e vínculos:
+    // - Se ambos os usuários já se adicionaram mutuamente OU se já existe um racha compartilhado com este registro Friend
+    //   (e a solicitação não foi explicitamente recusada), garante vínculo ACCEPTED para que o racha seja visível.
+    // - Se não houver solicitação ainda, cria a solicitação para não ficar invisível.
     for (const of of otherFriendsWithPhone) {
-      if (phonesMatch(of.phone, currentUser.phone) && !acceptedUserIds.has(of.user_id)) {
-        const iAlreadyAddedThem = myFriends.some(
-          (mf) => mf.phone && phonesMatch(mf.phone, of.user.phone)
-        );
-        if (iAlreadyAddedThem) {
+      if (!phonesMatch(of.phone, currentUser.phone)) continue;
+
+      const existingReq = requestByOtherUserId.get(of.user_id);
+      const iAlreadyAddedThem = myFriends.some(
+        (mf) => mf.phone && phonesMatch(mf.phone, of.user.phone)
+      );
+      const hasSharedExpense =
+        (of.expenses && of.expenses.length > 0) ||
+        (of.expensesPaid && of.expensesPaid.length > 0);
+
+      if (!acceptedUserIds.has(of.user_id)) {
+        const shouldAutoAccept =
+          iAlreadyAddedThem ||
+          (hasSharedExpense && (!existingReq || existingReq.status !== 'REJECTED'));
+
+        if (shouldAutoAccept) {
           acceptedUserIds.add(of.user_id);
-          await prisma.friendshipRequest.upsert({
-            where: {
-              sender_id_receiver_id: {
+          try {
+            if (existingReq) {
+              const updatedReq = await prisma.friendshipRequest.update({
+                where: { id: existingReq.id },
+                data: { status: 'ACCEPTED' },
+              });
+              requestByOtherUserId.set(of.user_id, updatedReq);
+            } else {
+              const createdReq = await prisma.friendshipRequest.create({
+                data: {
+                  sender_id: of.user_id,
+                  receiver_id: userId,
+                  status: 'ACCEPTED',
+                },
+              });
+              requestByOtherUserId.set(of.user_id, createdReq);
+            }
+          } catch {
+            // Ignora conflito concorrente caso já tenha sido criado/atualizado
+          }
+        } else if (!existingReq) {
+          try {
+            const createdPending = await prisma.friendshipRequest.create({
+              data: {
                 sender_id: of.user_id,
                 receiver_id: userId,
+                status: 'PENDING',
               },
-            },
-            update: { status: 'ACCEPTED' },
-            create: {
-              sender_id: of.user_id,
-              receiver_id: userId,
-              status: 'ACCEPTED',
-            },
-          });
+            });
+            requestByOtherUserId.set(of.user_id, createdPending);
+          } catch {
+            // Ignora conflito concorrente
+          }
         }
       }
     }
 
-    // Apenas amigos com amizade ACEITA entram nos vínculos reversos e nos rachas compartilhados!
+    // Amigos com amizade ACEITA (ou racha ativo vinculado) entram nos vínculos reversos e nos rachas compartilhados
     const reverseFriends = otherFriendsWithPhone.filter(
       (f) => phonesMatch(f.phone, currentUser.phone) && acceptedUserIds.has(f.user_id)
     );
@@ -219,6 +360,7 @@ export class FriendService {
       cor?: string;
       is_favorite?: boolean;
       favorito?: boolean;
+      avatar_url?: string | null;
     }
   ) {
     const name = (data.name || data.nome || '').trim();
@@ -239,7 +381,7 @@ export class FriendService {
     let registeredUser: any = null;
     if (phone) {
       const allUsers = await prisma.user.findMany({
-        select: { id: true, phone: true, pix_key: true },
+        select: { id: true, name: true, phone: true, pix_key: true, avatar_url: true },
       });
       registeredUser = allUsers.find((u) => phonesMatch(u.phone, phone));
       const registeredPix = registeredUser?.pix_key?.trim();
@@ -281,6 +423,8 @@ export class FriendService {
           },
         });
       }
+
+      notifySync(registeredUser.id, 'FRIEND_UPDATED');
     }
 
     if (data.id) {
@@ -415,6 +559,9 @@ export class FriendService {
       });
     }
 
+    notifySync(request.sender_id, 'FRIEND_REQUEST_ACCEPTED');
+    notifySync(userId, 'FRIEND_REQUEST_ACCEPTED');
+
     return { message: 'Amizade confirmada com sucesso!' };
   }
 
@@ -435,11 +582,17 @@ export class FriendService {
       data: { status: 'REJECTED' },
     });
 
+    notifySync(request.sender_id, 'FRIEND_REQUEST_REJECTED');
+
     return { message: 'Solicitação recusada com sucesso.' };
   }
 
-  static async getAll(userId: string) {
-    await this.syncReverseLinks(userId);
+  static async getAll(
+    userId: string,
+    existingReverseContext?: Awaited<ReturnType<typeof FriendService.syncReverseLinks>>,
+    preloadedExpenses?: any[]
+  ) {
+    const reverseContext = existingReverseContext || (await this.syncReverseLinks(userId));
 
     const friends = await prisma.friend.findMany({
       where: { user_id: userId },
@@ -454,8 +607,11 @@ export class FriendService {
     });
 
     // Busca também despesas em que o amigo foi o pagador (ou criador reverso) para calcular saldo completo
-    const { ExpenseService } = await import('./Expense.service');
-    const allUserExpenses = await ExpenseService.listExpenses(userId);
+    let allUserExpenses = preloadedExpenses;
+    if (!allUserExpenses) {
+      const { ExpenseService } = await import('./Expense.service');
+      allUserExpenses = await ExpenseService.listExpenses(userId, reverseContext);
+    }
 
     // Mapeia todos os usuários para priorizar a chave Pix e foto que o amigo cadastrou para si
     const allUsers = await prisma.user.findMany({
@@ -466,7 +622,7 @@ export class FriendService {
       let divida = 0; // Quanto o amigo deve para Você
       let voceDeve = 0; // Quanto Você deve para o amigo
 
-      for (const exp of allUserExpenses) {
+      for (const exp of allUserExpenses!) {
         const part = exp.participants?.find((p: any) => p.friend_id === friend.id);
         if (!exp.paid_by_friend_id) {
           // Você pagou: amigo te deve a parte dele
@@ -580,6 +736,31 @@ export class FriendService {
       const regPix = registered?.pix_key?.trim();
       if (regPix) {
         pix_key = regPix;
+      }
+
+      if (registered) {
+        const existingReq = await prisma.friendshipRequest.findFirst({
+          where: {
+            OR: [
+              { sender_id: userId, receiver_id: registered.id },
+              { sender_id: registered.id, receiver_id: userId },
+            ],
+          },
+        });
+        if (!existingReq) {
+          try {
+            await prisma.friendshipRequest.create({
+              data: {
+                sender_id: userId,
+                receiver_id: registered.id,
+                status: 'PENDING',
+              },
+            });
+            notifySync(registered.id, 'FRIEND_UPDATED');
+          } catch {
+            // Ignora conflito
+          }
+        }
       }
     }
 

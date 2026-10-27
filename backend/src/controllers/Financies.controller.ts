@@ -172,21 +172,27 @@ export class FinanciesController {
       const userId = req.user?.userId;
       if (!userId) return res.status(401).json({ error: 'Não autorizado.' });
 
-      // 1. Primeiro sincroniza vínculos reversos por telefone, grupos, despesas, solicitações, convites e notificações
+      // 1. Sincroniza vínculos reversos uma única vez de forma atômica antes de consultar entidades dependentes
+      const reverseContext = await FriendService.syncReverseLinks(userId);
+
+      // 2. Busca dados do usuário, grupos, despesas, solicitações, convites e notificações reutilizando o contexto
       const [user, groups, expenses, friendRequests, groupInvitations, notifs] = await Promise.all([
         AuthService.getMe(userId),
-        GroupService.getUserGroups(userId),
-        ExpenseService.listExpenses(userId),
+        GroupService.getUserGroups(userId, reverseContext),
+        ExpenseService.listExpenses(userId, reverseContext),
         FriendService.listPendingRequests(userId),
         GroupService.listPendingInvitations(userId),
         NotificationService.listNotifications(userId, 50),
       ]);
 
-      // 2. Depois carrega a lista completa de amigos (já com novos vínculos criados) e dashboard
-      const [friends, dashboard] = await Promise.all([
-        FriendService.getAll(userId),
-        ExpenseService.getDashboard(userId),
-      ]);
+      // 3. Carrega a lista completa de amigos e resumo do dashboard reutilizando as despesas já transformadas
+      const friends = await FriendService.getAll(userId, reverseContext, expenses);
+      const dashboard = await ExpenseService.getDashboard(
+        userId,
+        reverseContext,
+        expenses,
+        friends
+      );
 
       res.status(200).json({
         user,

@@ -1,6 +1,6 @@
 // src/services/Expense.service.ts
 import { prisma } from '../config/db';
-import { phonesMatch } from './Auth.service';
+import { normalizePhoneBackend, phonesMatch } from './Auth.service';
 import { FriendService } from './Friend.service';
 import { NotificationService } from './Notification.service';
 import { notifySync } from './socket.service';
@@ -142,9 +142,13 @@ export class ExpenseService {
   }
 
   // 1. Listar todas as despesas do utilizador (próprias e compartilhadas por amigos via telefone)
-  static async listExpenses(userId: string) {
-    const reverseContext = await FriendService.syncReverseLinks(userId);
+  static async listExpenses(
+    userId: string,
+    existingReverseContext?: Awaited<ReturnType<typeof FriendService.syncReverseLinks>>
+  ) {
+    const reverseContext = existingReverseContext || (await FriendService.syncReverseLinks(userId));
     const { reverseFriendIds } = reverseContext;
+    const reverseSet = new Set(reverseFriendIds);
 
     const expenses = await prisma.expense.findMany({
       where: {
@@ -160,7 +164,7 @@ export class ExpenseService {
       },
       include: {
         owner: {
-          select: { id: true, name: true, phone: true, pix_key: true },
+          select: { id: true, name: true, phone: true, pix_key: true, avatar_url: true },
         },
         participants: {
           include: {
@@ -173,7 +177,7 @@ export class ExpenseService {
             name: true,
             created_by: true,
             members: {
-              select: { user_id: true, status: true },
+              select: { user_id: true, friend_id: true, status: true },
             },
           },
         },
@@ -183,11 +187,17 @@ export class ExpenseService {
     });
 
     const filteredExpenses = expenses.filter((exp) => {
-      if (!exp.group_id || !exp.group) return true;
       if (exp.user_id === userId) return true;
+      const isDirectParticipantOrPayer =
+        Boolean(exp.paid_by_friend_id && reverseSet.has(exp.paid_by_friend_id)) ||
+        (exp.participants || []).some((p) => reverseSet.has(p.friend_id));
+      if (isDirectParticipantOrPayer) return true;
+      if (!exp.group_id || !exp.group) return true;
       if (exp.group.created_by === userId) return true;
       return exp.group.members.some(
-        (m) => m.user_id === userId && m.status === 'ACCEPTED'
+        (m) =>
+          (m.user_id === userId || (m.friend_id && reverseSet.has(m.friend_id))) &&
+          m.status === 'ACCEPTED'
       );
     });
 
@@ -197,6 +207,66 @@ export class ExpenseService {
     }
 
     return transformed;
+  }
+
+  /**
+   * Garante vínculo de amizade aceito e amigo reverso criado quando um usuário inclui outro em um racha
+   */
+  private static async ensureParticipantLink(
+    creator: { id: string; name: string; phone: string | null; pix_key: string | null; avatar_url?: string | null },
+    targetUser: { id: string; name: string; phone: string | null }
+  ) {
+    try {
+      const existingReq = await prisma.friendshipRequest.findFirst({
+        where: {
+          OR: [
+            { sender_id: creator.id, receiver_id: targetUser.id },
+            { sender_id: targetUser.id, receiver_id: creator.id },
+          ],
+        },
+      });
+
+      if (existingReq) {
+        if (existingReq.status !== 'ACCEPTED') {
+          await prisma.friendshipRequest.update({
+            where: { id: existingReq.id },
+            data: { status: 'ACCEPTED' },
+          });
+        }
+      } else {
+        await prisma.friendshipRequest.create({
+          data: {
+            sender_id: creator.id,
+            receiver_id: targetUser.id,
+            status: 'ACCEPTED',
+          },
+        });
+      }
+
+      if (creator.phone) {
+        const targetFriends = await prisma.friend.findMany({
+          where: { user_id: targetUser.id },
+        });
+        const hasCreator = targetFriends.some(
+          (f) => f.phone && phonesMatch(f.phone, creator.phone)
+        );
+        if (!hasCreator) {
+          await prisma.friend.create({
+            data: {
+              user_id: targetUser.id,
+              name: creator.name.trim() || 'Amigo',
+              phone: normalizePhoneBackend(creator.phone) || null,
+              pix_key: creator.pix_key?.trim() || null,
+              avatar_url: creator.avatar_url || null,
+              color: 'bg-teal-500',
+              is_favorite: false,
+            },
+          });
+        }
+      }
+    } catch (err) {
+      console.warn('Aviso ao garantir vínculo de participante:', err);
+    }
   }
 
   // 2. Criar uma despesa e dividir os valores (suporta divisão igual, por % ou valor personalizado)
@@ -214,27 +284,49 @@ export class ExpenseService {
     valoresDevidos?: Record<string, number>;
     selfAmountOwed?: number;
   }) {
-    let uniqueParticipantIds = Array.from(new Set(data.participantIds || []));
-
-    // Se tiver groupId mas participantIds veio vazio, puxa os membros do grupo automaticamente
-    if (uniqueParticipantIds.length === 0 && data.groupId) {
-      const grpMembers = await prisma.groupMember.findMany({
-        where: { group_id: data.groupId, friend_id: { not: null } },
-      });
-      uniqueParticipantIds = grpMembers
-        .map((m) => m.friend_id!)
-        .filter(Boolean);
-    }
-
-    if (uniqueParticipantIds.length === 0) {
-      throw new Error('A despesa precisa ter pelo menos um participante.');
-    }
-
     if (data.id) {
       const existing = await prisma.expense.findUnique({ where: { id: data.id } });
       if (existing) {
         return this.updateExpense(data.userId, data.id, data);
       }
+    }
+
+    let validGroupId: string | null = data.groupId || null;
+    if (validGroupId) {
+      const grpExists = await prisma.group.findUnique({
+        where: { id: validGroupId },
+        select: { id: true },
+      });
+      if (!grpExists) {
+        validGroupId = null;
+      }
+    }
+
+    let rawParticipantIds = Array.from(new Set(data.participantIds || []));
+
+    // Se tiver groupId mas participantIds veio vazio, puxa os membros do grupo automaticamente
+    if (rawParticipantIds.length === 0 && validGroupId) {
+      const grpMembers = await prisma.groupMember.findMany({
+        where: { group_id: validGroupId, friend_id: { not: null } },
+      });
+      rawParticipantIds = grpMembers
+        .map((m) => m.friend_id!)
+        .filter(Boolean);
+    }
+
+    const userFriends = await prisma.friend.findMany({
+      where: { user_id: data.userId },
+    });
+    const validFriendSet = new Set(userFriends.map((f) => f.id));
+
+    const uniqueParticipantIds = rawParticipantIds.filter((id) => validFriendSet.has(id));
+    if (uniqueParticipantIds.length === 0 && rawParticipantIds.length > 0 && userFriends.length === 1) {
+      // Fallback caso o único amigo local tenha sido deduplicado com novo ID no servidor
+      uniqueParticipantIds.push(userFriends[0].id);
+    }
+
+    if (uniqueParticipantIds.length === 0) {
+      throw new Error('A despesa precisa ter pelo menos um participante.');
     }
 
     const totalPeople = uniqueParticipantIds.length + 1;
@@ -245,13 +337,16 @@ export class ExpenseService {
         : defaultSplitAmount;
 
     const parsedDate = data.expenseDate ? new Date(data.expenseDate) : new Date();
-    const paidByFriendId = data.paidByFriendId || null;
+    const paidByFriendId =
+      data.paidByFriendId && validFriendSet.has(data.paidByFriendId)
+        ? data.paidByFriendId
+        : null;
 
     const expense = await prisma.expense.create({
       data: {
         ...(data.id ? { id: data.id } : {}),
         user_id: data.userId,
-        group_id: data.groupId || null,
+        group_id: validGroupId,
         paid_by_friend_id: paidByFriendId,
         title: data.title.trim(),
         tag: (data.tag || 'Uber').trim(),
@@ -289,12 +384,12 @@ export class ExpenseService {
       },
     });
 
-    // Notifica em background os participantes cadastrados no RachApp
+    // Vincula e notifica os participantes cadastrados no RachApp
     (async () => {
       try {
         const creator = await prisma.user.findUnique({
           where: { id: data.userId },
-          select: { name: true },
+          select: { id: true, name: true, phone: true, pix_key: true, avatar_url: true },
         });
         const creatorName = creator?.name || 'Um amigo';
         const allUsers = await prisma.user.findMany({
@@ -310,6 +405,10 @@ export class ExpenseService {
           );
 
           if (targetUser) {
+            if (creator) {
+              await this.ensureParticipantLink(creator, targetUser);
+            }
+
             const amountOwedNum = Number(p.amount_owed);
             const formatted = amountOwedNum.toFixed(2).replace('.', ',');
             await NotificationService.createNotification({
@@ -380,54 +479,34 @@ export class ExpenseService {
       throw new Error('Apenas o criador do racha pode editá-lo.');
     }
 
-    // Se a despesa pertence a outro usuário e está sendo editada por um participante, atualiza campos básicos e valores correspondentes
-    if (existing.user_id !== userId) {
-      const totalAmount =
-        data.totalAmount !== undefined ? Number(data.totalAmount) : Number(existing.total_amount);
-      const parsedDate = data.expenseDate ? new Date(data.expenseDate) : existing.expense_date;
-      const myPart = existing.participants.find((p) => reverseFriendIds.includes(p.friend_id));
-
-      if (myPart && data.selfAmountOwed !== undefined) {
-        await prisma.expenseParticipant.update({
-          where: {
-            expense_id_friend_id: {
-              expense_id: expenseId,
-              friend_id: myPart.friend_id,
-            },
-          },
-          data: {
-            amount_owed: Number(Number(data.selfAmountOwed).toFixed(2)),
-          },
-        });
-      }
-
-      const updatedRaw = await prisma.expense.update({
-        where: { id: expenseId },
-        data: {
-          ...(data.title !== undefined ? { title: data.title.trim() } : {}),
-          ...(data.tag !== undefined ? { tag: data.tag.trim() } : {}),
-          total_amount: totalAmount,
-          expense_date: isNaN(parsedDate.getTime()) ? existing.expense_date : parsedDate,
-        },
-        include: {
-          owner: { select: { id: true, name: true, phone: true, pix_key: true } },
-          participants: { include: { friend: true } },
-          group: { select: { id: true, name: true } },
-          paidByFriend: true,
-        },
-      });
-
-      return this.transformExpenseForUser(updatedRaw, userId, reverseContext);
-    }
-
     const totalAmount =
       data.totalAmount !== undefined ? Number(data.totalAmount) : Number(existing.total_amount);
-    const participantIds = data.participantIds
+
+    const userFriends = await prisma.friend.findMany({
+      where: { user_id: userId },
+    });
+    const validFriendSet = new Set(userFriends.map((f) => f.id));
+
+    const rawParticipantIds = data.participantIds
       ? Array.from(new Set(data.participantIds))
       : existing.participants.map((p) => p.friend_id);
 
+    const participantIds = rawParticipantIds.filter((id) => validFriendSet.has(id));
     if (participantIds.length === 0) {
       throw new Error('A despesa precisa ter pelo menos um participante.');
+    }
+
+    let validGroupId: string | null | undefined = undefined;
+    if (data.groupId !== undefined) {
+      if (!data.groupId) {
+        validGroupId = null;
+      } else {
+        const grpExists = await prisma.group.findUnique({
+          where: { id: data.groupId },
+          select: { id: true },
+        });
+        validGroupId = grpExists ? data.groupId : null;
+      }
     }
 
     const totalPeople = participantIds.length + 1;
@@ -437,8 +516,9 @@ export class ExpenseService {
         ? Number(Number(data.selfAmountOwed).toFixed(2))
         : defaultSplitAmount;
 
-    const paidByFriendId =
+    const rawPaidBy =
       data.paidByFriendId !== undefined ? data.paidByFriendId || null : existing.paid_by_friend_id;
+    const paidByFriendId = rawPaidBy && validFriendSet.has(rawPaidBy) ? rawPaidBy : null;
 
     const existingPaidMap = new Map<string, number>();
     const existingReceiptMap = new Map<string, string | null>();
@@ -458,7 +538,7 @@ export class ExpenseService {
       data: {
         ...(data.title !== undefined ? { title: data.title.trim() } : {}),
         ...(data.tag !== undefined ? { tag: data.tag.trim() } : {}),
-        ...(data.groupId !== undefined ? { group_id: data.groupId || null } : {}),
+        ...(validGroupId !== undefined ? { group_id: validGroupId } : {}),
         paid_by_friend_id: paidByFriendId,
         total_amount: totalAmount,
         self_amount_owed: selfOwed,
@@ -494,6 +574,33 @@ export class ExpenseService {
       },
     });
 
+    (async () => {
+      try {
+        const creator = await prisma.user.findUnique({
+          where: { id: userId },
+          select: { id: true, name: true, phone: true, pix_key: true, avatar_url: true },
+        });
+        const allUsers = await prisma.user.findMany({
+          select: { id: true, name: true, phone: true },
+        });
+        for (const p of updated.participants) {
+          const friendPhone = p.friend?.phone;
+          if (!friendPhone) continue;
+          const targetUser = allUsers.find(
+            (u) => u.id !== userId && phonesMatch(u.phone, friendPhone)
+          );
+          if (targetUser) {
+            if (creator) {
+              await this.ensureParticipantLink(creator, targetUser);
+            }
+            notifySync(targetUser.id, 'EXPENSE_UPDATED');
+          }
+        }
+      } catch (err) {
+        console.warn('Erro ao notificar participantes na edição de racha:', err);
+      }
+    })();
+
     return updated;
   }
 
@@ -513,6 +620,11 @@ export class ExpenseService {
             : []),
         ],
       },
+      include: {
+        participants: {
+          include: { friend: true },
+        },
+      },
     });
     if (!existing) throw new Error('Racha não encontrado.');
 
@@ -520,7 +632,31 @@ export class ExpenseService {
       throw new Error('Apenas o criador do racha pode excluí-lo.');
     }
 
+    const participantPhones = existing.participants
+      .map((p) => p.friend?.phone)
+      .filter((ph): ph is string => Boolean(ph));
+
     await prisma.expense.delete({ where: { id: expenseId } });
+
+    if (participantPhones.length > 0) {
+      (async () => {
+        try {
+          const allUsers = await prisma.user.findMany({
+            select: { id: true, phone: true },
+          });
+          for (const ph of participantPhones) {
+            const targetUser = allUsers.find(
+              (u) => u.id !== userId && phonesMatch(u.phone, ph)
+            );
+            if (targetUser) {
+              notifySync(targetUser.id, 'EXPENSE_DELETED');
+            }
+          }
+        } catch {
+          // Ignora erro
+        }
+      })();
+    }
   }
 
   // 5. Desfazer ou definir pagamento de um participante numa corrida específica
@@ -580,13 +716,31 @@ export class ExpenseService {
           }
         }
 
-        return prisma.expense.update({
+        const updatedSelf = await prisma.expense.update({
           where: { id: expenseId },
           data: {
             self_amount_paid: Number(target.toFixed(2)),
             self_receipt_url: target <= 0 ? null : receiptUrl || expense.self_receipt_url || null,
           } as any,
         });
+
+        if (expense.paidByFriend?.phone) {
+          (async () => {
+            try {
+              const allUsers = await prisma.user.findMany({ select: { id: true, phone: true } });
+              const targetUser = allUsers.find(
+                (u) => u.id !== userId && phonesMatch(u.phone, expense.paidByFriend.phone)
+              );
+              if (targetUser) {
+                notifySync(targetUser.id, 'PAYMENT_UPDATED');
+              }
+            } catch {
+              // ignore
+            }
+          })();
+        }
+
+        return updatedSelf;
       }
 
       if (!userIsCreditor) {
@@ -601,7 +755,7 @@ export class ExpenseService {
           ? Math.min(Number(part.amount_owed), Math.max(0, Number(amountPaid)))
           : 0;
 
-      return prisma.expenseParticipant.update({
+      const updatedPart = await prisma.expenseParticipant.update({
         where: {
           expense_id_friend_id: {
             expense_id: expenseId,
@@ -613,6 +767,24 @@ export class ExpenseService {
           receipt_url: targetAmount <= 0 ? null : receiptUrl || part.receipt_url || null,
         } as any,
       });
+
+      if (part.friend?.phone) {
+        (async () => {
+          try {
+            const allUsers = await prisma.user.findMany({ select: { id: true, phone: true } });
+            const targetUser = allUsers.find(
+              (u) => u.id !== userId && phonesMatch(u.phone, part.friend.phone)
+            );
+            if (targetUser) {
+              notifySync(targetUser.id, 'PAYMENT_UPDATED');
+            }
+          } catch {
+            // ignore
+          }
+        })();
+      }
+
+      return updatedPart;
     }
 
     // Caso 2: A despesa foi criada por outro usuário (exp.owner) e compartilhada com userId
@@ -658,30 +830,34 @@ export class ExpenseService {
       });
 
       // Notifica o credor (dono da despesa) sobre o pagamento
-      if (targetAmount > 0 && expense.owner?.id) {
-        (async () => {
-          try {
-            const payer = await prisma.user.findUnique({
-              where: { id: userId },
-              select: { name: true },
-            });
-            const payerName = payer?.name || 'Um amigo';
-            const formatted = targetAmount.toFixed(2).replace('.', ',');
-            await NotificationService.createNotification({
-              userId: expense.owner.id,
-              type: 'PAYMENT_RECEIVED',
-              title: 'Pagamento recebido',
-              message: `${payerName} registrou o pagamento de R$ ${formatted} no racha "${expense.title}"`,
-              data: {
-                expenseId: expense.id,
-                amount: targetAmount,
-                receiptUrl: receiptUrl || myPart.receipt_url || null,
-              },
-            });
-          } catch (err) {
-            console.warn('Erro ao notificar dono sobre pagamento:', err);
-          }
-        })();
+      if (expense.owner?.id) {
+        if (targetAmount > 0) {
+          (async () => {
+            try {
+              const payer = await prisma.user.findUnique({
+                where: { id: userId },
+                select: { name: true },
+              });
+              const payerName = payer?.name || 'Um amigo';
+              const formatted = targetAmount.toFixed(2).replace('.', ',');
+              await NotificationService.createNotification({
+                userId: expense.owner.id,
+                type: 'PAYMENT_RECEIVED',
+                title: 'Pagamento recebido',
+                message: `${payerName} registrou o pagamento de R$ ${formatted} no racha "${expense.title}"`,
+                data: {
+                  expenseId: expense.id,
+                  amount: targetAmount,
+                  receiptUrl: receiptUrl || myPart.receipt_url || null,
+                },
+              });
+            } catch (err) {
+              console.warn('Erro ao notificar dono sobre pagamento:', err);
+            }
+          })();
+        } else {
+          notifySync(expense.owner.id, 'PAYMENT_UPDATED');
+        }
       }
 
       return updatedPart;
@@ -703,13 +879,19 @@ export class ExpenseService {
       const targetAmount =
         amountPaid !== undefined ? Math.min(ownerOwed, Math.max(0, Number(amountPaid))) : 0;
 
-      return prisma.expense.update({
+      const updatedOwnerExp = await prisma.expense.update({
         where: { id: expenseId },
         data: {
           self_amount_paid: Number(targetAmount.toFixed(2)),
           self_receipt_url: targetAmount <= 0 ? null : receiptUrl || expense.self_receipt_url || null,
         } as any,
       });
+
+      if (expense.owner?.id) {
+        notifySync(expense.owner.id, 'PAYMENT_UPDATED');
+      }
+
+      return updatedOwnerExp;
     }
 
     // Caso seja um 3º participante (e eu sou o credor)
@@ -728,7 +910,7 @@ export class ExpenseService {
         ? Math.min(Number(otherPart.amount_owed), Math.max(0, Number(amountPaid)))
         : 0;
 
-    return prisma.expenseParticipant.update({
+    const updatedOther = await prisma.expenseParticipant.update({
       where: {
         expense_id_friend_id: {
           expense_id: expenseId,
@@ -740,10 +922,20 @@ export class ExpenseService {
         receipt_url: targetAmount <= 0 ? null : receiptUrl || otherPart.receipt_url || null,
       } as any,
     });
+
+    if (expense.owner?.id) {
+      notifySync(expense.owner.id, 'PAYMENT_UPDATED');
+    }
+
+    return updatedOther;
   }
 
   // 6. Calcular Saldos do Grupo e Otimizar Transferências Cruzadas
-  static async calculateGroupBalances(groupId: string, userId?: string) {
+  static async calculateGroupBalances(
+    groupId: string,
+    userId?: string,
+    existingReverseContext?: Awaited<ReturnType<typeof FriendService.syncReverseLinks>>
+  ) {
     const group = await prisma.group.findUnique({
       where: { id: groupId },
       include: {
@@ -767,7 +959,10 @@ export class ExpenseService {
     if (!group) throw new Error('Grupo não encontrado.');
 
     const effectiveUserId = userId || group.created_by;
-    const reverseContext = await FriendService.syncReverseLinks(effectiveUserId);
+    const reverseContext =
+      existingReverseContext && effectiveUserId === userId
+        ? existingReverseContext
+        : await FriendService.syncReverseLinks(effectiveUserId);
     const currentUser = reverseContext.currentUser;
     const ownerKey = `user:${effectiveUserId}`;
 
@@ -800,7 +995,7 @@ export class ExpenseService {
 
     const reverseSet = new Set(reverseContext.reverseFriendIds);
 
-        for (const m of group.members) {
+    for (const m of group.members) {
       const friendObj = m.friend;
       if (friendObj && !reverseSet.has(friendObj.id)) {
         const localMatch: any =
@@ -1133,16 +1328,23 @@ export class ExpenseService {
   }
 
   // 9. Resumo do Dashboard (Home)
-  static async getDashboard(userId: string) {
+  static async getDashboard(
+    userId: string,
+    existingReverseContext?: Awaited<ReturnType<typeof FriendService.syncReverseLinks>>,
+    preloadedExpenses?: any[],
+    preloadedFriends?: any[]
+  ) {
+    const reverseContext = existingReverseContext || (await FriendService.syncReverseLinks(userId));
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
-    const allExpenses = await this.listExpenses(userId);
+    const allExpenses = preloadedExpenses || (await this.listExpenses(userId, reverseContext));
     const totalGasto = allExpenses
       .filter((e) => new Date(e.expense_date) >= startOfMonth)
       .reduce((acc, e) => acc + Number(e.total_amount || 0), 0);
 
-    const friends = await FriendService.getAll(userId);
+    const friends =
+      preloadedFriends || (await FriendService.getAll(userId, reverseContext, allExpenses));
 
     let totalAReceber = 0;
     let totalAPagar = 0;
@@ -1169,11 +1371,15 @@ export class ExpenseService {
       }
     });
 
+    const { reverseFriendIds } = reverseContext;
     const userGroups = await prisma.group.findMany({
       where: {
         OR: [
           { created_by: userId },
           { members: { some: { user_id: userId, status: 'ACCEPTED' } } },
+          ...(reverseFriendIds.length > 0
+            ? [{ members: { some: { friend_id: { in: reverseFriendIds }, status: 'ACCEPTED' } } }]
+            : []),
         ],
       },
       select: {
@@ -1189,7 +1395,7 @@ export class ExpenseService {
     const gruposPendentes: any[] = [];
     for (const g of userGroups) {
       try {
-        const bal = await this.calculateGroupBalances(g.id, userId);
+        const bal = await this.calculateGroupBalances(g.id, userId, reverseContext);
         const userNet = Number(bal.userNetBalance || 0);
         const memberBalances = bal.memberBalances || [];
 
