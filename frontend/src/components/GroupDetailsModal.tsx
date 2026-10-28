@@ -16,6 +16,7 @@ import {
   Users,
   Upload,
   BadgeCheck,
+  FileCheck2,
 } from 'lucide-react';
 import { dbService } from '../services/database';
 import moneyConverter from '../utils/moneyConverter';
@@ -23,7 +24,7 @@ import { AddRideModal } from './AddRideModal';
 import { AddGroupModal } from './AddGroupModal';
 import { AddFriendModal } from './AddFriendModal';
 import { PixModal } from './PixModal';
-import { PayWithReceiptModal } from './ReceiptModals';
+import { PayWithReceiptModal, ReceiptViewerModal } from './ReceiptModals';
 import { RideDetailsModal } from './RideDetailsModal';
 import { formatPhoneBR } from '../utils/phoneFormatter';
 import { useModalBackHandler } from '../utils/modalBackHandler';
@@ -56,6 +57,17 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
   const [isEditGroupOpen, setIsEditGroupOpen] = useState(false);
   const [isCreateFriendOpen, setIsCreateFriendOpen] = useState(false);
   const [corridaSelecionada, setCorridaSelecionada] = useState<Corrida | null>(null);
+  const [receiptToView, setReceiptToView] = useState<{
+    isOpen: boolean;
+    url: string | null;
+    title: string;
+    ride: Corrida | null;
+  }>({
+    isOpen: false,
+    url: null,
+    title: '',
+    ride: null,
+  });
 
   const [payMemberTarget, setPayMemberTarget] = useState<{
     isOpen: boolean;
@@ -712,27 +724,53 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
                         ? 0
                         : Number(expense.total_amount || 0) / totalParts;
                     const corridaCompleta = todasCorridas.find((c) => c.id === expense.id);
+                    const receiptUrl =
+                      corridaCompleta?.selfReceiptUrl ||
+                      Object.values(corridaCompleta?.comprovantes || {}).find(Boolean) ||
+                      expense.self_receipt_url ||
+                      (expense.participants || []).find((p: any) => p.receipt_url)?.receipt_url ||
+                      null;
 
                     return (
                       <div
                         key={expense.id}
                         onClick={() => {
-                          if (corridaCompleta) setCorridaSelecionada(corridaCompleta);
+                          if (receiptUrl) {
+                            setReceiptToView({
+                              isOpen: true,
+                              url: receiptUrl,
+                              title: `Comprovante — ${expense.title}`,
+                              ride: corridaCompleta || null,
+                            });
+                          } else if (corridaCompleta) {
+                            setCorridaSelecionada(corridaCompleta);
+                          }
                         }}
-                        className="bg-[#1c1c1e] hover:bg-[#2c2c2e] p-4 rounded-2xl border border-white/5 flex justify-between items-center cursor-pointer transition-colors"
+                        className={`bg-[#1c1c1e] hover:bg-[#2c2c2e] p-4 rounded-2xl border flex justify-between items-center cursor-pointer transition-colors ${
+                          receiptUrl ? 'border-sky-500/30' : 'border-white/5'
+                        }`}
                       >
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center text-[#2DD4BF]">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center text-[#2DD4BF] shrink-0">
                             <Receipt size={18} />
                           </div>
-                          <div>
-                            <h5 className="text-white font-semibold text-sm">{expense.title}</h5>
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <h5 className="text-white font-semibold text-sm truncate">
+                                {expense.title}
+                              </h5>
+                              {receiptUrl && (
+                                <span className="inline-flex items-center gap-1 text-[10px] bg-sky-500/20 text-sky-300 px-2 py-0.5 rounded-md font-semibold shrink-0">
+                                  <FileCheck2 size={10} /> Comprovante
+                                </span>
+                              )}
+                            </div>
                             <p className="text-xs text-gray-500 mt-0.5">
                               {expense.expense_date?.split('T')[0]} • Dividido por {totalParts}
                             </p>
                           </div>
                         </div>
-                        <div className="text-right">
+                        <div className="text-right shrink-0 ml-2">
                           <p className="text-sm font-bold text-white">
                             R$ {moneyConverter(suaParte)}
                           </p>
@@ -825,6 +863,19 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
         description={pixModalData.description}
         whatsappPhone={pixModalData.whatsappPhone}
         whatsappCustomMessage={pixModalData.whatsappCustomMessage}
+      />
+
+      {/* Modal de Visualização de Comprovante */}
+      <ReceiptViewerModal
+        isOpen={receiptToView.isOpen}
+        onClose={() => setReceiptToView({ isOpen: false, url: null, title: '', ride: null })}
+        receiptUrl={receiptToView.url}
+        title={receiptToView.title}
+        onViewDetails={
+          receiptToView.ride
+            ? () => setCorridaSelecionada(receiptToView.ride)
+            : undefined
+        }
       />
     </div>,
     document.body

@@ -1,4 +1,5 @@
 // src/components/RideCard.tsx
+import { FileCheck2 } from 'lucide-react';
 import { getAvatarColor } from '../utils/avatarColor';
 
 interface RideProps {
@@ -7,23 +8,41 @@ interface RideProps {
   titulo: string;
   valorTotal: string;
   participantes: { id: number | string; nome: string; cor: string; avatar_url?: string | null }[];
+  hasReceipt?: boolean;
   onClick?: () => void;
 }
 
-export function RideCard({ data, tag, titulo, valorTotal, participantes, onClick }: RideProps) {
+export function RideCard({
+  data,
+  tag,
+  titulo,
+  valorTotal,
+  participantes,
+  hasReceipt,
+  onClick,
+}: RideProps) {
   const visible = participantes.slice(0, 4);
   const extra = participantes.length - visible.length;
 
   return (
     <div
-      className="bg-[#1c1c1e] rounded-2xl p-4 flex justify-between items-center mb-3 shadow-sm border border-white/5 cursor-pointer hover:bg-[#2c2c2e] transition-colors active:scale-[0.99]"
+      className={`bg-[#1c1c1e] rounded-2xl p-4 flex justify-between items-center mb-3 shadow-sm border cursor-pointer hover:bg-[#2c2c2e] transition-colors active:scale-[0.99] ${
+        hasReceipt ? 'border-sky-500/30' : 'border-white/5'
+      }`}
       onClick={onClick}
     >
       {/* Lado Esquerdo: Informações e Avatares */}
       <div className="flex-1 min-w-0 pr-2">
-        <p className="text-gray-300 text-sm mb-2 font-medium truncate">
-          {data} | {tag} - {titulo}
-        </p>
+        <div className="flex items-center gap-2 mb-2">
+          <p className="text-gray-300 text-sm font-medium truncate">
+            {data} | {tag} - {titulo}
+          </p>
+          {hasReceipt && (
+            <span className="inline-flex items-center gap-1 text-[10px] bg-sky-500/20 text-sky-300 px-2 py-0.5 rounded-md font-semibold shrink-0">
+              <FileCheck2 size={11} /> Comprovante
+            </span>
+          )}
+        </div>
 
         <div className="flex items-center gap-2">
           {/* Grupo de Avatares (Sobrepostos) */}

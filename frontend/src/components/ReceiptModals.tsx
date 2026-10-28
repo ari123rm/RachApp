@@ -23,6 +23,7 @@ interface ReceiptViewerModalProps {
   onClose: () => void;
   receiptUrl: string | null | undefined;
   title?: string;
+  onViewDetails?: () => void;
 }
 
 export function ReceiptViewerModal({
@@ -30,6 +31,7 @@ export function ReceiptViewerModal({
   onClose,
   receiptUrl,
   title = 'Comprovante de Pagamento',
+  onViewDetails,
 }: ReceiptViewerModalProps) {
   useModalBackHandler(isOpen, onClose);
   const [isSharing, setIsSharing] = useState(false);
@@ -58,13 +60,13 @@ export function ReceiptViewerModal({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2">
-            <div className="w-9 h-9 rounded-xl bg-[#2DD4BF]/20 text-[#2DD4BF] flex items-center justify-center">
+          <div className="flex items-center gap-2 min-w-0 pr-2">
+            <div className="w-9 h-9 rounded-xl bg-[#2DD4BF]/20 text-[#2DD4BF] flex items-center justify-center shrink-0">
               <FileCheck2 size={18} />
             </div>
-            <h3 className="text-white font-bold text-base">{title}</h3>
+            <h3 className="text-white font-bold text-base truncate">{title}</h3>
           </div>
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1 shrink-0">
             <button
               onClick={handleShare}
               disabled={isSharing}
@@ -90,37 +92,51 @@ export function ReceiptViewerModal({
           />
         </div>
 
-        <div className="flex gap-2.5 mt-4">
-          <button
-            type="button"
-            onClick={onClose}
-            className="flex-1 bg-[#2c2c2e] hover:bg-[#3a3a3c] text-gray-300 font-bold py-3 rounded-xl transition-colors text-sm"
-          >
-            Fechar
-          </button>
-          <button
-            type="button"
-            disabled={isSharing}
-            onClick={handleShare}
-            className="flex-1 bg-[#2DD4BF] hover:bg-[#25b5a3] text-[#05080f] font-bold py-3 rounded-xl transition-colors text-sm flex items-center justify-center gap-2 shadow-lg shadow-teal-500/20 active:scale-95 disabled:opacity-50"
-          >
-            {sharedFeedback ? (
-              <>
-                <Check size={18} />
-                <span>Compartilhado!</span>
-              </>
-            ) : isSharing ? (
-              <>
-                <LoaderCircle size={18} className="animate-spin" />
-                <span>Enviando...</span>
-              </>
-            ) : (
-              <>
-                <Share2 size={18} />
-                <span>Compartilhar</span>
-              </>
-            )}
-          </button>
+        <div className="flex flex-col gap-2 mt-4">
+          {onViewDetails && (
+            <button
+              type="button"
+              onClick={() => {
+                onClose();
+                onViewDetails();
+              }}
+              className="w-full bg-white/5 hover:bg-white/10 border border-white/10 text-gray-200 font-semibold py-2.5 rounded-xl transition-colors text-xs"
+            >
+              Ver Detalhes do Racha
+            </button>
+          )}
+          <div className="flex gap-2.5">
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 bg-[#2c2c2e] hover:bg-[#3a3a3c] text-gray-300 font-bold py-3 rounded-xl transition-colors text-sm"
+            >
+              Fechar
+            </button>
+            <button
+              type="button"
+              disabled={isSharing}
+              onClick={handleShare}
+              className="flex-1 bg-[#2DD4BF] hover:bg-[#25b5a3] text-[#05080f] font-bold py-3 rounded-xl transition-colors text-sm flex items-center justify-center gap-2 shadow-lg shadow-teal-500/20 active:scale-95 disabled:opacity-50"
+            >
+              {sharedFeedback ? (
+                <>
+                  <Check size={18} />
+                  <span>Compartilhado!</span>
+                </>
+              ) : isSharing ? (
+                <>
+                  <LoaderCircle size={18} className="animate-spin" />
+                  <span>Enviando...</span>
+                </>
+              ) : (
+                <>
+                  <Share2 size={18} />
+                  <span>Compartilhar</span>
+                </>
+              )}
+            </button>
+          </div>
         </div>
       </div>
     </div>,

@@ -2,6 +2,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { RideCard } from './RideCard';
 import { RideDetailsModal } from './RideDetailsModal';
+import { ReceiptViewerModal } from './ReceiptModals';
 import {
   LoaderCircle,
   ChevronDown,
@@ -31,6 +32,26 @@ export function Viagens({ onDataChange, dataVersion }: { onDataChange?: () => vo
   const [myAvatarUrl, setMyAvatarUrl] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [corridaSelecionadaId, setCorridaSelecionadaId] = useState<string | null>(null);
+  const [receiptModal, setReceiptModal] = useState<{
+    isOpen: boolean;
+    url: string | null;
+    title: string;
+    rideId: string | null;
+  }>({
+    isOpen: false,
+    url: null,
+    title: '',
+    rideId: null,
+  });
+
+  const obterComprovanteDaCorrida = (c: Corrida): string | null => {
+    if (c.selfReceiptUrl) return c.selfReceiptUrl;
+    if (c.comprovantes) {
+      const firstReceipt = Object.values(c.comprovantes).find((u) => Boolean(u));
+      if (firstReceipt) return firstReceipt;
+    }
+    return null;
+  };
 
   // Estados de Busca e Filtros
   const [busca, setBusca] = useState('');
@@ -599,25 +620,40 @@ export function Viagens({ onDataChange, dataVersion }: { onDataChange?: () => vo
                 </h3>
 
                 <div className="space-y-3">
-                  {corridasDoMes.map((corrida) => (
-                    <RideCard
-                      key={corrida.id}
-                      data={corrida.data}
-                      tag={corrida.tag}
-                      titulo={corrida.titulo}
-                      valorTotal={moneyConverter(corrida.valorTotal)}
-                      participantes={[
-                        { id: 0, nome: 'Você', cor: '#2DD4BF', avatar_url: myAvatarUrl },
-                        ...getParticipantesCompletos(corrida.participantesIds).map((a, idx) => ({
-                          id: a.id || idx + 1,
-                          nome: a.nome || 'Amigo',
-                          cor: a.cor || '#0ea5e9',
-                          avatar_url: a.avatar_url || null,
-                        })),
-                      ]}
-                      onClick={() => setCorridaSelecionadaId(corrida.id)}
-                    />
-                  ))}
+                  {corridasDoMes.map((corrida) => {
+                    const receiptUrl = obterComprovanteDaCorrida(corrida);
+                    return (
+                      <RideCard
+                        key={corrida.id}
+                        data={corrida.data}
+                        tag={corrida.tag}
+                        titulo={corrida.titulo}
+                        valorTotal={moneyConverter(corrida.valorTotal)}
+                        hasReceipt={Boolean(receiptUrl)}
+                        participantes={[
+                          { id: 0, nome: 'Você', cor: '#2DD4BF', avatar_url: myAvatarUrl },
+                          ...getParticipantesCompletos(corrida.participantesIds).map((a, idx) => ({
+                            id: a.id || idx + 1,
+                            nome: a.nome || 'Amigo',
+                            cor: a.cor || '#0ea5e9',
+                            avatar_url: a.avatar_url || null,
+                          })),
+                        ]}
+                        onClick={() => {
+                          if (receiptUrl) {
+                            setReceiptModal({
+                              isOpen: true,
+                              url: receiptUrl,
+                              title: `Comprovante — ${corrida.titulo}`,
+                              rideId: corrida.id,
+                            });
+                          } else {
+                            setCorridaSelecionadaId(corrida.id);
+                          }
+                        }}
+                      />
+                    );
+                  })}
                 </div>
               </div>
             ))}
@@ -645,6 +681,18 @@ export function Viagens({ onDataChange, dataVersion }: { onDataChange?: () => vo
           carregarDados();
           if (onDataChange) onDataChange();
         }}
+      />
+
+      <ReceiptViewerModal
+        isOpen={receiptModal.isOpen}
+        onClose={() => setReceiptModal({ isOpen: false, url: null, title: '', rideId: null })}
+        receiptUrl={receiptModal.url}
+        title={receiptModal.title}
+        onViewDetails={
+          receiptModal.rideId
+            ? () => setCorridaSelecionadaId(receiptModal.rideId)
+            : undefined
+        }
       />
     </div>
   );

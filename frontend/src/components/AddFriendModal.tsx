@@ -1,11 +1,12 @@
 // src/components/AddFriendModal.tsx
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { X, User, Phone, QrCode, Palette, Check } from 'lucide-react';
+import { X, User, Phone, QrCode, Palette, Check, BookUser } from 'lucide-react';
 import { dbService } from '../services/database';
 import { formatPhoneBR, isValidPhoneBR, stripCountryCode } from '../utils/phoneFormatter';
 import { useModalBackHandler } from '../utils/modalBackHandler';
 import { getAvatarColor, PRESET_AVATAR_COLORS, hslToHex, hexToHsl } from '../utils/avatarColor';
+import { ImportContactsModal } from './ImportContactsModal';
 import type { Amigo } from '../types';
 
 interface AddFriendModalProps {
@@ -25,6 +26,7 @@ export function AddFriendModal({ isOpen, onClose, onSuccess, friendToEdit }: Add
   const [hexInput, setHexInput] = useState(getAvatarColor(PRESET_AVATAR_COLORS[0]));
   const [erro, setErro] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isImportContactsOpen, setIsImportContactsOpen] = useState(false);
   const colorInputRef = useRef<HTMLInputElement>(null);
 
   useModalBackHandler(isOpen, onClose);
@@ -127,9 +129,22 @@ export function AddFriendModal({ isOpen, onClose, onSuccess, friendToEdit }: Add
           <X size={24} />
         </button>
 
-        <h2 className="text-xl font-bold text-white mb-6">
+        <h2 className="text-xl font-bold text-white mb-4">
           {isEditing ? 'Editar Amigo' : 'Adicionar Amigo'}
         </h2>
+
+        {!isEditing && (
+          <div className="mb-5">
+            <button
+              type="button"
+              onClick={() => setIsImportContactsOpen(true)}
+              className="w-full bg-[#2DD4BF]/15 hover:bg-[#2DD4BF]/25 border border-[#2DD4BF]/40 text-[#2DD4BF] font-bold py-3 px-4 rounded-2xl text-xs flex items-center justify-center gap-2 transition-all active:scale-95 shadow-sm"
+            >
+              <BookUser size={17} />
+              <span>Adicionar da Lista de Contatos do Celular</span>
+            </button>
+          </div>
+        )}
 
         {erro && (
           <div className="mb-4 bg-red-500/15 border border-red-500/30 text-red-400 text-xs font-medium p-3 rounded-xl">
@@ -359,6 +374,15 @@ export function AddFriendModal({ isOpen, onClose, onSuccess, friendToEdit }: Add
           {isLoading ? 'Salvando...' : isEditing ? 'Salvar Alterações' : 'Salvar Amigo'}
         </button>
       </div>
+
+      <ImportContactsModal
+        isOpen={isImportContactsOpen}
+        onClose={() => setIsImportContactsOpen(false)}
+        onImported={(imported) => {
+          if (onSuccess) onSuccess(imported[0]);
+          onClose();
+        }}
+      />
     </div>,
     document.body
   );

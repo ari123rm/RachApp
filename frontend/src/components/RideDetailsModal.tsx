@@ -268,7 +268,20 @@ export function RideDetailsModal({
                 return (
                   <div
                     key={p.id}
-                    className="flex justify-between items-center bg-[#1c1c1e] p-3.5 rounded-xl border border-white/5"
+                    onClick={() => {
+                      if (receiptDoAmigo) {
+                        setReceiptToView({
+                          isOpen: true,
+                          url: receiptDoAmigo,
+                          title: `Comprovante de ${nome}`,
+                        });
+                      }
+                    }}
+                    className={`flex justify-between items-center bg-[#1c1c1e] p-3.5 rounded-xl border transition-all ${
+                      receiptDoAmigo
+                        ? 'border-sky-500/30 hover:border-[#2DD4BF]/50 cursor-pointer active:scale-[0.99]'
+                        : 'border-white/5'
+                    }`}
                   >
                     <div className="flex items-center gap-3">
                       <div
@@ -299,13 +312,14 @@ export function RideDetailsModal({
                           {receiptDoAmigo && (
                             <button
                               type="button"
-                              onClick={() =>
+                              onClick={(e) => {
+                                e.stopPropagation();
                                 setReceiptToView({
                                   isOpen: true,
                                   url: receiptDoAmigo,
                                   title: `Comprovante de ${nome}`,
-                                })
-                              }
+                                });
+                              }}
                               className="text-[10px] bg-sky-500/20 text-sky-300 hover:bg-sky-500/30 px-2 py-0.5 rounded-md font-semibold flex items-center gap-1"
                             >
                               <FileCheck2 size={11} /> Ver Comprovante
@@ -316,9 +330,10 @@ export function RideDetailsModal({
                         {!isFriendPayer &&
                           (voceEhPagador ? (
                             <button
-                              onClick={() =>
-                                handleCreditorTogglePaid(p.id, isQuitado, valorParte)
-                              }
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleCreditorTogglePaid(p.id, isQuitado, valorParte);
+                              }}
                               className={`text-[11px] font-semibold mt-0.5 flex items-center gap-1 ${
                                 isQuitado ? 'text-[#34C759]' : 'text-amber-400 hover:underline'
                               }`}
@@ -361,7 +376,22 @@ export function RideDetailsModal({
               })}
 
               {/* Card Você */}
-              <div className="flex justify-between items-center bg-[#1c1c1e] p-3.5 rounded-xl border border-white/5">
+              <div
+                onClick={() => {
+                  if (ride.selfReceiptUrl) {
+                    setReceiptToView({
+                      isOpen: true,
+                      url: ride.selfReceiptUrl || null,
+                      title: 'Seu Comprovante de Pagamento',
+                    });
+                  }
+                }}
+                className={`flex justify-between items-center bg-[#1c1c1e] p-3.5 rounded-xl border transition-all ${
+                  ride.selfReceiptUrl
+                    ? 'border-sky-500/30 hover:border-[#2DD4BF]/50 cursor-pointer active:scale-[0.99]'
+                    : 'border-white/5'
+                }`}
+              >
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-full overflow-hidden bg-[#2DD4BF] flex items-center justify-center font-bold text-[#05080f] shrink-0">
                     {myAvatarUrl ? (
@@ -381,13 +411,14 @@ export function RideDetailsModal({
                       {ride.selfReceiptUrl && (
                         <button
                           type="button"
-                          onClick={() =>
+                          onClick={(e) => {
+                            e.stopPropagation();
                             setReceiptToView({
                               isOpen: true,
                               url: ride.selfReceiptUrl || null,
                               title: 'Seu Comprovante de Pagamento',
-                            })
-                          }
+                            });
+                          }}
                           className="text-[10px] bg-sky-500/20 text-sky-300 hover:bg-sky-500/30 px-2 py-0.5 rounded-md font-semibold flex items-center gap-1"
                         >
                           <FileCheck2 size={11} /> Ver Comprovante
@@ -402,7 +433,10 @@ export function RideDetailsModal({
                       ) : (
                         <button
                           type="button"
-                          onClick={() => setIsPaySelfOpen(true)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setIsPaySelfOpen(true);
+                          }}
                           className="text-[11px] bg-amber-500/20 text-amber-300 hover:bg-amber-500/30 px-2.5 py-1 rounded-lg font-bold mt-1 flex items-center gap-1 transition-colors"
                         >
                           <Upload size={11} /> Pagar c/ Comprovante

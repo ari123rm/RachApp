@@ -258,9 +258,13 @@ export function FriendDetailsModal({
           const nomeGrupo =
             corrida.groupName || (corrida.groupId ? groupMap.get(corrida.groupId) : undefined);
 
+          const receiptFromFriend =
+            corrida.comprovantes?.[pid] ||
+            Object.entries(corrida.comprovantes || {}).find(([k]) => matchingFriendIds.has(k))?.[1] ||
+            null;
           const receiptUrl = amigoFoiPagador
-            ? corrida.selfReceiptUrl || null
-            : corrida.comprovantes?.[pid] || null;
+            ? corrida.selfReceiptUrl || receiptFromFriend
+            : receiptFromFriend || corrida.selfReceiptUrl || null;
 
           return {
             id: corrida.id,
@@ -716,8 +720,21 @@ export function FriendDetailsModal({
                 return (
                   <div
                     key={corrida.id}
-                    className={`p-4 rounded-2xl border border-white/5 transition-opacity ${
+                    onClick={() => {
+                      if (corrida.receiptUrl) {
+                        setReceiptToView({
+                          isOpen: true,
+                          url: corrida.receiptUrl,
+                          title: `Comprovante — ${corrida.titulo}`,
+                        });
+                      }
+                    }}
+                    className={`p-4 rounded-2xl border transition-all ${
                       isQuitada ? 'bg-[#14171f] opacity-85' : 'bg-[#1c1c1e]'
+                    } ${
+                      corrida.receiptUrl
+                        ? 'border-sky-500/30 hover:border-[#2DD4BF]/50 cursor-pointer active:scale-[0.99]'
+                        : 'border-white/5'
                     }`}
                   >
                     <div className="flex justify-between items-center mb-2 gap-2 flex-wrap">
@@ -738,13 +755,14 @@ export function FriendDetailsModal({
                       <div className="flex items-center gap-1.5 flex-wrap">
                         {corrida.receiptUrl && (
                           <button
-                            onClick={() =>
+                            onClick={(e) => {
+                              e.stopPropagation();
                               setReceiptToView({
                                 isOpen: true,
                                 url: corrida.receiptUrl,
                                 title: `Comprovante — ${corrida.titulo}`,
-                              })
-                            }
+                              });
+                            }}
                             className="text-[11px] bg-sky-500/20 text-sky-300 hover:bg-sky-500/30 px-2 py-0.5 rounded-md font-semibold flex items-center gap-1 transition-colors"
                             title="Visualizar comprovante de pagamento"
                           >
@@ -759,7 +777,8 @@ export function FriendDetailsModal({
                         ) : corrida.amigoFoiPagador ? (
                           /* Você deve neste racha -> só pode pagar enviando comprovante */
                           <button
-                            onClick={() =>
+                            onClick={(e) => {
+                              e.stopPropagation();
                               setPayWithReceiptTarget({
                                 isOpen: true,
                                 mode: 'single',
@@ -767,8 +786,8 @@ export function FriendDetailsModal({
                                 participantFriendId: 'self',
                                 amount: corrida.voceDeve,
                                 description: `${corrida.app} - ${corrida.titulo}`,
-                              })
-                            }
+                              });
+                            }}
                             className="text-xs bg-amber-500/20 text-amber-300 hover:bg-amber-500/30 px-2.5 py-1 rounded-lg font-bold flex items-center gap-1 transition-colors"
                             title="Enviar comprovante de pagamento"
                           >
@@ -781,13 +800,14 @@ export function FriendDetailsModal({
                               • Pendente
                             </span>
                             <button
-                              onClick={() =>
+                              onClick={(e) => {
+                                e.stopPropagation();
                                 handleQuitarCorridaUnicaCredor(
                                   corrida.id,
                                   corrida.pendente > 0 ? corrida.pendente : corrida.parteNumero,
                                   corrida.participantFriendId
-                                )
-                              }
+                                );
+                              }}
                               className="text-xs bg-[#2DD4BF]/20 text-[#2DD4BF] hover:bg-[#2DD4BF]/30 px-2 py-0.5 rounded-md font-semibold transition-colors"
                               title="Confirmar que o amigo pagou esta conta"
                             >
@@ -799,9 +819,10 @@ export function FriendDetailsModal({
                         {/* Apenas o credor (!corrida.amigoFoiPagador) pode desfazer o pagamento */}
                         {temPagamento && !corrida.amigoFoiPagador && (
                           <button
-                            onClick={() =>
-                              handleUndoPayment(corrida.id, corrida.participantFriendId)
-                            }
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleUndoPayment(corrida.id, corrida.participantFriendId);
+                            }}
                             className="text-gray-400 hover:text-white bg-white/5 hover:bg-white/10 p-1.5 rounded-md transition-colors"
                             title="Desfazer pagamento desta corrida"
                           >

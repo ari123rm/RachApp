@@ -23,7 +23,7 @@ import {
   initPushNotifications,
   unregisterPushNotifications,
 } from './services/api';
-import { closeTopModal } from './utils/modalBackHandler';
+import { closeTopModal, closeAllModals } from './utils/modalBackHandler';
 import { listenForSharedReceipt, clearSharedReceipt } from './utils/receiptShare';
 import type { AppNotification } from './types';
 
@@ -598,6 +598,13 @@ function App() {
         onSuccess={() => {
           setIncomingSharedReceipt(null);
           clearSharedReceipt();
+          closeAllModals();
+          setIsRideModalOpen(false);
+          setIsFriendModalOpen(false);
+          setIsGroupModalOpen(false);
+          setIsNotificationModalOpen(false);
+          setActiveTab('home');
+          tabScrollRefs.current.home?.scrollTo({ top: 0, behavior: 'smooth' });
           refreshData();
         }}
       />

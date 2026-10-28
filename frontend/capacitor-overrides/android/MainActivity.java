@@ -1,21 +1,32 @@
 package com.ariel.rachapp;
 
+import android.Manifest;
 import android.content.Intent;
+import android.content.pm.PackageManager;
+import android.database.Cursor;
 import android.net.Uri;
 import android.os.Bundle;
+import android.provider.ContactsContract;
 import android.util.Base64;
 import android.webkit.JavascriptInterface;
 import android.webkit.WebView;
+import androidx.annotation.NonNull;
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
 import androidx.core.content.FileProvider;
 import com.getcapacitor.BridgeActivity;
+import org.json.JSONArray;
 import org.json.JSONObject;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.InputStream;
+import java.util.HashSet;
+import java.util.Set;
 
 public class MainActivity extends BridgeActivity {
     private static String pendingSharedReceipt = null;
+    private static final int REQ_READ_CONTACTS = 9401;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -136,11 +147,111 @@ public class MainActivity extends BridgeActivity {
                             e.printStackTrace();
                         }
                     }
+
+                    @JavascriptInterface
+                    public void requestContacts() {
+                        runOnUiThread(() -> {
+                            try {
+                                if (ContextCompat.checkSelfPermission(MainActivity.this, Manifest.permission.READ_CONTACTS)
+                                        == PackageManager.PERMISSION_GRANTED) {
+                                    loadPhoneContactsAndDeliver();
+                                } else {
+                                    ActivityCompat.requestPermissions(
+                                        MainActivity.this,
+                                        new String[]{Manifest.permission.READ_CONTACTS},
+                                        REQ_READ_CONTACTS
+                                    );
+                                }
+                            } catch (Exception e) {
+                                e.printStackTrace();
+                                dispatchContactsPayload("[]", "error");
+                            }
+                        });
+                    }
                 }, "AndroidReceiptBridge");
             }
         } catch (Exception e) {
             e.printStackTrace();
         }
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == REQ_READ_CONTACTS) {
+            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                loadPhoneContactsAndDeliver();
+            } else {
+                dispatchContactsPayload("[]", "permission_denied");
+            }
+        }
+    }
+
+    private void loadPhoneContactsAndDeliver() {
+        new Thread(() -> {
+            JSONArray arr = new JSONArray();
+            Set<String> seenKeys = new HashSet<>();
+            Cursor cursor = null;
+            try {
+                cursor = getContentResolver().query(
+                    ContactsContract.CommonDataKinds.Phone.CONTENT_URI,
+                    new String[]{
+                        ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME,
+                        ContactsContract.CommonDataKinds.Phone.NUMBER
+                    },
+                    null,
+                    null,
+                    ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME + " ASC"
+                );
+                if (cursor != null) {
+                    int nameIdx = cursor.getColumnIndex(ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME);
+                    int numIdx = cursor.getColumnIndex(ContactsContract.CommonDataKinds.Phone.NUMBER);
+                    while (cursor.moveToNext()) {
+                        String name = nameIdx >= 0 ? cursor.getString(nameIdx) : "";
+                        String phone = numIdx >= 0 ? cursor.getString(numIdx) : "";
+                        if (name == null) name = "";
+                        if (phone == null) phone = "";
+                        name = name.trim();
+                        String digits = phone.replaceAll("\\D+", "");
+                        if (name.isEmpty() && digits.isEmpty()) continue;
+
+                        String dedupKey = name.toLowerCase() + "|" + digits;
+                        if (seenKeys.contains(dedupKey)) continue;
+                        seenKeys.add(dedupKey);
+
+                        JSONObject obj = new JSONObject();
+                        obj.put("name", name.isEmpty() ? phone : name);
+                        obj.put("phone", phone.trim());
+                        arr.put(obj);
+                    }
+                }
+                dispatchContactsPayload(arr.toString(), null);
+            } catch (Exception e) {
+                e.printStackTrace();
+                dispatchContactsPayload("[]", "error");
+            } finally {
+                if (cursor != null) {
+                    cursor.close();
+                }
+            }
+        }).start();
+    }
+
+    private void dispatchContactsPayload(String jsonArrayStr, String error) {
+        runOnUiThread(() -> {
+            try {
+                WebView webView = getBridge() != null ? getBridge().getWebView() : null;
+                if (webView != null) {
+                    String errVal = error != null ? JSONObject.quote(error) : "null";
+                    String js = "try {" +
+                        "  window.dispatchEvent(new CustomEvent('rachappPhoneContacts', { detail: { contacts: " + jsonArrayStr + ", error: " + errVal + " } }));" +
+                        "} catch(e) { console.error('Error delivering contacts:', e); }";
+                    webView.post(() -> webView.evaluateJavascript(js, null));
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        });
     }
 
     private void handleSendIntent(Intent intent) {

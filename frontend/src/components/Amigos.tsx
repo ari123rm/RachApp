@@ -10,12 +10,14 @@ import {
   Users,
   BadgeCheck,
   X,
+  BookUser,
 } from 'lucide-react';
 import { FriendCard } from './FriendCard';
 import { FriendDetailsModal } from './FriendDetailsModal';
 import { AddFriendModal } from './AddFriendModal';
 import { AddGroupModal } from './AddGroupModal';
 import { GroupDetailsModal } from './GroupDetailsModal';
+import { ImportContactsModal } from './ImportContactsModal';
 import { dbService } from '../services/database';
 import moneyConverter from '../utils/moneyConverter';
 import { getAvatarColor } from '../utils/avatarColor';
@@ -56,6 +58,7 @@ export function Amigos({
 
   const [isAddFriendOpen, setIsAddFriendOpen] = useState(false);
   const [isAddGroupOpen, setIsAddGroupOpen] = useState(false);
+  const [isImportContactsOpen, setIsImportContactsOpen] = useState(false);
   const [grupoSelecionadoId, setGrupoSelecionadoId] = useState<string | null>(null);
 
   const isFirstLoadRef = useRef(true);
@@ -336,8 +339,18 @@ export function Amigos({
   return (
     <div className="space-y-6 relative">
       <header className="mt-2 space-y-3.5">
-        <div className="flex justify-between items-center">
+        <div className="flex justify-between items-center gap-2">
           <h1 className="text-3xl font-bold text-white">Contatos</h1>
+          {subTab === 'amigos' && (
+            <button
+              type="button"
+              onClick={() => setIsImportContactsOpen(true)}
+              className="bg-[#2DD4BF]/15 hover:bg-[#2DD4BF]/25 border border-[#2DD4BF]/30 text-[#2DD4BF] px-3 py-2 rounded-2xl text-xs font-bold flex items-center gap-1.5 transition-all active:scale-95 shrink-0"
+            >
+              <BookUser size={15} />
+              <span>Adicionar da Lista de Contatos</span>
+            </button>
+          )}
         </div>
 
         {/* Barra de alternância Amigos / Grupos com indicador deslizante */}
@@ -982,6 +995,16 @@ export function Amigos({
           carregarDados();
         }}
         onChanged={() => {
+          carregarDados();
+          if (onDataChange) onDataChange();
+        }}
+      />
+
+      <ImportContactsModal
+        isOpen={isImportContactsOpen}
+        onClose={() => setIsImportContactsOpen(false)}
+        existingFriends={amigos}
+        onImported={() => {
           carregarDados();
           if (onDataChange) onDataChange();
         }}

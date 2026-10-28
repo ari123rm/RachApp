@@ -11,6 +11,15 @@ export function closeTopModal(): boolean {
   return true;
 }
 
+export function closeAllModals(): void {
+  const snapshot = [...modalCloseStack].reverse();
+  for (const item of snapshot) {
+    try {
+      item.close();
+    } catch {}
+  }
+}
+
 /**
  * Registra o modal aberto na pilha global de botão Voltar (Android hardware back / tecla ESC)
  * para que sempre feche o modal mais recente no topo da tela.
