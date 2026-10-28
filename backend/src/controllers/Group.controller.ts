@@ -6,12 +6,18 @@ export class GroupController {
   static async create(req: Request, res: Response) {
     try {
       const userId = req.user?.userId;
-      const { id, name, friendIds, avatar_url } = req.body;
+      const { id, name, friendIds, avatar_url, friendsMeta } = req.body;
 
       if (!userId) return res.status(401).json({ error: 'Não autorizado.' });
       if (!name) return res.status(400).json({ error: 'O nome do grupo é obrigatório.' });
 
-      const group = await GroupService.createGroup(userId, { id, name, friendIds, avatar_url });
+      const group = await GroupService.createGroup(userId, {
+        id,
+        name,
+        friendIds,
+        avatar_url,
+        friendsMeta,
+      });
       res.status(201).json(group);
     } catch (error: any) {
       res.status(400).json({ error: error.message });

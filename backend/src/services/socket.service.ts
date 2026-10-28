@@ -22,11 +22,18 @@ export function initSocketServer(httpServer: HttpServer): SocketIOServer {
         return next(new Error('Token não fornecido para conexão WebSocket.'));
       }
 
-      const token = typeof authHeader === 'string' && authHeader.startsWith('Bearer ')
-        ? authHeader.slice(7).trim()
-        : authHeader;
+      const token =
+        typeof authHeader === 'string' && authHeader.startsWith('Bearer ')
+          ? authHeader.slice(7).trim()
+          : authHeader;
 
-      const decoded = jwt.verify(token, JWT_SECRET) as { userId: string; name?: string };
+      const decoded = jwt.verify(token, JWT_SECRET, { ignoreExpiration: true }) as {
+        userId: string;
+        name?: string;
+      };
+      if (!decoded || !decoded.userId) {
+        return next(new Error('Falha na autenticação do WebSocket.'));
+      }
       socket.data.userId = decoded.userId;
       next();
     } catch (err) {

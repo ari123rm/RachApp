@@ -117,6 +117,7 @@ function toIsoDateOnly(dateInput?: string | Date | null): string {
 }
 
 async function saveRemoteSnapshotToSQLite(data: {
+  token?: string;
   user?: any;
   friends?: any[];
   groups?: any[];
@@ -128,24 +129,23 @@ async function saveRemoteSnapshotToSQLite(data: {
   const pendingRows = await queryAll<{ entity_id: string }>('SELECT entity_id FROM sync_queue');
   const pendingIds = new Set(pendingRows.map((r) => r.entity_id));
   const localFriends = await queryAll<{ id: string; phone: string }>(
-    pendingIds.size === 0
-      ? 'SELECT id, phone FROM friends'
-      : 'SELECT id, phone FROM friends WHERE synced = 1'
+    'SELECT id, phone FROM friends WHERE synced = 1'
   );
   const localGroups = await queryAll<{ id: string }>(
-    pendingIds.size === 0
-      ? 'SELECT id FROM groups_table'
-      : 'SELECT id FROM groups_table WHERE synced = 1'
+    'SELECT id FROM groups_table WHERE synced = 1'
   );
   const localExps = await queryAll<{ id: string }>(
-    pendingIds.size === 0
-      ? 'SELECT id FROM expenses'
-      : 'SELECT id FROM expenses WHERE synced = 1'
+    'SELECT id FROM expenses WHERE synced = 1'
   );
   const currentSession = await queryOne<any>('SELECT * FROM auth_session WHERE id = 1');
 
   db.run('BEGIN TRANSACTION');
   try {
+    if (data.token) {
+      memoryToken = data.token;
+      db.run('UPDATE auth_session SET token = ? WHERE id = 1', [data.token]);
+    }
+
     if (data.user) {
       // Se o utilizador tiver acabado de editar o pix localmente (pendente na fila), preserva o local
       const hasPendingProfile = pendingIds.has('me') || pendingIds.has(data.user.id);
@@ -371,6 +371,120 @@ async function remapLocalFriendId(oldId: string, newId: string) {
   }
 }
 
+async function buildFriendsMeta(friendIds: string[]): Promise<Record<string, any>> {
+  const uniqueIds = Array.from(new Set((friendIds || []).filter(Boolean)));
+  if (uniqueIds.length === 0) return {};
+
+  const meta: Record<string, any> = {};
+  for (const fId of uniqueIds) {
+    const f = await queryOne<any>('SELECT id, name, phone, pix_key, color FROM friends WHERE id = ?', [
+      fId,
+    ]);
+    if (f) {
+      meta[fId] = {
+        id: f.id,
+        name: f.name || 'Amigo',
+        phone: f.phone || '',
+        pix_key: f.pix_key || '',
+        color: f.color || 'bg-sky-500',
+      };
+    }
+  }
+  return meta;
+}
+
+async function recoverOrphanedUnsyncedRows() {
+  try {
+    const queueRows = await queryAll<{ entity_id: string }>('SELECT entity_id FROM sync_queue');
+    const queuedIds = new Set(queueRows.map((r) => r.entity_id));
+    const nowIso = new Date().toISOString();
+
+    const unsyncedFriends = await queryAll<any>('SELECT * FROM friends WHERE synced = 0');
+    for (const f of unsyncedFriends) {
+      if (!f.id || queuedIds.has(f.id)) continue;
+      const payload = {
+        id: f.id,
+        name: f.name || 'Amigo',
+        phone: f.phone || '',
+        pix_key: f.pix_key || '',
+        color: f.color || 'bg-sky-500',
+        is_favorite: Boolean(f.is_favorite),
+      };
+      await runSQL(
+        `INSERT INTO sync_queue (entity, action, entity_id, payload, created_at) VALUES (?, ?, ?, ?, ?)`,
+        ['friend', 'create', f.id, JSON.stringify(payload), nowIso],
+        false
+      );
+      queuedIds.add(f.id);
+    }
+
+    const unsyncedGroups = await queryAll<any>('SELECT * FROM groups_table WHERE synced = 0');
+    for (const g of unsyncedGroups) {
+      if (!g.id || queuedIds.has(g.id)) continue;
+      const memberRows = await queryAll<{ friend_id: string }>(
+        'SELECT friend_id FROM group_members WHERE group_id = ? AND friend_id IS NOT NULL',
+        [g.id]
+      );
+      const friendIds = memberRows.map((m) => m.friend_id).filter(Boolean);
+      const payload = {
+        id: g.id,
+        name: g.name || 'Grupo',
+        friendIds,
+        avatar_url: g.avatar_url || null,
+      };
+      await runSQL(
+        `INSERT INTO sync_queue (entity, action, entity_id, payload, created_at) VALUES (?, ?, ?, ?, ?)`,
+        ['group', 'create', g.id, JSON.stringify(payload), nowIso],
+        false
+      );
+      queuedIds.add(g.id);
+    }
+
+    const unsyncedExpenses = await queryAll<any>('SELECT * FROM expenses WHERE synced = 0');
+    for (const e of unsyncedExpenses) {
+      if (!e.id || queuedIds.has(e.id)) continue;
+      const partRows = await queryAll<{
+        friend_id: string;
+        amount_owed: number;
+        amount_paid: number;
+      }>('SELECT friend_id, amount_owed, amount_paid FROM expense_participants WHERE expense_id = ?', [
+        e.id,
+      ]);
+      const participantIds = partRows.map((p) => p.friend_id).filter(Boolean);
+      if (participantIds.length === 0) continue;
+
+      const pagamentos: Record<string, number> = {};
+      const valoresDevidos: Record<string, number> = {};
+      for (const p of partRows) {
+        valoresDevidos[p.friend_id] = Number(p.amount_owed || 0);
+        pagamentos[p.friend_id] = Number(p.amount_paid || 0);
+      }
+
+      const payload = {
+        id: e.id,
+        groupId: e.group_id || null,
+        paidByFriendId: e.paid_by_friend_id || null,
+        title: e.title || 'Racha',
+        tag: e.tag || 'Uber',
+        totalAmount: Number(e.total_amount || 0),
+        expenseDate: toIsoDateOnly(e.expense_date),
+        participantIds,
+        pagamentos,
+        valoresDevidos,
+        selfAmountOwed: Number(e.self_amount_owed || 0),
+      };
+      await runSQL(
+        `INSERT INTO sync_queue (entity, action, entity_id, payload, created_at) VALUES (?, ?, ?, ?, ?)`,
+        ['expense', 'create', e.id, JSON.stringify(payload), nowIso],
+        false
+      );
+      queuedIds.add(e.id);
+    }
+  } catch (err) {
+    console.warn('Aviso ao recuperar itens locais pendentes:', err);
+  }
+}
+
 export async function syncWithBackend(pullAfterPush = true): Promise<boolean> {
   if (isSyncing && activeSyncPromise) {
     pendingResync = true;
@@ -400,6 +514,8 @@ export async function syncWithBackend(pullAfterPush = true): Promise<boolean> {
         }
         pendingPullAfterPush = false;
 
+        await recoverOrphanedUnsyncedRows();
+
         while (true) {
           const queue = await queryAll<{
             id: number;
@@ -407,7 +523,19 @@ export async function syncWithBackend(pullAfterPush = true): Promise<boolean> {
             action: string;
             entity_id: string;
             payload: string | null;
-          }>('SELECT * FROM sync_queue ORDER BY id ASC');
+          }>(
+            `SELECT * FROM sync_queue
+             ORDER BY
+               CASE entity
+                 WHEN 'profile' THEN 1
+                 WHEN 'friend' THEN 2
+                 WHEN 'group' THEN 3
+                 WHEN 'expense' THEN 4
+                 WHEN 'payment' THEN 5
+                 ELSE 6
+               END ASC,
+               id ASC`
+          );
 
           if (queue.length === 0) break;
           shouldPull = true;
@@ -443,10 +571,12 @@ export async function syncWithBackend(pullAfterPush = true): Promise<boolean> {
                 }
               } else if (item.entity === 'group') {
                 if (item.action === 'create') {
-                  await api.post('/groups', payload);
+                  const friendsMeta = await buildFriendsMeta(payload.friendIds || []);
+                  await api.post('/groups', { ...payload, friendsMeta });
                   await runSQL('UPDATE groups_table SET synced = 1 WHERE id = ?', [effectiveEntityId], false);
                 } else if (item.action === 'update') {
-                  await api.put(`/groups/${effectiveEntityId}`, payload);
+                  const friendsMeta = await buildFriendsMeta(payload.friendIds || []);
+                  await api.put(`/groups/${effectiveEntityId}`, { ...payload, friendsMeta });
                   await runSQL('UPDATE groups_table SET synced = 1 WHERE id = ?', [effectiveEntityId], false);
                 } else if (item.action === 'delete') {
                   await api.delete(`/groups/${effectiveEntityId}`);
@@ -456,11 +586,16 @@ export async function syncWithBackend(pullAfterPush = true): Promise<boolean> {
                   await api.delete(`/groups/${effectiveEntityId}/members/${payload.memberId}`);
                 }
               } else if (item.entity === 'expense') {
+                const refFriendIds = [
+                  ...(Array.isArray(payload.participantIds) ? payload.participantIds : []),
+                  ...(payload.paidByFriendId ? [payload.paidByFriendId] : []),
+                ];
+                const friendsMeta = await buildFriendsMeta(refFriendIds);
                 if (item.action === 'create') {
-                  await api.post('/finances/expenses', payload);
+                  await api.post('/finances/expenses', { ...payload, friendsMeta });
                   await runSQL('UPDATE expenses SET synced = 1 WHERE id = ?', [effectiveEntityId], false);
                 } else if (item.action === 'update') {
-                  await api.put(`/finances/expenses/${effectiveEntityId}`, payload);
+                  await api.put(`/finances/expenses/${effectiveEntityId}`, { ...payload, friendsMeta });
                   await runSQL('UPDATE expenses SET synced = 1 WHERE id = ?', [effectiveEntityId], false);
                 } else if (item.action === 'delete') {
                   await api.delete(`/finances/expenses/${effectiveEntityId}`);
@@ -478,7 +613,14 @@ export async function syncWithBackend(pullAfterPush = true): Promise<boolean> {
               const status = itemError?.response?.status;
               if (status === 404 && item.action === 'delete') {
                 await runSQL('DELETE FROM sync_queue WHERE id = ?', [item.id], false);
-              } else if (!itemError?.response || (status && status >= 500)) {
+              } else if (
+                !itemError?.response ||
+                status === 401 ||
+                status === 403 ||
+                status === 408 ||
+                status === 429 ||
+                (status && status >= 500)
+              ) {
                 throw itemError;
               } else {
                 console.warn(

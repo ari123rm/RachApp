@@ -57,14 +57,19 @@ export class GroupService {
         if (m.friend_id && !reverseSet.has(m.friend_id) && m.friend) {
           const localMatch = m.friend.phone
             ? myFriends.find((mf) => mf.phone && phonesMatch(mf.phone, m.friend.phone))
-            : null;
-          const memberFriend = localMatch || {
-            id: m.friend.id,
-            name: m.friend.name,
-            phone: m.friend.phone,
-            avatar_url: m.friend.avatar_url || null,
-            color: m.friend.color || 'bg-sky-500',
-          };
+            : myFriends.find(
+                (mf) => !mf.phone && mf.name.trim().toLowerCase() === m.friend.name.trim().toLowerCase()
+              );
+          const memberFriend =
+            localMatch ||
+            (await ensureLocalFriendForOwner({
+              id: m.friend.id,
+              name: m.friend.name,
+              phone: m.friend.phone,
+              pix_key: m.friend.pix_key,
+              avatar_url: m.friend.avatar_url || null,
+              color: m.friend.color || 'bg-sky-500',
+            }));
           if (!seenFriendIds.has(memberFriend.id)) {
             seenFriendIds.add(memberFriend.id);
             newMembers.push({
@@ -103,17 +108,40 @@ export class GroupService {
 
   static async createGroup(
     userId: string,
-    data: { id?: string; name: string; friendIds?: string[]; avatar_url?: string | null }
+    data: {
+      id?: string;
+      name: string;
+      friendIds?: string[];
+      avatar_url?: string | null;
+      friendsMeta?: Record<string, any>;
+    }
   ) {
     const name = data.name?.trim();
     if (!name) throw new Error('O nome do grupo é obrigatório.');
 
-    const friendIds = Array.from(new Set(data.friendIds || []));
+    const rawFriendIds = Array.from(new Set(data.friendIds || []));
+    const resolvedFriendsMap = await FriendService.resolveFriendIdsForUser(
+      userId,
+      rawFriendIds,
+      data.friendsMeta
+    );
+    const friendIds = Array.from(
+      new Set(rawFriendIds.map((id) => resolvedFriendsMap.get(id) || id))
+    );
 
+    let canUseProvidedId = Boolean(data.id);
     if (data.id) {
       const existing = await prisma.group.findUnique({ where: { id: data.id } });
-      if (existing && existing.created_by === userId) {
-        return this.updateGroup(userId, data.id, { name, friendIds, avatar_url: data.avatar_url });
+      if (existing) {
+        if (existing.created_by === userId) {
+          return this.updateGroup(userId, data.id, {
+            name,
+            friendIds,
+            avatar_url: data.avatar_url,
+            friendsMeta: data.friendsMeta,
+          });
+        }
+        canUseProvidedId = false;
       }
     }
 
@@ -151,7 +179,7 @@ export class GroupService {
 
     const group = await prisma.group.create({
       data: {
-        ...(data.id ? { id: data.id } : {}),
+        ...(canUseProvidedId && data.id ? { id: data.id } : {}),
         name,
         avatar_url: data.avatar_url || null,
         created_by: userId,
@@ -174,29 +202,27 @@ export class GroupService {
     });
 
     // Notifica membros registrados que foram adicionados ao grupo
-    (async () => {
-      try {
-        const creator = await prisma.user.findUnique({
-          where: { id: userId },
-          select: { name: true },
-        });
-        const creatorName = creator?.name || 'Um amigo';
+    try {
+      const creator = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { name: true },
+      });
+      const creatorName = creator?.name || 'Um amigo';
 
-        for (const m of group.members) {
-          if (m.user_id && m.user_id !== userId) {
-            await NotificationService.createNotification({
-              userId: m.user_id,
-              type: 'GROUP_INVITE',
-              title: 'Novo grupo',
-              message: `${creatorName} adicionou você ao grupo "${group.name}"`,
-              data: { groupId: group.id, groupName: group.name },
-            });
-          }
+      for (const m of group.members) {
+        if (m.user_id && m.user_id !== userId) {
+          await NotificationService.createNotification({
+            userId: m.user_id,
+            type: 'GROUP_INVITE',
+            title: 'Novo grupo',
+            message: `${creatorName} adicionou você ao grupo "${group.name}"`,
+            data: { groupId: group.id, groupName: group.name },
+          });
         }
-      } catch (err) {
-        console.warn('Erro ao disparar notificações de grupo:', err);
       }
-    })();
+    } catch (err) {
+      console.warn('Erro ao disparar notificações de grupo:', err);
+    }
 
     return group;
   }
@@ -438,7 +464,12 @@ export class GroupService {
   static async updateGroup(
     userId: string,
     groupId: string,
-    data: { name?: string; friendIds?: string[]; avatar_url?: string | null }
+    data: {
+      name?: string;
+      friendIds?: string[];
+      avatar_url?: string | null;
+      friendsMeta?: Record<string, any>;
+    }
   ) {
     const group = await prisma.group.findFirst({
       where: {
@@ -467,7 +498,15 @@ export class GroupService {
     }
 
     if (Array.isArray(data.friendIds) && group.created_by === userId) {
-      const uniqueFriendIds = Array.from(new Set(data.friendIds));
+      const rawFriendIds = Array.from(new Set(data.friendIds));
+      const resolvedMap = await FriendService.resolveFriendIdsForUser(
+        userId,
+        rawFriendIds,
+        data.friendsMeta
+      );
+      const uniqueFriendIds = Array.from(
+        new Set(rawFriendIds.map((id) => resolvedMap.get(id) || id))
+      );
       const uniqueFriendIdSet = new Set(uniqueFriendIds);
 
       const existingMembers = await prisma.groupMember.findMany({
@@ -583,8 +622,10 @@ export class GroupService {
     let friendToAdd = null;
 
     if (payload.friendId) {
+      const resolvedMap = await FriendService.resolveFriendIdsForUser(userId, [payload.friendId]);
+      const resolvedFriendId = resolvedMap.get(payload.friendId) || payload.friendId;
       friendToAdd = await prisma.friend.findFirst({
-        where: { id: payload.friendId, user_id: userId },
+        where: { id: resolvedFriendId, user_id: userId },
       });
     } else if (payload.identifier) {
       const idClean = payload.identifier.trim();
@@ -658,24 +699,22 @@ export class GroupService {
     });
 
     if (newMember.user_id) {
-      (async () => {
-        try {
-          const inviter = await prisma.user.findUnique({
-            where: { id: userId },
-            select: { name: true },
-          });
-          const inviterName = inviter?.name || 'Um amigo';
-          await NotificationService.createNotification({
-            userId: newMember.user_id!,
-            type: 'GROUP_INVITE',
-            title: 'Novo grupo',
-            message: `${inviterName} adicionou você ao grupo "${group.name}"`,
-            data: { groupId: group.id, groupName: group.name },
-          });
-        } catch (err) {
-          console.warn('Erro ao notificar novo membro do grupo:', err);
-        }
-      })();
+      try {
+        const inviter = await prisma.user.findUnique({
+          where: { id: userId },
+          select: { name: true },
+        });
+        const inviterName = inviter?.name || 'Um amigo';
+        await NotificationService.createNotification({
+          userId: newMember.user_id!,
+          type: 'GROUP_INVITE',
+          title: 'Novo grupo',
+          message: `${inviterName} adicionou você ao grupo "${group.name}"`,
+          data: { groupId: group.id, groupName: group.name },
+        });
+      } catch (err) {
+        console.warn('Erro ao notificar novo membro do grupo:', err);
+      }
     }
 
     return newMember;

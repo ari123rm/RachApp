@@ -36,6 +36,7 @@ export class FinanciesController {
         pagamentos,
         valoresDevidos,
         selfAmountOwed,
+        friendsMeta,
       } = req.body;
 
       if (!title || totalAmount === undefined) {
@@ -55,6 +56,7 @@ export class FinanciesController {
         pagamentos,
         valoresDevidos,
         selfAmountOwed,
+        friendsMeta,
       });
 
       res.status(201).json(expense);
@@ -194,7 +196,10 @@ export class FinanciesController {
         friends
       );
 
+      const token = AuthService.issueToken(userId, user?.name || '');
+
       res.status(200).json({
+        token,
         user,
         friends,
         groups,

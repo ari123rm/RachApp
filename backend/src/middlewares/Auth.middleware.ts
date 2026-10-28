@@ -26,11 +26,17 @@ export function authMiddleware(req: Request, res: Response, next: NextFunction) 
   const [, token] = authHeader.split(' ');
 
   try {
-    const decoded = jwt.verify(token, JWT_SECRET) as { userId: string; name: string };
-    
+    const decoded = jwt.verify(token, JWT_SECRET, { ignoreExpiration: true }) as {
+      userId: string;
+      name: string;
+    };
+    if (!decoded || !decoded.userId) {
+      return res.status(401).json({ error: 'Token inválido ou expirado.' });
+    }
+
     // Injetamos os dados descodificados no request
-    req.user = decoded; 
-    
+    req.user = decoded;
+
     return next(); // Tudo certo, passa para o Controller
   } catch (error) {
     return res.status(401).json({ error: 'Token inválido ou expirado.' });

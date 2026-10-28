@@ -169,53 +169,83 @@ export class FriendService {
       }
     }
 
+    let ensureOwnerLock: Promise<any> = Promise.resolve();
+
     const ensureLocalFriendForOwner = async (ownerUser: {
       id: string;
       name: string;
       phone?: string | null;
       pix_key?: string | null;
       avatar_url?: string | null;
+      color?: string | null;
     }) => {
-      const normOwnerPhone = normalizePhoneBackend(ownerUser.phone);
-      const cleanOwnerPix = ownerUser.pix_key?.trim() || null;
-      const cleanOwnerAvatar = ownerUser.avatar_url || null;
-      let existing = myFriends.find(
-        (f) =>
-          (normOwnerPhone && phonesMatch(f.phone, normOwnerPhone)) ||
-          (!f.phone && f.name.trim().toLowerCase() === ownerUser.name.trim().toLowerCase())
-      );
+      const run = async () => {
+        const normOwnerPhone = normalizePhoneBackend(ownerUser.phone);
+        const cleanOwnerPix = ownerUser.pix_key?.trim() || null;
+        const cleanOwnerAvatar = ownerUser.avatar_url || null;
+        const ownerNameLower = (ownerUser.name || 'Amigo').trim().toLowerCase();
 
-      if (existing) {
-        const needsPhone = !existing.phone && normOwnerPhone;
-        const needsPix = cleanOwnerPix && existing.pix_key !== cleanOwnerPix;
-        const needsAvatar = (existing.avatar_url || null) !== cleanOwnerAvatar;
-        if (needsPhone || needsPix || needsAvatar) {
-          existing = await prisma.friend.update({
-            where: { id: existing.id },
-            data: {
-              ...(needsPhone ? { phone: normOwnerPhone } : {}),
-              ...(cleanOwnerPix && needsPix ? { pix_key: cleanOwnerPix } : {}),
-              ...(needsAvatar ? { avatar_url: cleanOwnerAvatar } : {}),
-            },
-          });
-          myFriends = myFriends.map((f) => (f.id === existing!.id ? existing! : f));
+        let existing = myFriends.find(
+          (f) =>
+            (normOwnerPhone && f.phone && phonesMatch(f.phone, normOwnerPhone)) ||
+            (f.name.trim().toLowerCase() === ownerNameLower &&
+              (!normOwnerPhone || !f.phone || phonesMatch(f.phone, normOwnerPhone)))
+        );
+
+        if (!existing) {
+          const freshFriends = await prisma.friend.findMany({ where: { user_id: userId } });
+          existing = freshFriends.find(
+            (f) =>
+              (normOwnerPhone && f.phone && phonesMatch(f.phone, normOwnerPhone)) ||
+              (f.name.trim().toLowerCase() === ownerNameLower &&
+                (!normOwnerPhone || !f.phone || phonesMatch(f.phone, normOwnerPhone)))
+          );
+          if (existing && !myFriends.some((mf) => mf.id === existing!.id)) {
+            myFriends.push(existing);
+          }
         }
-        return existing;
-      }
 
-      const created = await prisma.friend.create({
-        data: {
-          user_id: userId,
-          name: ownerUser.name.trim() || 'Amigo',
-          phone: normOwnerPhone || null,
-          pix_key: cleanOwnerPix,
-          avatar_url: cleanOwnerAvatar,
-          color: 'bg-teal-500',
-          is_favorite: false,
-        },
-      });
-      myFriends.push(created);
-      return created;
+        if (existing) {
+          const needsPhone = !existing.phone && normOwnerPhone;
+          const needsPix = cleanOwnerPix && existing.pix_key !== cleanOwnerPix;
+          const needsAvatar = cleanOwnerAvatar && (existing.avatar_url || null) !== cleanOwnerAvatar;
+          if (needsPhone || needsPix || needsAvatar) {
+            existing = await prisma.friend.update({
+              where: { id: existing.id },
+              data: {
+                ...(needsPhone ? { phone: normOwnerPhone } : {}),
+                ...(cleanOwnerPix && needsPix ? { pix_key: cleanOwnerPix } : {}),
+                ...(needsAvatar ? { avatar_url: cleanOwnerAvatar } : {}),
+              },
+            });
+            const idx = myFriends.findIndex((f) => f.id === existing!.id);
+            if (idx >= 0) {
+              myFriends[idx] = existing;
+            } else {
+              myFriends.push(existing);
+            }
+          }
+          return existing;
+        }
+
+        const created = await prisma.friend.create({
+          data: {
+            user_id: userId,
+            name: (ownerUser.name || 'Amigo').trim() || 'Amigo',
+            phone: normOwnerPhone || null,
+            pix_key: cleanOwnerPix,
+            avatar_url: cleanOwnerAvatar,
+            color: ownerUser.color || 'bg-teal-500',
+            is_favorite: false,
+          },
+        });
+        myFriends.push(created);
+        return created;
+      };
+
+      const next = ensureOwnerLock.then(run, run);
+      ensureOwnerLock = next.catch(() => {});
+      return next;
     };
 
     if (!currentUser || !currentUser.phone) {
@@ -423,17 +453,23 @@ export class FriendService {
           },
         });
       }
-
-      notifySync(registeredUser.id, 'FRIEND_UPDATED');
     }
 
+    let canUseProvidedId = Boolean(data.id);
     if (data.id) {
       const existing = await prisma.friend.findUnique({ where: { id: data.id } });
-      if (existing && existing.user_id === userId) {
-        return prisma.friend.update({
-          where: { id: data.id },
-          data: { name, phone, pix_key, color, is_favorite },
-        });
+      if (existing) {
+        if (existing.user_id === userId) {
+          const updatedById = await prisma.friend.update({
+            where: { id: data.id },
+            data: { name, phone, pix_key, color, is_favorite },
+          });
+          if (registeredUser && registeredUser.id !== userId) {
+            notifySync(registeredUser.id, 'FRIEND_UPDATED');
+          }
+          return updatedById;
+        }
+        canUseProvidedId = false;
       }
     }
 
@@ -442,7 +478,7 @@ export class FriendService {
       const allFriends = await prisma.friend.findMany({ where: { user_id: userId } });
       const samePhoneFriend = allFriends.find((f) => f.phone && phonesMatch(f.phone, phone));
       if (samePhoneFriend) {
-        return prisma.friend.update({
+        const updatedSamePhone = await prisma.friend.update({
           where: { id: samePhoneFriend.id },
           data: {
             name,
@@ -451,12 +487,16 @@ export class FriendService {
             color,
           },
         });
+        if (registeredUser && registeredUser.id !== userId) {
+          notifySync(registeredUser.id, 'FRIEND_UPDATED');
+        }
+        return updatedSamePhone;
       }
     }
 
-    return prisma.friend.create({
+    const createdFriend = await prisma.friend.create({
       data: {
-        ...(data.id ? { id: data.id } : {}),
+        ...(canUseProvidedId && data.id ? { id: data.id } : {}),
         user_id: userId,
         name,
         phone,
@@ -465,6 +505,160 @@ export class FriendService {
         is_favorite,
       },
     });
+
+    if (registeredUser && registeredUser.id !== userId) {
+      notifySync(registeredUser.id, 'FRIEND_UPDATED');
+    }
+
+    return createdFriend;
+  }
+
+  static async resolveFriendIdsForUser(
+    userId: string,
+    rawFriendIds: string[],
+    friendsMeta?: Record<
+      string,
+      {
+        name?: string;
+        nome?: string;
+        phone?: string;
+        telefone?: string;
+        pix_key?: string;
+        pix?: string;
+        color?: string;
+        cor?: string;
+      }
+    >
+  ): Promise<Map<string, string>> {
+    const resolvedMap = new Map<string, string>();
+    const uniqueRawIds = Array.from(new Set((rawFriendIds || []).filter((id) => Boolean(id && id !== 'self'))));
+    if (uniqueRawIds.length === 0) return resolvedMap;
+
+    const [currentUser, myFriends] = await Promise.all([
+      prisma.user.findUnique({
+        where: { id: userId },
+        select: { id: true, phone: true },
+      }),
+      prisma.friend.findMany({
+        where: { user_id: userId },
+      }),
+    ]);
+
+    for (const rawId of uniqueRawIds) {
+      const directMatch = myFriends.find((f) => f.id === rawId);
+      if (directMatch) {
+        resolvedMap.set(rawId, directMatch.id);
+        continue;
+      }
+
+      const meta = friendsMeta?.[rawId];
+      if (meta) {
+        const metaName = (meta.name || meta.nome || '').trim();
+        const metaPhone = normalizePhoneBackend(meta.phone || meta.telefone || '');
+        const metaPix = (meta.pix_key || meta.pix || '').trim() || undefined;
+        const metaColor = meta.color || meta.cor || 'bg-sky-500';
+
+        const existingByMeta = myFriends.find(
+          (f) =>
+            (metaPhone && f.phone && phonesMatch(f.phone, metaPhone)) ||
+            (metaName &&
+              f.name.trim().toLowerCase() === metaName.toLowerCase() &&
+              (!metaPhone || !f.phone || phonesMatch(f.phone, metaPhone)))
+        );
+        if (existingByMeta) {
+          resolvedMap.set(rawId, existingByMeta.id);
+          continue;
+        }
+
+        if (metaName || metaPhone) {
+          try {
+            const created = await this.create(userId, {
+              id: rawId,
+              name: metaName || 'Amigo',
+              phone: metaPhone || undefined,
+              pix_key: metaPix,
+              color: metaColor,
+            });
+            myFriends.push(created);
+            resolvedMap.set(rawId, created.id);
+            continue;
+          } catch {
+            // fallback para próximas tentativas
+          }
+        }
+      }
+
+      const otherFriend = await prisma.friend.findUnique({ where: { id: rawId } });
+      if (otherFriend) {
+        if (currentUser?.phone && otherFriend.phone && phonesMatch(otherFriend.phone, currentUser.phone)) {
+          continue;
+        }
+        const otherPhone = normalizePhoneBackend(otherFriend.phone);
+        const otherName = (otherFriend.name || 'Amigo').trim();
+        const existingMatch = myFriends.find(
+          (f) =>
+            (otherPhone && f.phone && phonesMatch(f.phone, otherPhone)) ||
+            (otherName &&
+              f.name.trim().toLowerCase() === otherName.toLowerCase() &&
+              (!otherPhone || !f.phone || phonesMatch(f.phone, otherPhone)))
+        );
+        if (existingMatch) {
+          resolvedMap.set(rawId, existingMatch.id);
+          continue;
+        }
+
+        const createdFromOther = await prisma.friend.create({
+          data: {
+            user_id: userId,
+            name: otherName || 'Amigo',
+            phone: otherPhone || null,
+            pix_key: otherFriend.pix_key || null,
+            avatar_url: otherFriend.avatar_url || null,
+            color: otherFriend.color || 'bg-sky-500',
+            is_favorite: false,
+          },
+        });
+        myFriends.push(createdFromOther);
+        resolvedMap.set(rawId, createdFromOther.id);
+        continue;
+      }
+
+      const targetUser = await prisma.user.findUnique({
+        where: { id: rawId },
+        select: { id: true, name: true, phone: true, pix_key: true, avatar_url: true },
+      });
+      if (targetUser && targetUser.id !== userId) {
+        const targetPhone = normalizePhoneBackend(targetUser.phone);
+        const targetName = (targetUser.name || 'Amigo').trim();
+        const existingMatch = myFriends.find(
+          (f) =>
+            (targetPhone && f.phone && phonesMatch(f.phone, targetPhone)) ||
+            (targetName &&
+              f.name.trim().toLowerCase() === targetName.toLowerCase() &&
+              (!targetPhone || !f.phone || phonesMatch(f.phone, targetPhone)))
+        );
+        if (existingMatch) {
+          resolvedMap.set(rawId, existingMatch.id);
+          continue;
+        }
+
+        const createdFromUser = await prisma.friend.create({
+          data: {
+            user_id: userId,
+            name: targetName || 'Amigo',
+            phone: targetPhone || null,
+            pix_key: targetUser.pix_key || null,
+            avatar_url: targetUser.avatar_url || null,
+            color: 'bg-teal-500',
+            is_favorite: false,
+          },
+        });
+        myFriends.push(createdFromUser);
+        resolvedMap.set(rawId, createdFromUser.id);
+      }
+    }
+
+    return resolvedMap;
   }
 
   static async listPendingRequests(userId: string) {

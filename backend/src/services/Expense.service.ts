@@ -105,14 +105,19 @@ export class ExpenseService {
       if (p.friend) {
         const localMatch = p.friend.phone
           ? myFriends.find((mf) => mf.phone && phonesMatch(mf.phone, p.friend.phone))
-          : null;
-        const participantFriend = localMatch || {
-          id: p.friend.id,
-          name: p.friend.name,
-          phone: p.friend.phone,
-          pix_key: p.friend.pix_key,
-          color: p.friend.color || 'bg-sky-500',
-        };
+          : myFriends.find(
+              (mf) => !mf.phone && mf.name.trim().toLowerCase() === p.friend.name.trim().toLowerCase()
+            );
+        const participantFriend =
+          localMatch ||
+          (await ensureLocalFriendForOwner({
+            id: p.friend.id,
+            name: p.friend.name,
+            phone: p.friend.phone,
+            pix_key: p.friend.pix_key,
+            avatar_url: p.friend.avatar_url || null,
+            color: p.friend.color || 'bg-sky-500',
+          }));
         if (participantFriend.id !== ownerLocalFriend.id) {
           transformedParticipants.push({
             expense_id: exp.id,
@@ -244,25 +249,8 @@ export class ExpenseService {
       }
 
       if (creator.phone) {
-        const targetFriends = await prisma.friend.findMany({
-          where: { user_id: targetUser.id },
-        });
-        const hasCreator = targetFriends.some(
-          (f) => f.phone && phonesMatch(f.phone, creator.phone)
-        );
-        if (!hasCreator) {
-          await prisma.friend.create({
-            data: {
-              user_id: targetUser.id,
-              name: creator.name.trim() || 'Amigo',
-              phone: normalizePhoneBackend(creator.phone) || null,
-              pix_key: creator.pix_key?.trim() || null,
-              avatar_url: creator.avatar_url || null,
-              color: 'bg-teal-500',
-              is_favorite: false,
-            },
-          });
-        }
+        const targetCtx = await FriendService.syncReverseLinks(targetUser.id);
+        await targetCtx.ensureLocalFriendForOwner(creator);
       }
     } catch (err) {
       console.warn('Aviso ao garantir vínculo de participante:', err);
@@ -283,11 +271,16 @@ export class ExpenseService {
     pagamentos?: Record<string, number>;
     valoresDevidos?: Record<string, number>;
     selfAmountOwed?: number;
+    friendsMeta?: Record<string, any>;
   }) {
+    let canUseProvidedId = Boolean(data.id);
     if (data.id) {
       const existing = await prisma.expense.findUnique({ where: { id: data.id } });
       if (existing) {
-        return this.updateExpense(data.userId, data.id, data);
+        if (existing.user_id === data.userId) {
+          return this.updateExpense(data.userId, data.id, data);
+        }
+        canUseProvidedId = false;
       }
     }
 
@@ -314,12 +307,40 @@ export class ExpenseService {
         .filter(Boolean);
     }
 
+    const allReferencedIds = Array.from(
+      new Set([...rawParticipantIds, ...(data.paidByFriendId ? [data.paidByFriendId] : [])])
+    );
+    const resolvedFriendsMap = await FriendService.resolveFriendIdsForUser(
+      data.userId,
+      allReferencedIds,
+      data.friendsMeta
+    );
+
+    const remappedValoresDevidos: Record<string, number> = {};
+    if (data.valoresDevidos) {
+      for (const [k, v] of Object.entries(data.valoresDevidos)) {
+        const mappedKey = resolvedFriendsMap.get(k) || k;
+        remappedValoresDevidos[mappedKey] = Number(v);
+      }
+    }
+
+    const remappedPagamentos: Record<string, number> = {};
+    if (data.pagamentos) {
+      for (const [k, v] of Object.entries(data.pagamentos)) {
+        const mappedKey = resolvedFriendsMap.get(k) || k;
+        remappedPagamentos[mappedKey] = Number(v);
+      }
+    }
+
     const userFriends = await prisma.friend.findMany({
       where: { user_id: data.userId },
     });
     const validFriendSet = new Set(userFriends.map((f) => f.id));
 
-    const uniqueParticipantIds = rawParticipantIds.filter((id) => validFriendSet.has(id));
+    const mappedParticipantIds = Array.from(
+      new Set(rawParticipantIds.map((id) => resolvedFriendsMap.get(id) || id))
+    );
+    const uniqueParticipantIds = mappedParticipantIds.filter((id) => validFriendSet.has(id));
     if (uniqueParticipantIds.length === 0 && rawParticipantIds.length > 0 && userFriends.length === 1) {
       // Fallback caso o único amigo local tenha sido deduplicado com novo ID no servidor
       uniqueParticipantIds.push(userFriends[0].id);
@@ -337,14 +358,17 @@ export class ExpenseService {
         : defaultSplitAmount;
 
     const parsedDate = data.expenseDate ? new Date(data.expenseDate) : new Date();
+    const mappedPaidBy = data.paidByFriendId
+      ? resolvedFriendsMap.get(data.paidByFriendId) || data.paidByFriendId
+      : null;
     const paidByFriendId =
-      data.paidByFriendId && validFriendSet.has(data.paidByFriendId)
-        ? data.paidByFriendId
+      mappedPaidBy && validFriendSet.has(mappedPaidBy)
+        ? mappedPaidBy
         : null;
 
     const expense = await prisma.expense.create({
       data: {
-        ...(data.id ? { id: data.id } : {}),
+        ...(canUseProvidedId && data.id ? { id: data.id } : {}),
         user_id: data.userId,
         group_id: validGroupId,
         paid_by_friend_id: paidByFriendId,
@@ -357,11 +381,11 @@ export class ExpenseService {
         participants: {
           create: uniqueParticipantIds.map((friendId) => {
             const owedForFriend =
-              data.valoresDevidos?.[friendId] !== undefined
-                ? Number(Number(data.valoresDevidos[friendId]).toFixed(2))
+              remappedValoresDevidos[friendId] !== undefined
+                ? Number(Number(remappedValoresDevidos[friendId]).toFixed(2))
                 : defaultSplitAmount;
             const isFriendPayer = paidByFriendId === friendId;
-            const customPaid = data.pagamentos?.[friendId];
+            const customPaid = remappedPagamentos[friendId];
             const amountPaid = isFriendPayer
               ? owedForFriend
               : customPaid !== undefined
@@ -384,50 +408,48 @@ export class ExpenseService {
       },
     });
 
-    // Vincula e notifica os participantes cadastrados no RachApp
-    (async () => {
-      try {
-        const creator = await prisma.user.findUnique({
-          where: { id: data.userId },
-          select: { id: true, name: true, phone: true, pix_key: true, avatar_url: true },
-        });
-        const creatorName = creator?.name || 'Um amigo';
-        const allUsers = await prisma.user.findMany({
-          select: { id: true, name: true, phone: true },
-        });
+    // Vincula e notifica os participantes cadastrados no RachApp antes de retornar
+    try {
+      const creator = await prisma.user.findUnique({
+        where: { id: data.userId },
+        select: { id: true, name: true, phone: true, pix_key: true, avatar_url: true },
+      });
+      const creatorName = creator?.name || 'Um amigo';
+      const allUsers = await prisma.user.findMany({
+        select: { id: true, name: true, phone: true },
+      });
 
-        for (const p of expense.participants) {
-          const friendPhone = p.friend?.phone;
-          if (!friendPhone) continue;
+      for (const p of expense.participants) {
+        const friendPhone = p.friend?.phone;
+        if (!friendPhone) continue;
 
-          const targetUser = allUsers.find(
-            (u) => u.id !== data.userId && phonesMatch(u.phone, friendPhone)
-          );
+        const targetUser = allUsers.find(
+          (u) => u.id !== data.userId && phonesMatch(u.phone, friendPhone)
+        );
 
-          if (targetUser) {
-            if (creator) {
-              await this.ensureParticipantLink(creator, targetUser);
-            }
-
-            const amountOwedNum = Number(p.amount_owed);
-            const formatted = amountOwedNum.toFixed(2).replace('.', ',');
-            await NotificationService.createNotification({
-              userId: targetUser.id,
-              type: 'EXPENSE_ADDED',
-              title: 'Novo racha adicionado',
-              message: `${creatorName} adicionou você ao racha "${expense.title}" (sua parte: R$ ${formatted})`,
-              data: {
-                expenseId: expense.id,
-                groupId: expense.group_id,
-                amount: amountOwedNum,
-              },
-            });
+        if (targetUser) {
+          if (creator) {
+            await this.ensureParticipantLink(creator, targetUser);
           }
+
+          const amountOwedNum = Number(p.amount_owed);
+          const formatted = amountOwedNum.toFixed(2).replace('.', ',');
+          await NotificationService.createNotification({
+            userId: targetUser.id,
+            type: 'EXPENSE_ADDED',
+            title: 'Novo racha adicionado',
+            message: `${creatorName} adicionou você ao racha "${expense.title}" (sua parte: R$ ${formatted})`,
+            data: {
+              expenseId: expense.id,
+              groupId: expense.group_id,
+              amount: amountOwedNum,
+            },
+          });
         }
-      } catch (err) {
-        console.warn('Erro ao disparar notificações de nova despesa:', err);
       }
-    })();
+    } catch (err) {
+      console.warn('Erro ao disparar notificações de nova despesa:', err);
+    }
 
     return expense;
   }
@@ -447,6 +469,7 @@ export class ExpenseService {
       pagamentos?: Record<string, number>;
       valoresDevidos?: Record<string, number>;
       selfAmountOwed?: number;
+      friendsMeta?: Record<string, any>;
     }
   ) {
     const reverseContext = await FriendService.syncReverseLinks(userId);
@@ -482,16 +505,47 @@ export class ExpenseService {
     const totalAmount =
       data.totalAmount !== undefined ? Number(data.totalAmount) : Number(existing.total_amount);
 
+    const rawParticipantIds = data.participantIds
+      ? Array.from(new Set(data.participantIds))
+      : existing.participants.map((p) => p.friend_id);
+
+    const rawPaidBy =
+      data.paidByFriendId !== undefined ? data.paidByFriendId || null : existing.paid_by_friend_id;
+
+    const allReferencedIds = Array.from(
+      new Set([...rawParticipantIds, ...(rawPaidBy ? [rawPaidBy] : [])])
+    );
+    const resolvedFriendsMap = await FriendService.resolveFriendIdsForUser(
+      userId,
+      allReferencedIds,
+      data.friendsMeta
+    );
+
+    const remappedValoresDevidos: Record<string, number> = {};
+    if (data.valoresDevidos) {
+      for (const [k, v] of Object.entries(data.valoresDevidos)) {
+        const mappedKey = resolvedFriendsMap.get(k) || k;
+        remappedValoresDevidos[mappedKey] = Number(v);
+      }
+    }
+
+    const remappedPagamentos: Record<string, number> = {};
+    if (data.pagamentos) {
+      for (const [k, v] of Object.entries(data.pagamentos)) {
+        const mappedKey = resolvedFriendsMap.get(k) || k;
+        remappedPagamentos[mappedKey] = Number(v);
+      }
+    }
+
     const userFriends = await prisma.friend.findMany({
       where: { user_id: userId },
     });
     const validFriendSet = new Set(userFriends.map((f) => f.id));
 
-    const rawParticipantIds = data.participantIds
-      ? Array.from(new Set(data.participantIds))
-      : existing.participants.map((p) => p.friend_id);
-
-    const participantIds = rawParticipantIds.filter((id) => validFriendSet.has(id));
+    const mappedParticipantIds = Array.from(
+      new Set(rawParticipantIds.map((id) => resolvedFriendsMap.get(id) || id))
+    );
+    const participantIds = mappedParticipantIds.filter((id) => validFriendSet.has(id));
     if (participantIds.length === 0) {
       throw new Error('A despesa precisa ter pelo menos um participante.');
     }
@@ -516,9 +570,8 @@ export class ExpenseService {
         ? Number(Number(data.selfAmountOwed).toFixed(2))
         : defaultSplitAmount;
 
-    const rawPaidBy =
-      data.paidByFriendId !== undefined ? data.paidByFriendId || null : existing.paid_by_friend_id;
-    const paidByFriendId = rawPaidBy && validFriendSet.has(rawPaidBy) ? rawPaidBy : null;
+    const mappedPaidBy = rawPaidBy ? resolvedFriendsMap.get(rawPaidBy) || rawPaidBy : null;
+    const paidByFriendId = mappedPaidBy && validFriendSet.has(mappedPaidBy) ? mappedPaidBy : null;
 
     const existingPaidMap = new Map<string, number>();
     const existingReceiptMap = new Map<string, string | null>();
@@ -547,13 +600,13 @@ export class ExpenseService {
         participants: {
           create: participantIds.map((friendId) => {
             const owedForFriend =
-              data.valoresDevidos?.[friendId] !== undefined
-                ? Number(Number(data.valoresDevidos[friendId]).toFixed(2))
+              remappedValoresDevidos[friendId] !== undefined
+                ? Number(Number(remappedValoresDevidos[friendId]).toFixed(2))
                 : defaultSplitAmount;
             const isFriendPayer = paidByFriendId === friendId;
             const prevPaid =
-              data.pagamentos?.[friendId] !== undefined
-                ? Number(data.pagamentos[friendId])
+              remappedPagamentos[friendId] !== undefined
+                ? Number(remappedPagamentos[friendId])
                 : existingPaidMap.get(friendId) || 0;
             const amountPaid = isFriendPayer ? owedForFriend : Math.min(owedForFriend, prevPaid);
             return {
@@ -574,32 +627,30 @@ export class ExpenseService {
       },
     });
 
-    (async () => {
-      try {
-        const creator = await prisma.user.findUnique({
-          where: { id: userId },
-          select: { id: true, name: true, phone: true, pix_key: true, avatar_url: true },
-        });
-        const allUsers = await prisma.user.findMany({
-          select: { id: true, name: true, phone: true },
-        });
-        for (const p of updated.participants) {
-          const friendPhone = p.friend?.phone;
-          if (!friendPhone) continue;
-          const targetUser = allUsers.find(
-            (u) => u.id !== userId && phonesMatch(u.phone, friendPhone)
-          );
-          if (targetUser) {
-            if (creator) {
-              await this.ensureParticipantLink(creator, targetUser);
-            }
-            notifySync(targetUser.id, 'EXPENSE_UPDATED');
+    try {
+      const creator = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { id: true, name: true, phone: true, pix_key: true, avatar_url: true },
+      });
+      const allUsers = await prisma.user.findMany({
+        select: { id: true, name: true, phone: true },
+      });
+      for (const p of updated.participants) {
+        const friendPhone = p.friend?.phone;
+        if (!friendPhone) continue;
+        const targetUser = allUsers.find(
+          (u) => u.id !== userId && phonesMatch(u.phone, friendPhone)
+        );
+        if (targetUser) {
+          if (creator) {
+            await this.ensureParticipantLink(creator, targetUser);
           }
+          notifySync(targetUser.id, 'EXPENSE_UPDATED');
         }
-      } catch (err) {
-        console.warn('Erro ao notificar participantes na edição de racha:', err);
       }
-    })();
+    } catch (err) {
+      console.warn('Erro ao notificar participantes na edição de racha:', err);
+    }
 
     return updated;
   }
@@ -639,23 +690,21 @@ export class ExpenseService {
     await prisma.expense.delete({ where: { id: expenseId } });
 
     if (participantPhones.length > 0) {
-      (async () => {
-        try {
-          const allUsers = await prisma.user.findMany({
-            select: { id: true, phone: true },
-          });
-          for (const ph of participantPhones) {
-            const targetUser = allUsers.find(
-              (u) => u.id !== userId && phonesMatch(u.phone, ph)
-            );
-            if (targetUser) {
-              notifySync(targetUser.id, 'EXPENSE_DELETED');
-            }
+      try {
+        const allUsers = await prisma.user.findMany({
+          select: { id: true, phone: true },
+        });
+        for (const ph of participantPhones) {
+          const targetUser = allUsers.find(
+            (u) => u.id !== userId && phonesMatch(u.phone, ph)
+          );
+          if (targetUser) {
+            notifySync(targetUser.id, 'EXPENSE_DELETED');
           }
-        } catch {
-          // Ignora erro
         }
-      })();
+      } catch {
+        // Ignora erro
+      }
     }
   }
 
@@ -725,19 +774,17 @@ export class ExpenseService {
         });
 
         if (expense.paidByFriend?.phone) {
-          (async () => {
-            try {
-              const allUsers = await prisma.user.findMany({ select: { id: true, phone: true } });
-              const targetUser = allUsers.find(
-                (u) => u.id !== userId && phonesMatch(u.phone, expense.paidByFriend.phone)
-              );
-              if (targetUser) {
-                notifySync(targetUser.id, 'PAYMENT_UPDATED');
-              }
-            } catch {
-              // ignore
+          try {
+            const allUsers = await prisma.user.findMany({ select: { id: true, phone: true } });
+            const targetUser = allUsers.find(
+              (u) => u.id !== userId && phonesMatch(u.phone, expense.paidByFriend.phone)
+            );
+            if (targetUser) {
+              notifySync(targetUser.id, 'PAYMENT_UPDATED');
             }
-          })();
+          } catch {
+            // ignore
+          }
         }
 
         return updatedSelf;
@@ -747,7 +794,11 @@ export class ExpenseService {
         throw new Error('Apenas quem pagou a conta pode confirmar ou alterar o pagamento de outros participantes.');
       }
 
-      const part = expense.participants.find((p: any) => p.friend_id === friendId);
+      const resolvedPartMap = await FriendService.resolveFriendIdsForUser(userId, [friendId]);
+      const resolvedFriendId = resolvedPartMap.get(friendId) || friendId;
+      const part =
+        expense.participants.find((p: any) => p.friend_id === resolvedFriendId || p.friend_id === friendId) ||
+        (expense.participants.length === 1 ? expense.participants[0] : null);
       if (!part) throw new Error('Participante não encontrado neste racha.');
 
       const targetAmount =
@@ -759,7 +810,7 @@ export class ExpenseService {
         where: {
           expense_id_friend_id: {
             expense_id: expenseId,
-            friend_id: friendId,
+            friend_id: part.friend_id,
           },
         },
         data: {
@@ -769,19 +820,17 @@ export class ExpenseService {
       });
 
       if (part.friend?.phone) {
-        (async () => {
-          try {
-            const allUsers = await prisma.user.findMany({ select: { id: true, phone: true } });
-            const targetUser = allUsers.find(
-              (u) => u.id !== userId && phonesMatch(u.phone, part.friend.phone)
-            );
-            if (targetUser) {
-              notifySync(targetUser.id, 'PAYMENT_UPDATED');
-            }
-          } catch {
-            // ignore
+        try {
+          const allUsers = await prisma.user.findMany({ select: { id: true, phone: true } });
+          const targetUser = allUsers.find(
+            (u) => u.id !== userId && phonesMatch(u.phone, part.friend.phone)
+          );
+          if (targetUser) {
+            notifySync(targetUser.id, 'PAYMENT_UPDATED');
           }
-        })();
+        } catch {
+          // ignore
+        }
       }
 
       return updatedPart;
@@ -832,29 +881,27 @@ export class ExpenseService {
       // Notifica o credor (dono da despesa) sobre o pagamento
       if (expense.owner?.id) {
         if (targetAmount > 0) {
-          (async () => {
-            try {
-              const payer = await prisma.user.findUnique({
-                where: { id: userId },
-                select: { name: true },
-              });
-              const payerName = payer?.name || 'Um amigo';
-              const formatted = targetAmount.toFixed(2).replace('.', ',');
-              await NotificationService.createNotification({
-                userId: expense.owner.id,
-                type: 'PAYMENT_RECEIVED',
-                title: 'Pagamento recebido',
-                message: `${payerName} registrou o pagamento de R$ ${formatted} no racha "${expense.title}"`,
-                data: {
-                  expenseId: expense.id,
-                  amount: targetAmount,
-                  receiptUrl: receiptUrl || myPart.receipt_url || null,
-                },
-              });
-            } catch (err) {
-              console.warn('Erro ao notificar dono sobre pagamento:', err);
-            }
-          })();
+          try {
+            const payer = await prisma.user.findUnique({
+              where: { id: userId },
+              select: { name: true },
+            });
+            const payerName = payer?.name || 'Um amigo';
+            const formatted = targetAmount.toFixed(2).replace('.', ',');
+            await NotificationService.createNotification({
+              userId: expense.owner.id,
+              type: 'PAYMENT_RECEIVED',
+              title: 'Pagamento recebido',
+              message: `${payerName} registrou o pagamento de R$ ${formatted} no racha "${expense.title}"`,
+              data: {
+                expenseId: expense.id,
+                amount: targetAmount,
+                receiptUrl: receiptUrl || myPart.receipt_url || null,
+              },
+            });
+          } catch (err) {
+            console.warn('Erro ao notificar dono sobre pagamento:', err);
+          }
         } else {
           notifySync(expense.owner.id, 'PAYMENT_UPDATED');
         }
@@ -1183,12 +1230,16 @@ export class ExpenseService {
   // 8. Registar o pagamento de um amigo e abater nas despesas mais antigas
   static async registerPayment(
     creditorId: string,
-    debtorFriendId: string,
+    rawDebtorFriendId: string,
     amount: number,
     groupId?: string,
     receiptUrl?: string | null,
     direction?: 'to_friend' | 'from_friend'
   ) {
+    const resolvedDebtorMap = await FriendService.resolveFriendIdsForUser(creditorId, [
+      rawDebtorFriendId,
+    ]);
+    const debtorFriendId = resolvedDebtorMap.get(rawDebtorFriendId) || rawDebtorFriendId;
     const allExpenses = await this.listExpenses(creditorId);
     const filtered = allExpenses
       .filter((e) => !groupId || e.group_id === groupId)
@@ -1280,49 +1331,47 @@ export class ExpenseService {
       }
     }
 
-    // Dispara notificação e auto-sync para a outra ponta do pagamento
-    (async () => {
-      try {
-        const debtorFriend = await prisma.friend.findUnique({
-          where: { id: debtorFriendId },
-          select: { phone: true, name: true },
+    // Dispara notificação e auto-sync para a outra ponta do pagamento antes de retornar
+    try {
+      const debtorFriend = await prisma.friend.findUnique({
+        where: { id: debtorFriendId },
+        select: { phone: true, name: true },
+      });
+
+      if (debtorFriend?.phone) {
+        const allUsers = await prisma.user.findMany({
+          select: { id: true, name: true, phone: true },
         });
+        const targetUser = allUsers.find(
+          (u) => u.id !== creditorId && phonesMatch(u.phone, debtorFriend.phone)
+        );
 
-        if (debtorFriend?.phone) {
-          const allUsers = await prisma.user.findMany({
-            select: { id: true, name: true, phone: true },
+        if (targetUser) {
+          const payer = await prisma.user.findUnique({
+            where: { id: creditorId },
+            select: { name: true },
           });
-          const targetUser = allUsers.find(
-            (u) => u.id !== creditorId && phonesMatch(u.phone, debtorFriend.phone)
-          );
+          const payerName = payer?.name || 'Um amigo';
+          const formatted = Number(amount).toFixed(2).replace('.', ',');
 
-          if (targetUser) {
-            const payer = await prisma.user.findUnique({
-              where: { id: creditorId },
-              select: { name: true },
+          if (effectiveDirection === 'to_friend') {
+            // Creditor pagou o amigo (targetUser recebeu)
+            await NotificationService.createNotification({
+              userId: targetUser.id,
+              type: 'PAYMENT_RECEIVED',
+              title: 'Pagamento recebido',
+              message: `${payerName} registrou um pagamento de R$ ${formatted} para você`,
+              data: { amount: Number(amount) },
             });
-            const payerName = payer?.name || 'Um amigo';
-            const formatted = Number(amount).toFixed(2).replace('.', ',');
-
-            if (effectiveDirection === 'to_friend') {
-              // Creditor pagou o amigo (targetUser recebeu)
-              await NotificationService.createNotification({
-                userId: targetUser.id,
-                type: 'PAYMENT_RECEIVED',
-                title: 'Pagamento recebido',
-                message: `${payerName} registrou um pagamento de R$ ${formatted} para você`,
-                data: { amount: Number(amount) },
-              });
-            } else {
-              // Creditor deu baixa no pagamento que o amigo fez
-              notifySync(targetUser.id, 'PAYMENT_CONFIRMED');
-            }
+          } else {
+            // Creditor deu baixa no pagamento que o amigo fez
+            notifySync(targetUser.id, 'PAYMENT_CONFIRMED');
           }
         }
-      } catch (err) {
-        console.warn('Erro ao notificar no registerPayment:', err);
       }
-    })();
+    } catch (err) {
+      console.warn('Erro ao notificar no registerPayment:', err);
+    }
 
     return { message: 'Pagamento registado e dívidas atualizadas com sucesso.' };
   }

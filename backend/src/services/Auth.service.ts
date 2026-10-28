@@ -122,7 +122,7 @@ export class AuthService {
     const token = jwt.sign(
       { userId: user.id, name: user.name },
       JWT_SECRET,
-      { expiresIn: '7d' }
+      { expiresIn: '365d' }
     );
 
     const { password_hash, verification_code, ...userWithoutPassword } = user;
@@ -131,6 +131,10 @@ export class AuthService {
       token,
       verification_code: verificationCode,
     };
+  }
+
+  static issueToken(userId: string, name: string) {
+    return jwt.sign({ userId, name }, JWT_SECRET, { expiresIn: '365d' });
   }
 
   static async verifyPhone(email: string, code: string) {
@@ -153,7 +157,7 @@ export class AuthService {
     const token = jwt.sign(
       { userId: user.id, name: user.name },
       JWT_SECRET,
-      { expiresIn: '7d' }
+      { expiresIn: '365d' }
     );
 
     const { password_hash, verification_code, ...userWithoutPassword } = updatedUser!;
@@ -199,7 +203,7 @@ export class AuthService {
     const token = jwt.sign(
       { userId: user.id, name: user.name },
       JWT_SECRET,
-      { expiresIn: '7d' }
+      { expiresIn: '365d' }
     );
 
     const { password_hash, verification_code, ...userWithoutPassword } = user;
