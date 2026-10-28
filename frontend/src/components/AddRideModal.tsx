@@ -424,21 +424,24 @@ export function AddRideModal({
 
   return createPortal(
     <div
-      className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[60] flex items-center justify-center p-4 transition-opacity animate-fade-in"
+      className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4 transition-opacity animate-fade-in"
       onClick={onClose}
     >
       <div
-        className="bg-[#1c1c1e] w-full max-w-md rounded-3xl p-6 animate-slide-up relative overflow-y-auto max-h-[90vh] border border-white/10 shadow-2xl"
+        className="bg-[#1c1c1e] w-full sm:max-w-md rounded-t-[28px] sm:rounded-3xl p-5 sm:p-6 animate-slide-up relative overflow-y-auto max-h-[92dvh] sm:max-h-[90vh] border border-white/10 shadow-2xl pb-safe"
         onClick={(e) => e.stopPropagation()}
       >
+        {/* Handle visual mobile */}
+        <div className="w-12 h-1 bg-white/20 rounded-full mx-auto mb-3.5 sm:hidden shrink-0" />
+
         <button
           onClick={onClose}
-          className="absolute top-5 right-5 text-gray-400 hover:text-white p-1 rounded-full hover:bg-white/10 transition-colors"
+          className="absolute top-5 right-5 text-gray-400 hover:text-white p-1 rounded-full hover:bg-white/10 transition-colors active:scale-95"
         >
           <X size={24} />
         </button>
 
-        <h2 className="text-xl font-bold text-white mb-5">
+        <h2 className="text-xl font-bold text-white mb-5 pr-8">
           {isEditing ? 'Editar Racha' : 'Adicionar Novo Racha'}
         </h2>
 
@@ -456,13 +459,13 @@ export function AddRideModal({
               className="bg-transparent w-full text-white text-base outline-none placeholder:text-gray-600"
             />
           </div>
-          <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-hide">
+          <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-hide touch-pan-x overscroll-x-contain">
             {sugestoesTitulos.map((sugestao) => (
               <button
                 key={sugestao}
                 type="button"
                 onClick={() => setTitulo(sugestao)}
-                className={`whitespace-nowrap px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
+                className={`whitespace-nowrap px-3 py-1 rounded-full text-xs font-medium border transition-colors shrink-0 active:scale-95 ${
                   titulo === sugestao
                     ? 'bg-[#2DD4BF]/20 border-[#2DD4BF] text-[#2DD4BF]'
                     : 'bg-[#3a3a3c] border-gray-600 text-gray-300 hover:bg-gray-600'
@@ -479,7 +482,7 @@ export function AddRideModal({
           <div className="flex justify-between items-center mb-1.5">
             <label className="text-gray-400 text-xs uppercase font-bold">Valor Total</label>
             {splitMode === 'equal' && valorPorPessoaIgual > 0 && (
-              <span className="text-xs text-[#2DD4BF] font-semibold">
+              <span className="text-xs text-[#2DD4BF] font-semibold tabular-nums">
                 R$ {moneyConverter(valorPorPessoaIgual)} / pessoa ({qtdTotalPessoas}x)
               </span>
             )}
@@ -491,13 +494,13 @@ export function AddRideModal({
               placeholder="0,00"
               value={valor}
               onChange={handleValorChange}
-              className="bg-transparent w-full text-white text-2xl font-bold outline-none"
+              className="bg-transparent w-full text-white text-2xl font-bold outline-none tabular-nums"
             />
           </div>
         </div>
 
         {/* Grid para Data e Tag */}
-        <div className="grid grid-cols-2 gap-3 mb-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
           <div>
             <label className="block text-gray-400 text-xs uppercase font-bold mb-1.5">Data</label>
             <div className="bg-[#2c2c2e] rounded-xl p-3.5 flex items-center text-white">
@@ -505,7 +508,7 @@ export function AddRideModal({
                 type="date"
                 value={data}
                 onChange={(e) => setData(e.target.value)}
-                className="bg-transparent w-full outline-none text-white text-sm"
+                className="bg-transparent w-full outline-none text-white text-base sm:text-sm"
                 style={{ colorScheme: 'dark' }}
               />
             </div>
@@ -521,7 +524,7 @@ export function AddRideModal({
                 placeholder="Uber"
                 value={tag}
                 onChange={(e) => setTag(e.target.value)}
-                className="bg-transparent w-full text-white text-sm outline-none placeholder:text-gray-600"
+                className="bg-transparent w-full text-white text-base sm:text-sm outline-none placeholder:text-gray-600"
               />
             </div>
             <div className="flex flex-wrap gap-1">
@@ -530,7 +533,7 @@ export function AddRideModal({
                   key={sugestao}
                   type="button"
                   onClick={() => setTag(sugestao)}
-                  className={`px-2 py-0.5 rounded-md text-[10px] font-medium border transition-colors ${
+                  className={`px-2 py-0.5 rounded-md text-[10px] font-medium border transition-colors active:scale-95 ${
                     tag === sugestao
                       ? 'bg-[#2DD4BF]/20 border-[#2DD4BF] text-[#2DD4BF]'
                       : 'bg-[#3a3a3c] border-gray-600 text-gray-400 hover:bg-gray-600'
@@ -636,15 +639,15 @@ export function AddRideModal({
         {/* Modo de Divisão: Igual, Por % ou Por Valor (R$) */}
         {selecionados.length > 0 && (
           <div className="mb-5 bg-[#2c2c2e]/70 p-3.5 rounded-2xl border border-white/5">
-            <div className="flex items-center justify-between mb-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
               <label className="text-gray-300 text-xs uppercase font-bold">
                 Como dividir a conta?
               </label>
-              <div className="flex bg-[#1c1c1e] p-1 rounded-xl border border-white/5">
+              <div className="flex bg-[#1c1c1e] p-1 rounded-xl border border-white/5 shrink-0 self-start sm:self-auto">
                 <button
                   type="button"
                   onClick={() => handleModeSwitch('equal')}
-                  className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold transition-colors ${
+                  className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold transition-colors active:scale-95 ${
                     splitMode === 'equal'
                       ? 'bg-[#2DD4BF] text-[#05080f]'
                       : 'text-gray-400 hover:text-white'
@@ -655,7 +658,7 @@ export function AddRideModal({
                 <button
                   type="button"
                   onClick={() => handleModeSwitch('percent')}
-                  className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold transition-colors ${
+                  className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold transition-colors active:scale-95 ${
                     splitMode === 'percent'
                       ? 'bg-[#2DD4BF] text-[#05080f]'
                       : 'text-gray-400 hover:text-white'
@@ -666,7 +669,7 @@ export function AddRideModal({
                 <button
                   type="button"
                   onClick={() => handleModeSwitch('amount')}
-                  className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold transition-colors ${
+                  className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold transition-colors active:scale-95 ${
                     splitMode === 'amount'
                       ? 'bg-[#2DD4BF] text-[#05080f]'
                       : 'text-gray-400 hover:text-white'
@@ -680,7 +683,7 @@ export function AddRideModal({
             {splitMode === 'equal' ? (
               <p className="text-xs text-gray-400">
                 Divisão igualitária entre <strong className="text-white">{qtdTotalPessoas} pessoas</strong>:{' '}
-                <strong className="text-[#2DD4BF]">
+                <strong className="text-[#2DD4BF] tabular-nums">
                   R$ {moneyConverter(valorPorPessoaIgual)}
                 </strong>{' '}
                 ({(100 / qtdTotalPessoas).toFixed(1)}%) para cada.
@@ -699,18 +702,18 @@ export function AddRideModal({
                     return (
                       <div
                         key={amigo.id}
-                        className="flex items-center justify-between bg-[#1c1c1e] px-3 py-2 rounded-xl border border-white/5"
+                        className="flex items-center justify-between bg-[#1c1c1e] px-3 py-2 rounded-xl border border-white/5 gap-2"
                       >
-                        <div className="flex items-center gap-2 min-w-0">
+                        <div className="flex items-center gap-2 min-w-0 flex-1">
                           <div
                             style={{ backgroundColor: getAvatarColor(corAmigo) }}
                             className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] text-white font-bold shrink-0"
                           >
                             {nomeAmigo[0]?.toUpperCase()}
                           </div>
-                          <div className="truncate">
+                          <div className="min-w-0 truncate">
                             <p className="text-xs font-semibold text-white truncate">{nomeAmigo}</p>
-                            <p className="text-[10px] text-gray-400">
+                            <p className="text-[10px] text-gray-400 tabular-nums">
                               {splitMode === 'percent'
                                 ? `R$ ${moneyConverter(valorCalculado)}`
                                 : `${pctCalculada}%`}
@@ -718,7 +721,7 @@ export function AddRideModal({
                           </div>
                         </div>
 
-                        <div className="flex items-center gap-1.5 bg-[#2c2c2e] px-2.5 py-1.5 rounded-lg border border-white/10 focus-within:border-[#2DD4BF]">
+                        <div className="flex items-center gap-1.5 bg-[#2c2c2e] px-2.5 py-1.5 rounded-lg border border-white/10 focus-within:border-[#2DD4BF] shrink-0">
                           {splitMode === 'amount' && (
                             <span className="text-xs text-gray-400 font-semibold">R$</span>
                           )}
@@ -736,7 +739,7 @@ export function AddRideModal({
                                 ? handleFriendPercentChange(amigo.id, e.target.value)
                                 : handleFriendAmountChange(amigo.id, e.target.value)
                             }
-                            className="w-16 bg-transparent text-right text-white text-xs font-bold outline-none"
+                            className="w-16 sm:w-20 bg-transparent text-right text-white text-xs font-bold outline-none tabular-nums"
                           />
                           {splitMode === 'percent' && (
                             <span className="text-xs text-[#2DD4BF] font-bold">%</span>
@@ -747,14 +750,14 @@ export function AddRideModal({
                   })}
 
                 {/* Linha Você */}
-                <div className="flex items-center justify-between bg-[#1c1c1e] px-3 py-2 rounded-xl border border-[#2DD4BF]/20">
-                  <div className="flex items-center gap-2">
-                    <div className="w-6 h-6 rounded-full bg-[#2DD4BF] flex items-center justify-center text-[10px] text-[#05080f] font-bold">
+                <div className="flex items-center justify-between bg-[#1c1c1e] px-3 py-2 rounded-xl border border-[#2DD4BF]/20 gap-2">
+                  <div className="flex items-center gap-2 min-w-0 flex-1">
+                    <div className="w-6 h-6 rounded-full bg-[#2DD4BF] flex items-center justify-center text-[10px] text-[#05080f] font-bold shrink-0">
                       V
                     </div>
-                    <div>
-                      <p className="text-xs font-semibold text-white">Você (Sua parte)</p>
-                      <p className="text-[10px] text-gray-400">
+                    <div className="min-w-0 truncate">
+                      <p className="text-xs font-semibold text-white truncate">Você (Sua parte)</p>
+                      <p className="text-[10px] text-gray-400 tabular-nums">
                         {splitMode === 'percent'
                           ? `R$ ${moneyConverter(selfAmountOwed)}`
                           : `${valorNumerico > 0 ? ((selfAmountOwed / valorNumerico) * 100).toFixed(1) : '0'}%`}
@@ -762,7 +765,7 @@ export function AddRideModal({
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-1.5 bg-[#2c2c2e] px-2.5 py-1.5 rounded-lg border border-white/10 focus-within:border-[#2DD4BF]">
+                  <div className="flex items-center gap-1.5 bg-[#2c2c2e] px-2.5 py-1.5 rounded-lg border border-white/10 focus-within:border-[#2DD4BF] shrink-0">
                     {splitMode === 'amount' && (
                       <span className="text-xs text-gray-400 font-semibold">R$</span>
                     )}
@@ -776,7 +779,7 @@ export function AddRideModal({
                           ? setSelfPercent(e.target.value.replace(',', '.'))
                           : setSelfAmount(e.target.value.replace(',', '.'))
                       }
-                      className="w-16 bg-transparent text-right text-white text-xs font-bold outline-none"
+                      className="w-16 sm:w-20 bg-transparent text-right text-white text-xs font-bold outline-none tabular-nums"
                     />
                     {splitMode === 'percent' && (
                       <span className="text-xs text-[#2DD4BF] font-bold">%</span>
@@ -789,7 +792,7 @@ export function AddRideModal({
                   <div className="flex justify-between items-center text-xs">
                     <span className="text-gray-400">Soma da divisão:</span>
                     <span
-                      className={`font-bold ${
+                      className={`font-bold tabular-nums ${
                         (splitMode === 'percent' && Math.abs(somaPercentual - 100) <= 0.5) ||
                         (splitMode === 'amount' && Math.abs(somaTotal - valorNumerico) <= 0.1)
                           ? 'text-[#34C759]'
@@ -810,7 +813,7 @@ export function AddRideModal({
                       <button
                         type="button"
                         onClick={handleAjustarRestanteEmVoce}
-                        className="text-[11px] text-[#2DD4BF] hover:underline font-bold"
+                        className="text-[11px] text-[#2DD4BF] hover:underline font-bold active:scale-95"
                       >
                         Ajustar em Você
                       </button>
@@ -827,7 +830,7 @@ export function AddRideModal({
                       <button
                         type="button"
                         onClick={handleAjustarRestanteEmVoce}
-                        className="text-[11px] text-[#2DD4BF] hover:underline font-bold"
+                        className="text-[11px] text-[#2DD4BF] hover:underline font-bold active:scale-95"
                       >
                         Ajustar em Você
                       </button>
@@ -845,11 +848,11 @@ export function AddRideModal({
             <label className="text-gray-400 text-xs uppercase font-bold mb-1.5 flex items-center gap-1.5">
               <Wallet size={13} className="text-[#2DD4BF]" /> Quem pagou esta conta?
             </label>
-            <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+            <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide touch-pan-x overscroll-x-contain">
               <button
                 type="button"
                 onClick={() => setPaidByFriendId('')}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition-colors shrink-0 ${
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition-colors shrink-0 active:scale-95 ${
                   paidByFriendId === ''
                     ? 'bg-[#2DD4BF] text-[#05080f] border-[#2DD4BF]'
                     : 'bg-[#2c2c2e] text-gray-300 border-white/10'
@@ -867,14 +870,14 @@ export function AddRideModal({
                       key={amigo.id}
                       type="button"
                       onClick={() => setPaidByFriendId(amigo.id)}
-                      className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition-colors shrink-0 ${
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition-colors shrink-0 active:scale-95 ${
                         isPayer
                           ? 'bg-[#2DD4BF] text-[#05080f] border-[#2DD4BF]'
                           : 'bg-[#2c2c2e] text-gray-300 border-white/10'
                       }`}
                     >
                       <span className="flex items-center gap-1">
-                        <span>{nomeAmigo}</span>
+                        <span className="truncate max-w-[120px]">{nomeAmigo}</span>
                         {(amigo.has_account || amigo.is_registered) && (
                           <BadgeCheck size={12} className={isPayer ? "text-[#05080f] shrink-0" : "text-[#2DD4BF] shrink-0"} />
                         )}

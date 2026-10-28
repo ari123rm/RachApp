@@ -114,9 +114,12 @@ export function NotificationModal({ isOpen, onClose, onDataChange }: Notificatio
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
       <div
-        className="w-full max-w-lg bg-[#141a23] border border-gray-800 rounded-t-3xl sm:rounded-3xl max-h-[85vh] flex flex-col shadow-2xl overflow-hidden"
+        className="w-full sm:max-w-lg bg-[#141a23] border border-gray-800 rounded-t-[28px] sm:rounded-3xl max-h-[92dvh] sm:max-h-[85vh] flex flex-col shadow-2xl overflow-hidden pb-safe"
         onClick={(e) => e.stopPropagation()}
       >
+        {/* Handle visual mobile */}
+        <div className="w-12 h-1 bg-white/20 rounded-full mx-auto mt-2.5 mb-1 sm:hidden shrink-0" />
+
         {/* Cabeçalho */}
         <div className="p-4 border-b border-gray-800/80 flex items-center justify-between bg-[#0e131a]/60">
           <div className="flex items-center gap-2.5">

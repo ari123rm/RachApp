@@ -157,21 +157,21 @@ export function Home({
   return (
     <div className="space-y-6">
       {/* Cabeçalho */}
-      <header className="flex justify-between items-center mt-2">
-        <div>
-          <h1 className="text-xl font-bold text-white">Olá, {nomeUsuario.split(' ')[0]}</h1>
-          <p className="text-xs text-gray-500">
+      <header className="flex justify-between items-center mt-1 sm:mt-2 gap-2 min-w-0">
+        <div className="min-w-0 flex-1 pr-1">
+          <h1 className="text-lg sm:text-xl font-bold text-white truncate">Olá, {nomeUsuario.split(' ')[0]}</h1>
+          <p className="text-xs text-gray-500 truncate">
             {periodoSelecionado === 'all'
               ? 'Seu resumo de todos os meses'
               : `Seu resumo de ${formatarMesAno(periodoSelecionado)}`}
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
           <button
             onClick={handleManualSync}
             title="Clique para atualizar seus dados"
-            className={`px-2.5 py-1 rounded-full text-[10px] font-bold flex items-center gap-1 border transition-colors ${
+            className={`px-2 sm:px-2.5 py-1 rounded-full text-[10px] font-bold flex items-center gap-1 border transition-colors shrink-0 ${
               syncStatus.state === 'syncing'
                 ? 'bg-blue-500/15 text-blue-400 border-blue-500/30'
                 : syncStatus.state === 'offline'
@@ -180,12 +180,15 @@ export function Home({
             }`}
           >
             <RefreshCw size={11} className={syncStatus.state === 'syncing' ? 'animate-spin' : ''} />
-            <span>
+            <span className="hidden xs:inline">
               {syncStatus.state === 'syncing'
                 ? 'Atualizando...'
                 : syncStatus.pendingCount > 0
                 ? `Pendente (${syncStatus.pendingCount})`
                 : 'Sincronizado'}
+            </span>
+            <span className="xs:hidden">
+              {syncStatus.state === 'syncing' ? '...' : syncStatus.pendingCount > 0 ? `${syncStatus.pendingCount}` : 'OK'}
             </span>
           </button>
 
@@ -194,18 +197,18 @@ export function Home({
             <button
               onClick={onOpenNotifications}
               title="Notificações"
-              className="relative w-9 h-9 rounded-full bg-[#18202c] border border-gray-800 text-gray-300 hover:text-white flex items-center justify-center transition-colors shadow-sm shrink-0"
+              className="relative w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-[#18202c] border border-gray-800 text-gray-300 hover:text-white flex items-center justify-center transition-colors shadow-sm shrink-0"
             >
-              <Bell size={17} />
+              <Bell size={16} />
               {unreadNotifCount > 0 && (
-                <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-[#2DD4BF] text-[#05080f] text-[10px] font-black flex items-center justify-center border-2 border-[#0a0f16]">
+                <span className="absolute -top-1 -right-1 min-w-[16px] h-[16px] px-1 rounded-full bg-[#2DD4BF] text-[#05080f] text-[9px] font-black flex items-center justify-center border-2 border-[#0a0f16]">
                   {unreadNotifCount > 9 ? '9+' : unreadNotifCount}
                 </span>
               )}
             </button>
           )}
 
-          <div className="w-10 h-10 bg-[#2DD4BF] text-[#05080f] rounded-full overflow-hidden flex items-center justify-center font-bold shadow-md border border-[#2DD4BF]/30 shrink-0">
+          <div className="w-8 h-8 sm:w-10 sm:h-10 bg-[#2DD4BF] text-[#05080f] rounded-full overflow-hidden flex items-center justify-center font-bold shadow-md border border-[#2DD4BF]/30 shrink-0">
             {avatarUsuario ? (
               <img
                 src={avatarUsuario}
@@ -213,7 +216,7 @@ export function Home({
                 className="w-full h-full object-cover"
               />
             ) : (
-              <span className="text-sm uppercase">{(nomeUsuario || 'U')[0]}</span>
+              <span className="text-xs sm:text-sm uppercase font-black">{(nomeUsuario || 'U')[0]}</span>
             )}
           </div>
         </div>
@@ -221,12 +224,12 @@ export function Home({
 
       {/* Banner de Atualização Disponível (Opcional / Não-bloqueante) */}
       {updateInfo && updateInfo.isNewer && (
-        <div className="bg-gradient-to-r from-[#2DD4BF]/15 via-sky-500/10 to-[#1c1c1e] border border-[#2DD4BF]/30 rounded-2xl p-3.5 flex items-center justify-between gap-3 animate-fade-in shadow-md">
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="w-9 h-9 rounded-xl bg-[#2DD4BF]/20 text-[#2DD4BF] flex items-center justify-center shrink-0 border border-[#2DD4BF]/30">
-              <Sparkles size={18} />
+        <div className="bg-gradient-to-r from-[#2DD4BF]/15 via-sky-500/10 to-[#1c1c1e] border border-[#2DD4BF]/30 rounded-2xl p-3 sm:p-3.5 flex items-center justify-between gap-2.5 animate-fade-in shadow-md">
+          <div className="flex items-center gap-2.5 min-w-0 flex-1">
+            <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-[#2DD4BF]/20 text-[#2DD4BF] flex items-center justify-center shrink-0 border border-[#2DD4BF]/30">
+              <Sparkles size={16} />
             </div>
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
               <p className="text-white text-xs font-bold truncate">
                 Nova versão disponível ({updateInfo.tagName})
               </p>
@@ -237,31 +240,31 @@ export function Home({
           </div>
           <button
             onClick={onOpenUpdateModal}
-            className="bg-[#2DD4BF] hover:bg-[#25b5a3] text-[#05080f] px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all active:scale-95 flex items-center gap-1 shrink-0 shadow-sm"
+            className="bg-[#2DD4BF] hover:bg-[#25b5a3] text-[#05080f] px-3 py-1.5 rounded-xl text-xs font-bold transition-all active:scale-95 flex items-center gap-1 shrink-0 shadow-sm"
           >
             <Download size={13} />
-            Atualizar
+            <span>Atualizar</span>
           </button>
         </div>
       )}
 
       {/* Card Principal: Seletor de Período + A Receber e A Pagar */}
-      <div className="bg-gradient-to-br from-[#1A2b4c] via-[#241b3d] to-[#3B1F42] rounded-3xl p-5 shadow-2xl relative overflow-hidden border border-white/5">
-        <div className="relative z-10 space-y-4">
+      <div className="bg-gradient-to-br from-[#1A2b4c] via-[#241b3d] to-[#3B1F42] rounded-3xl p-4 sm:p-5 shadow-2xl relative overflow-hidden border border-white/5">
+        <div className="relative z-10 space-y-3.5 sm:space-y-4">
           {/* Topo do Card: Título e Seletor de Mês / Todos */}
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-1.5 text-gray-300 text-xs font-semibold">
-              <Calendar size={14} className="text-[#2DD4BF] shrink-0" />
-              <span>Período:</span>
+          <div className="flex items-center justify-between gap-1.5 sm:gap-2">
+            <div className="flex items-center gap-1.5 text-gray-300 text-xs font-semibold shrink-0">
+              <Calendar size={13} className="text-[#2DD4BF] shrink-0" />
+              <span className="hidden xs:inline">Período:</span>
             </div>
 
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1.5 min-w-0">
               <button
                 type="button"
                 onClick={() =>
                   setPeriodoSelecionado(periodoSelecionado === 'all' ? ymAtual : 'all')
                 }
-                className={`px-2.5 py-1.5 rounded-xl text-xs font-bold transition-colors border ${
+                className={`px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-xl text-xs font-bold transition-colors border shrink-0 ${
                   periodoSelecionado === 'all'
                     ? 'bg-[#2DD4BF] text-[#05080f] border-[#2DD4BF]'
                     : 'bg-white/10 text-gray-300 hover:bg-white/15 border-white/10'
@@ -270,11 +273,11 @@ export function Home({
                 Todos
               </button>
 
-              <div className="relative">
+              <div className="relative min-w-0 max-w-[150px] sm:max-w-[200px]">
                 <select
                   value={periodoSelecionado}
                   onChange={(e) => setPeriodoSelecionado(e.target.value)}
-                  className="appearance-none bg-[#121626]/80 hover:bg-[#121626] text-white text-xs font-bold pl-3 pr-7 py-1.5 rounded-xl border border-white/15 outline-none focus:border-[#2DD4BF] transition-colors cursor-pointer"
+                  className="w-full appearance-none bg-[#121626]/80 hover:bg-[#121626] text-white text-xs font-bold pl-2.5 pr-6 py-1 sm:py-1.5 rounded-xl border border-white/15 outline-none focus:border-[#2DD4BF] transition-colors cursor-pointer truncate"
                 >
                   <option value="all" className="bg-[#141923] text-white">
                     Todos os meses
@@ -287,38 +290,38 @@ export function Home({
                 </select>
                 <ChevronDown
                   size={13}
-                  className="text-gray-400 pointer-events-none absolute right-2 top-1/2 -translate-y-1/2"
+                  className="text-gray-400 pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2"
                 />
               </div>
             </div>
           </div>
 
           {/* Cards A Receber e A Pagar */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="bg-white/10 backdrop-blur-md rounded-2xl p-3.5 flex flex-col justify-between border border-white/10">
-              <div className="flex items-center gap-2 mb-2">
-                <div className="w-8 h-8 bg-amber-400 rounded-full flex items-center justify-center text-[#05080f] shrink-0">
-                  <TrendingUp size={17} />
+          <div className="grid grid-cols-2 gap-2.5 sm:gap-3">
+            <div className="bg-white/10 backdrop-blur-md rounded-2xl p-3 sm:p-3.5 flex flex-col justify-between border border-white/10 min-w-0">
+              <div className="flex items-center gap-1.5 sm:gap-2 mb-1.5 sm:mb-2 min-w-0">
+                <div className="w-7 h-7 sm:w-8 sm:h-8 bg-amber-400 rounded-full flex items-center justify-center text-[#05080f] shrink-0">
+                  <TrendingUp size={15} />
                 </div>
                 <p className="text-[10px] text-gray-300 uppercase font-bold tracking-wider truncate">
                   A receber
                 </p>
               </div>
-              <p className="text-amber-300 font-black text-xl sm:text-2xl tracking-tight truncate">
+              <p className="text-amber-300 font-black text-lg sm:text-2xl tracking-tight truncate tabular-nums">
                 R$ {moneyConverter(Number(dashboard.totalAReceber || 0))}
               </p>
             </div>
 
-            <div className="bg-white/10 backdrop-blur-md rounded-2xl p-3.5 flex flex-col justify-between border border-white/10">
-              <div className="flex items-center gap-2 mb-2">
-                <div className="w-8 h-8 bg-red-500 rounded-full flex items-center justify-center text-white shrink-0">
-                  <TrendingDown size={17} />
+            <div className="bg-white/10 backdrop-blur-md rounded-2xl p-3 sm:p-3.5 flex flex-col justify-between border border-white/10 min-w-0">
+              <div className="flex items-center gap-1.5 sm:gap-2 mb-1.5 sm:mb-2 min-w-0">
+                <div className="w-7 h-7 sm:w-8 sm:h-8 bg-red-500 rounded-full flex items-center justify-center text-white shrink-0">
+                  <TrendingDown size={15} />
                 </div>
                 <p className="text-[10px] text-gray-300 uppercase font-bold tracking-wider truncate">
                   A pagar
                 </p>
               </div>
-              <p className="text-red-400 font-black text-xl sm:text-2xl tracking-tight truncate">
+              <p className="text-red-400 font-black text-lg sm:text-2xl tracking-tight truncate tabular-nums">
                 R$ {moneyConverter(Number(dashboard.totalAPagar || 0))}
               </p>
             </div>
@@ -346,7 +349,7 @@ export function Home({
             </p>
           </div>
         ) : (
-          <div className="flex gap-4 overflow-x-auto pt-2.5 pb-4 px-1 scrollbar-hide -mt-2">
+          <div className="flex gap-3 sm:gap-4 overflow-x-auto pt-2 pb-3 px-1 scrollbar-hide -mt-1 overscroll-x-contain touch-pan-x">
             {dashboard.amigosDevedores.map((amigo) => {
               const nome = amigo.nome || amigo.name || 'Amigo';
               const cor = amigo.cor || amigo.color || 'bg-sky-500';
@@ -371,14 +374,14 @@ export function Home({
                       saldoLiquido,
                     })
                   }
-                  className="flex flex-col items-center gap-2 min-w-[85px] cursor-pointer active:scale-95 transition-transform"
+                  className="flex flex-col items-center gap-1.5 min-w-[76px] max-w-[85px] sm:min-w-[85px] cursor-pointer active:scale-95 transition-transform shrink-0"
                 >
                   <div className="relative">
                     <div
                       style={
                         amigo.avatar_url ? undefined : { backgroundColor: getAvatarColor(cor) }
                       }
-                      className="w-16 h-16 rounded-full overflow-hidden flex items-center justify-center shadow-lg border-2 border-[#05080f]"
+                      className="w-14 h-14 sm:w-16 sm:h-16 rounded-full overflow-hidden flex items-center justify-center shadow-lg border-2 border-[#05080f]"
                     >
                       {amigo.avatar_url ? (
                         <img
@@ -387,7 +390,7 @@ export function Home({
                           className="w-full h-full object-cover"
                         />
                       ) : (
-                        <span className="text-2xl font-black text-white">
+                        <span className="text-xl sm:text-2xl font-black text-white">
                           {nome[0]?.toUpperCase()}
                         </span>
                       )}
@@ -401,14 +404,14 @@ export function Home({
                     </div>
                   </div>
                   <div className="text-center w-full">
-                    <p className="text-xs font-semibold text-white truncate max-w-[85px] flex items-center justify-center gap-1 mx-auto">
+                    <p className="text-xs font-semibold text-white truncate max-w-full flex items-center justify-center gap-1 mx-auto">
                       <span className="truncate">{nome.split(' ')[0]}</span>
                       {(amigo.has_account || amigo.is_registered) && (
                         <BadgeCheck size={13} className="text-[#2DD4BF] fill-[#2DD4BF]/20 shrink-0" />
                       )}
                     </p>
                     <p
-                      className={`text-[11px] font-bold ${
+                      className={`text-[11px] font-bold truncate tabular-nums ${
                         isVoceDeve ? 'text-red-400' : 'text-amber-400'
                       }`}
                     >
@@ -442,7 +445,7 @@ export function Home({
             </p>
           </div>
         ) : (
-          <div className="flex gap-4 overflow-x-auto pt-2.5 pb-4 px-1 scrollbar-hide -mt-2">
+          <div className="flex gap-3 sm:gap-4 overflow-x-auto pt-2 pb-3 px-1 scrollbar-hide -mt-1 overscroll-x-contain touch-pan-x">
             {dashboard.gruposPendentes.map((grupo) => {
               const nome = grupo.nome || grupo.name || 'Grupo';
               const cor = getGroupAvatarColor(grupo.cor || grupo.color || nome || grupo.id);
@@ -459,12 +462,12 @@ export function Home({
                 <div
                   key={grupo.id}
                   onClick={() => setGrupoSelecionadoId(grupo.id)}
-                  className="flex flex-col items-center gap-2 min-w-[85px] cursor-pointer active:scale-95 transition-transform"
+                  className="flex flex-col items-center gap-1.5 min-w-[76px] max-w-[85px] sm:min-w-[85px] cursor-pointer active:scale-95 transition-transform shrink-0"
                 >
                   <div className="relative">
                     <div
                       style={grupo.avatar_url ? undefined : { backgroundColor: cor }}
-                      className="w-16 h-16 rounded-full overflow-hidden flex items-center justify-center shadow-lg border-2 border-[#05080f]"
+                      className="w-14 h-14 sm:w-16 sm:h-16 rounded-full overflow-hidden flex items-center justify-center shadow-lg border-2 border-[#05080f]"
                     >
                       {grupo.avatar_url ? (
                         <img
@@ -473,7 +476,7 @@ export function Home({
                           className="w-full h-full object-cover"
                         />
                       ) : (
-                        <span className="text-2xl font-black text-white">
+                        <span className="text-xl sm:text-2xl font-black text-white">
                           {nome[0]?.toUpperCase()}
                         </span>
                       )}
@@ -487,11 +490,11 @@ export function Home({
                     </div>
                   </div>
                   <div className="text-center w-full">
-                    <p className="text-xs font-semibold text-white truncate max-w-[85px] mx-auto">
+                    <p className="text-xs font-semibold text-white truncate max-w-full mx-auto">
                       {nome}
                     </p>
                     <p
-                      className={`text-[11px] font-bold ${
+                      className={`text-[11px] font-bold truncate tabular-nums ${
                         isVoceDeve ? 'text-red-400' : 'text-amber-400'
                       }`}
                     >

@@ -166,18 +166,21 @@ export function RideDetailsModal({
 
   return createPortal(
     <div
-      className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4 animate-fade-in"
+      className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 animate-fade-in"
       onClick={onClose}
     >
       <div
-        className="bg-[#0b0f19] w-full max-w-md rounded-3xl border border-white/10 shadow-2xl flex flex-col max-h-[90vh] overflow-hidden animate-slide-up"
+        className="bg-[#0b0f19] w-full sm:max-w-md rounded-t-[28px] sm:rounded-3xl border border-white/10 shadow-2xl flex flex-col max-h-[92dvh] sm:max-h-[90vh] overflow-hidden animate-slide-up pb-safe"
         onClick={(e) => e.stopPropagation()}
       >
+        {/* Handle visual mobile */}
+        <div className="w-12 h-1 bg-white/20 rounded-full mx-auto mt-2.5 mb-1 sm:hidden shrink-0" />
+
         {/* Cabeçalho com Editar e Excluir */}
         <div className="flex items-center justify-between p-4 border-b border-white/10 bg-[#0b0f19]/95 backdrop-blur-md shrink-0">
           <button
             onClick={onClose}
-            className="p-2 text-white hover:bg-gray-800 rounded-full transition-colors"
+            className="p-2 text-white hover:bg-gray-800 rounded-full transition-colors active:scale-95"
           >
             <ChevronLeft size={26} />
           </button>
@@ -188,7 +191,7 @@ export function RideDetailsModal({
             <div className="flex items-center gap-1">
               <button
                 onClick={() => setIsEditOpen(true)}
-                className="p-2 text-gray-300 hover:bg-white/10 hover:text-white rounded-full transition-colors"
+                className="p-2 text-gray-300 hover:bg-white/10 hover:text-white rounded-full transition-colors active:scale-95"
                 title="Editar Racha"
               >
                 <Pencil size={18} />
@@ -202,7 +205,7 @@ export function RideDetailsModal({
                   onDelete(ride.id);
                   onClose();
                 }}
-                className="p-2 text-red-500 hover:bg-red-500/20 hover:text-red-400 rounded-full transition-colors"
+                className="p-2 text-red-500 hover:bg-red-500/20 hover:text-red-400 rounded-full transition-colors active:scale-95"
                 title="Excluir Racha"
               >
                 <Trash2 size={20} />
@@ -294,13 +297,13 @@ export function RideDetailsModal({
                         });
                       }
                     }}
-                    className={`flex justify-between items-center bg-[#1c1c1e] p-3.5 rounded-xl border transition-all ${
+                    className={`flex justify-between items-center bg-[#1c1c1e] p-3 sm:p-3.5 rounded-xl border transition-all gap-2.5 ${
                       receiptDoAmigo
                         ? 'border-sky-500/30 hover:border-[#2DD4BF]/50 cursor-pointer active:scale-[0.99]'
                         : 'border-white/5'
                     }`}
                   >
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1">
                       <div
                         style={p.avatar_url ? undefined : { backgroundColor: getAvatarColor(cor) }}
                         className="w-10 h-10 rounded-full overflow-hidden flex items-center justify-center font-bold text-white shrink-0"
@@ -315,14 +318,14 @@ export function RideDetailsModal({
                           nome[0]?.toUpperCase()
                         )}
                       </div>
-                      <div>
+                      <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-1.5 flex-wrap">
-                          <span className="font-medium text-white text-sm">{nome}</span>
+                          <span className="font-medium text-white text-sm truncate max-w-[140px] sm:max-w-none">{nome}</span>
                           {(p.has_account || p.is_registered) && (
                             <BadgeCheck size={14} className="text-[#2DD4BF] fill-[#2DD4BF]/20 shrink-0" />
                           )}
                           {isFriendPayer && (
-                            <span className="text-[10px] bg-[#2DD4BF]/20 text-[#2DD4BF] px-2 py-0.5 rounded-md font-bold">
+                            <span className="text-[10px] bg-[#2DD4BF]/20 text-[#2DD4BF] px-2 py-0.5 rounded-md font-bold shrink-0">
                               Pagador
                             </span>
                           )}
@@ -338,7 +341,7 @@ export function RideDetailsModal({
                                   initialIndex: 0,
                                 });
                               }}
-                              className="text-[10px] bg-sky-500/20 text-sky-300 hover:bg-sky-500/30 px-2 py-0.5 rounded-md font-semibold flex items-center gap-1"
+                              className="text-[10px] bg-sky-500/20 text-sky-300 hover:bg-sky-500/30 px-2 py-0.5 rounded-md font-semibold flex items-center gap-1 shrink-0"
                             >
                               <FileCheck2 size={11} /> Ver Comprovante
                             </button>
@@ -357,7 +360,7 @@ export function RideDetailsModal({
                                     initialIndex: rIdx,
                                   });
                                 }}
-                                className="text-[10px] bg-sky-500/20 text-sky-300 hover:bg-sky-500/30 px-2 py-0.5 rounded-md font-semibold flex items-center gap-1"
+                                className="text-[10px] bg-sky-500/20 text-sky-300 hover:bg-sky-500/30 px-2 py-0.5 rounded-md font-semibold flex items-center gap-1 shrink-0"
                               >
                                 <FileCheck2 size={11} /> Comprovante {rIdx + 1}
                               </button>
@@ -367,9 +370,9 @@ export function RideDetailsModal({
                         {!isFriendPayer &&
                           (voceEhPagador ? (
                             isQuitado && receiptDoAmigo ? (
-                              <div className="flex items-center gap-2 mt-0.5">
+                              <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                                 <span className="text-[11px] font-semibold text-[#34C759] flex items-center gap-1">
-                                  <Check size={12} /> Pago (toque p/ ver comprovante)
+                                  <Check size={12} /> Pago (toque p/ ver)
                                 </span>
                                 <button
                                   type="button"
@@ -394,7 +397,7 @@ export function RideDetailsModal({
                               >
                                 {isQuitado ? (
                                   <>
-                                    <Check size={12} /> Pago (clique p/ desfazer)
+                                    <Check size={12} /> Pago (desfazer)
                                   </>
                                 ) : (
                                   '• Pendente (clique p/ quitar)'
@@ -409,7 +412,7 @@ export function RideDetailsModal({
                             >
                               {isQuitado ? (
                                 <>
-                                  <Check size={12} /> {receiptDoAmigo ? 'Pago (toque p/ ver comprovante)' : 'Pago'}
+                                  <Check size={12} /> {receiptDoAmigo ? 'Pago (toque p/ ver)' : 'Pago'}
                                 </>
                               ) : (
                                 '• Pendente'
@@ -419,10 +422,10 @@ export function RideDetailsModal({
                       </div>
                     </div>
                     <div className="text-right shrink-0">
-                      <p className="text-xs text-gray-500 mb-0.5">
+                      <p className="text-[11px] text-gray-500 mb-0.5">
                         Parte dele(a) ({pctParte}%)
                       </p>
-                      <p className="font-bold text-white text-sm">
+                      <p className="font-bold text-white text-sm tabular-nums">
                         R$ {moneyConverter(valorParte)}
                       </p>
                     </div>
@@ -446,13 +449,13 @@ export function RideDetailsModal({
                         });
                       }
                     }}
-                    className={`flex justify-between items-center bg-[#1c1c1e] p-3.5 rounded-xl border transition-all ${
+                    className={`flex justify-between items-center bg-[#1c1c1e] p-3 sm:p-3.5 rounded-xl border transition-all gap-2.5 ${
                       selfReceiptUrl
                         ? 'border-sky-500/30 hover:border-[#2DD4BF]/50 cursor-pointer active:scale-[0.99]'
                         : 'border-white/5'
                     }`}
                   >
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1">
                       <div className="w-10 h-10 rounded-full overflow-hidden bg-[#2DD4BF] flex items-center justify-center font-bold text-[#05080f] shrink-0">
                         {myAvatarUrl ? (
                           <img src={myAvatarUrl} alt="Você" className="w-full h-full object-cover" />
@@ -460,11 +463,11 @@ export function RideDetailsModal({
                           'V'
                         )}
                       </div>
-                      <div>
+                      <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-1.5 flex-wrap">
                           <span className="font-medium text-white text-sm">Você</span>
                           {voceEhPagador && (
-                            <span className="text-[10px] bg-[#2DD4BF]/20 text-[#2DD4BF] px-2 py-0.5 rounded-md font-bold">
+                            <span className="text-[10px] bg-[#2DD4BF]/20 text-[#2DD4BF] px-2 py-0.5 rounded-md font-bold shrink-0">
                               Pagador
                             </span>
                           )}
@@ -480,7 +483,7 @@ export function RideDetailsModal({
                                   initialIndex: 0,
                                 });
                               }}
-                              className="text-[10px] bg-sky-500/20 text-sky-300 hover:bg-sky-500/30 px-2 py-0.5 rounded-md font-semibold flex items-center gap-1"
+                              className="text-[10px] bg-sky-500/20 text-sky-300 hover:bg-sky-500/30 px-2 py-0.5 rounded-md font-semibold flex items-center gap-1 shrink-0"
                             >
                               <FileCheck2 size={11} /> Ver Comprovante
                             </button>
@@ -499,7 +502,7 @@ export function RideDetailsModal({
                                     initialIndex: rIdx,
                                   });
                                 }}
-                                className="text-[10px] bg-sky-500/20 text-sky-300 hover:bg-sky-500/30 px-2 py-0.5 rounded-md font-semibold flex items-center gap-1"
+                                className="text-[10px] bg-sky-500/20 text-sky-300 hover:bg-sky-500/30 px-2 py-0.5 rounded-md font-semibold flex items-center gap-1 shrink-0"
                               >
                                 <FileCheck2 size={11} /> Comprovante {rIdx + 1}
                               </button>
@@ -510,7 +513,7 @@ export function RideDetailsModal({
                             <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                               <span className="text-[11px] font-semibold flex items-center gap-1 text-[#34C759]">
                                 <Check size={12} />{' '}
-                                {selfReceiptUrl ? 'Pago (toque p/ ver comprovante)' : 'Pago'}
+                                {selfReceiptUrl ? 'Pago (toque p/ ver)' : 'Pago'}
                               </span>
                               <button
                                 type="button"
@@ -549,11 +552,11 @@ export function RideDetailsModal({
                       </div>
                     </div>
                     <div className="text-right shrink-0">
-                      <p className="text-xs text-gray-500 mb-0.5">
+                      <p className="text-[11px] text-gray-500 mb-0.5">
                         Sua parte (
                         {valorNumerico > 0 ? ((minhaParte / valorNumerico) * 100).toFixed(1) : '0'}%)
                       </p>
-                      <p className="font-bold text-white text-sm">R$ {moneyConverter(minhaParte)}</p>
+                      <p className="font-bold text-white text-sm tabular-nums">R$ {moneyConverter(minhaParte)}</p>
                     </div>
                   </div>
                 );

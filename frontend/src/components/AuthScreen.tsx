@@ -107,7 +107,7 @@ export function AuthScreen({ onLogin }: { onLogin: () => void }) {
   // Tela separada de Redefinição de Senha
   if (step === 'reset') {
     return (
-      <div className="min-h-screen bg-[#05080f] flex flex-col px-6 py-8 animate-slide-up">
+      <div className="min-h-screen bg-[#05080f] flex flex-col px-4 sm:px-6 py-6 sm:py-8 pt-safe pb-safe animate-slide-up overflow-y-auto">
         <div className="max-w-md w-full mx-auto flex-1 flex flex-col justify-center">
           <button
             type="button"
@@ -196,8 +196,8 @@ export function AuthScreen({ onLogin }: { onLogin: () => void }) {
   }
 
   return (
-    <div className="min-h-screen bg-[#05080f] flex flex-col justify-center px-6 py-10">
-      <div className="max-w-md w-full mx-auto">
+    <div className="min-h-screen bg-[#05080f] flex flex-col justify-center px-4 sm:px-6 py-6 sm:py-10 pt-safe pb-safe overflow-y-auto">
+      <div className="max-w-md w-full mx-auto my-auto">
         <div className="mb-8 text-center">
           <img
             src={appIcon}

@@ -145,21 +145,24 @@ export function AddGroupModal({ isOpen, onClose, onSuccess, groupToEdit }: AddGr
 
   return createPortal(
     <div
-      className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[60] flex items-center justify-center p-4 transition-opacity animate-fade-in"
+      className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4 transition-opacity animate-fade-in"
       onClick={onClose}
     >
       <div
-        className="bg-[#1c1c1e] w-full max-w-md rounded-3xl p-6 animate-slide-up relative max-h-[90vh] overflow-y-auto border border-white/10 shadow-2xl"
+        className="bg-[#1c1c1e] w-full sm:max-w-md rounded-t-[28px] sm:rounded-3xl p-5 sm:p-6 animate-slide-up relative max-h-[92dvh] sm:max-h-[90vh] overflow-y-auto border border-white/10 shadow-2xl pb-safe"
         onClick={(e) => e.stopPropagation()}
       >
+        {/* Handle visual mobile */}
+        <div className="w-12 h-1 bg-white/20 rounded-full mx-auto mb-3.5 sm:hidden shrink-0" />
+
         <button
           onClick={onClose}
-          className="absolute top-5 right-5 text-gray-400 hover:text-white p-1 rounded-full hover:bg-white/10 transition-colors"
+          className="absolute top-5 right-5 text-gray-400 hover:text-white p-1 rounded-full hover:bg-white/10 transition-colors active:scale-95"
         >
           <X size={24} />
         </button>
 
-        <h2 className="text-xl font-bold text-white mb-5">
+        <h2 className="text-xl font-bold text-white mb-5 pr-8">
           {isEditing ? 'Editar Grupo' : 'Criar Grupo'}
         </h2>
 

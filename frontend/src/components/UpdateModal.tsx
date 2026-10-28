@@ -90,13 +90,16 @@ export function UpdateModal({ isOpen, onClose, updateInfo }: UpdateModalProps) {
 
   return createPortal(
     <div
-      className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[80] flex items-center justify-center p-4 transition-opacity animate-fade-in"
+      className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[80] flex items-end sm:items-center justify-center p-0 sm:p-4 transition-opacity animate-fade-in"
       onClick={onClose}
     >
       <div
-        className="bg-[#1c1c1e] w-full max-w-md rounded-3xl p-6 animate-slide-up relative border border-[#2DD4BF]/30 shadow-2xl overflow-hidden"
+        className="bg-[#1c1c1e] w-full sm:max-w-md rounded-t-[28px] sm:rounded-3xl p-5 sm:p-6 animate-slide-up relative border border-[#2DD4BF]/30 shadow-2xl overflow-hidden pb-safe"
         onClick={(e) => e.stopPropagation()}
       >
+        {/* Handle visual mobile */}
+        <div className="w-12 h-1 bg-white/20 rounded-full mx-auto mb-3 sm:hidden shrink-0" />
+
         {/* Glow suave no topo */}
         <div className="absolute -top-14 -right-14 w-32 h-32 bg-[#2DD4BF]/15 rounded-full blur-3xl pointer-events-none" />
 

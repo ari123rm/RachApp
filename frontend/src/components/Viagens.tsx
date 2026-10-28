@@ -266,31 +266,31 @@ export function Viagens({ onDataChange, dataVersion }: { onDataChange?: () => vo
   return (
     <div className="space-y-4 relative">
       {/* Cabeçalho */}
-      <header className="flex justify-between items-center mt-2">
-        <div>
-          <h1 className="text-2xl font-bold text-white">Histórico de Rachas</h1>
-          <p className="text-xs text-gray-400 mt-0.5">
+      <header className="flex justify-between items-center mt-1 sm:mt-2 gap-2 min-w-0">
+        <div className="min-w-0 flex-1 pr-1">
+          <h1 className="text-xl sm:text-2xl font-bold text-white truncate">Histórico de Rachas</h1>
+          <p className="text-xs text-gray-400 mt-0.5 truncate">
             {corridasFiltradas.length}{' '}
             {corridasFiltradas.length === 1 ? 'racha encontrado' : 'rachas encontrados'}
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
           {/* Botão para abrir/fechar painel de filtros */}
           <button
             onClick={() => setMostrarFiltros(!mostrarFiltros)}
-            className={`p-2.5 rounded-xl transition-all flex items-center gap-1.5 text-xs font-semibold ${
+            className={`p-2 sm:p-2.5 rounded-xl transition-all flex items-center gap-1.5 text-xs font-semibold shrink-0 ${
               mostrarFiltros || totalFiltrosAtivos > 0
                 ? 'bg-[#2DD4BF] text-[#05080f] shadow-lg shadow-teal-500/20'
                 : 'bg-[#1c1c1e] text-gray-300 hover:text-white border border-white/5'
             }`}
             title="Filtros avançados"
           >
-            <SlidersHorizontal size={16} />
-            <span>Filtros</span>
+            <SlidersHorizontal size={15} />
+            <span className="hidden xs:inline">Filtros</span>
             {totalFiltrosAtivos > 0 && (
               <span
-                className={`ml-1 px-1.5 py-0.2 rounded-full text-[10px] font-black ${
+                className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${
                   mostrarFiltros
                     ? 'bg-[#05080f] text-[#2DD4BF]'
                     : 'bg-[#2DD4BF] text-[#05080f]'
@@ -304,24 +304,24 @@ export function Viagens({ onDataChange, dataVersion }: { onDataChange?: () => vo
           {/* Botão de Ordenação */}
           <button
             onClick={() => setOrdemCrescente(!ordemCrescente)}
-            className={`p-2.5 rounded-xl transition-colors flex items-center gap-1 text-xs font-semibold ${
+            className={`p-2 sm:p-2.5 rounded-xl transition-colors flex items-center gap-1 text-xs font-semibold shrink-0 ${
               ordemCrescente
                 ? 'bg-[#2DD4BF]/20 text-[#2DD4BF] border border-[#2DD4BF]/40'
                 : 'bg-[#1c1c1e] text-gray-300 hover:text-white border border-white/5'
             }`}
             title={ordemCrescente ? 'Mais antigos primeiro' : 'Mais recentes primeiro'}
           >
-            <ArrowDownUp size={16} />
+            <ArrowDownUp size={15} />
           </button>
         </div>
       </header>
 
       {/* Barra de Pesquisa por Texto */}
-      <div className="bg-[#1c1c1e] rounded-2xl flex items-center px-3.5 py-2.5 text-gray-400 border border-white/5 focus-within:ring-1 focus-within:ring-[#2DD4BF] focus-within:border-[#2DD4BF]/40 transition-all">
+      <div className="bg-[#1c1c1e] rounded-2xl flex items-center px-3 sm:px-3.5 py-2 sm:py-2.5 text-gray-400 border border-white/5 focus-within:ring-1 focus-within:ring-[#2DD4BF] focus-within:border-[#2DD4BF]/40 transition-all">
         <Search size={18} className="mr-2.5 text-gray-400 shrink-0" />
         <input
           type="text"
-          placeholder="Buscar racha por nome, tag ou amigo..."
+          placeholder="Buscar por nome, tag ou amigo..."
           value={busca}
           onChange={(e) => {
             setBusca(e.target.value);
@@ -345,7 +345,7 @@ export function Viagens({ onDataChange, dataVersion }: { onDataChange?: () => vo
 
       {/* Chips Rápidos de Filtros Ativos (aparecem quando qualquer filtro está ativo) */}
       {totalFiltrosAtivos > 0 && (
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-hide text-xs">
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-hide text-xs overscroll-x-contain touch-pan-x">
           <span className="text-[11px] text-gray-500 font-medium shrink-0 mr-1">Filtros:</span>
 
           {busca.trim() && (
@@ -521,8 +521,8 @@ export function Viagens({ onDataChange, dataVersion }: { onDataChange?: () => vo
             </div>
 
             {/* Inputs de Data Personalizada */}
-            <div className="grid grid-cols-2 gap-2.5">
-              <div>
+            <div className="grid grid-cols-2 gap-2 sm:gap-2.5">
+              <div className="min-w-0">
                 <span className="text-[10px] text-gray-400 block mb-1">Data Início:</span>
                 <input
                   type="date"
@@ -531,10 +531,10 @@ export function Viagens({ onDataChange, dataVersion }: { onDataChange?: () => vo
                     setDataInicio(e.target.value);
                     setItensVisiveis(8);
                   }}
-                  className="w-full bg-[#2c2c2e] text-white text-xs rounded-xl p-2.5 border border-white/10 outline-none focus:border-[#2DD4BF] [color-scheme:dark]"
+                  className="w-full min-w-0 bg-[#2c2c2e] text-white text-xs rounded-xl p-2 sm:p-2.5 border border-white/10 outline-none focus:border-[#2DD4BF] [color-scheme:dark]"
                 />
               </div>
-              <div>
+              <div className="min-w-0">
                 <span className="text-[10px] text-gray-400 block mb-1">Data Fim:</span>
                 <input
                   type="date"
@@ -543,7 +543,7 @@ export function Viagens({ onDataChange, dataVersion }: { onDataChange?: () => vo
                     setDataFim(e.target.value);
                     setItensVisiveis(8);
                   }}
-                  className="w-full bg-[#2c2c2e] text-white text-xs rounded-xl p-2.5 border border-white/10 outline-none focus:border-[#2DD4BF] [color-scheme:dark]"
+                  className="w-full min-w-0 bg-[#2c2c2e] text-white text-xs rounded-xl p-2 sm:p-2.5 border border-white/10 outline-none focus:border-[#2DD4BF] [color-scheme:dark]"
                 />
               </div>
             </div>

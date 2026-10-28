@@ -292,20 +292,22 @@ export function Perfil({
       </div>
 
       {/* Dados Públicos e Chave Pix (Somente editável ao clicar no lapizinho) */}
-      <section className="bg-[#1c1c1e] rounded-3xl p-5 border border-white/5 space-y-4">
-        <div className="flex justify-between items-center gap-2">
-          <h2 className="text-white font-semibold flex items-center gap-2">
-            <ShieldCheck size={20} className="text-[#2DD4BF]" />
+      <section className="bg-[#1c1c1e] rounded-3xl p-4 sm:p-5 border border-white/5 space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-white font-semibold text-sm sm:text-base flex items-center gap-2">
+            <ShieldCheck size={18} className="text-[#2DD4BF] shrink-0" />
             Dados Públicos e Pix
           </h2>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
             {pix && (
               <button
                 type="button"
                 onClick={() => setIsPixPreviewOpen(true)}
-                className="text-xs bg-[#2DD4BF]/15 text-[#2DD4BF] hover:bg-[#2DD4BF]/25 px-3 py-1.5 rounded-full font-bold flex items-center gap-1"
+                className="text-xs bg-[#2DD4BF]/15 text-[#2DD4BF] hover:bg-[#2DD4BF]/25 px-2.5 sm:px-3 py-1.5 rounded-full font-bold flex items-center gap-1"
               >
-                <QrCode size={13} /> Testar QR Pix
+                <QrCode size={13} />
+                <span className="hidden xs:inline">Testar QR Pix</span>
+                <span className="xs:hidden">QR Pix</span>
               </button>
             )}
             <button
@@ -478,21 +480,21 @@ export function Perfil({
       </section>
 
       {/* Versão e Atualizações do Aplicativo */}
-      <section className="bg-[#1c1c1e] rounded-3xl p-5 border border-white/5 space-y-3">
-        <div className="flex justify-between items-center">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-[#2DD4BF]/15 text-[#2DD4BF] flex items-center justify-center">
+      <section className="bg-[#1c1c1e] rounded-3xl p-4 sm:p-5 border border-white/5 space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-2xl bg-[#2DD4BF]/15 text-[#2DD4BF] flex items-center justify-center shrink-0">
               <Sparkles size={18} />
             </div>
-            <div>
-              <h2 className="text-white font-semibold text-base">Versão do Aplicativo</h2>
-              <p className="text-xs text-gray-400">
+            <div className="min-w-0">
+              <h2 className="text-white font-semibold text-sm sm:text-base truncate">Versão do Aplicativo</h2>
+              <p className="text-xs text-gray-400 truncate">
                 {currentVersion ? `Versão instalada: v${currentVersion}` : 'RachApp'}
               </p>
             </div>
           </div>
           <span
-            className={`text-xs px-2.5 py-1 rounded-full font-bold flex items-center gap-1 ${
+            className={`text-[10px] sm:text-xs px-2.5 py-1 rounded-full font-bold flex items-center gap-1 shrink-0 ${
               manualUpdateInfo?.isNewer || updateInfo?.isNewer
                 ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
                 : 'bg-[#2DD4BF]/15 text-[#2DD4BF] border border-[#2DD4BF]/30'
@@ -503,7 +505,7 @@ export function Perfil({
         </div>
 
         {manualUpdateInfo?.isNewer || updateInfo?.isNewer ? (
-          <div className="bg-[#2c2c2e] p-4 rounded-2xl border border-amber-500/30 space-y-3">
+          <div className="bg-[#2c2c2e] p-3.5 sm:p-4 rounded-2xl border border-amber-500/30 space-y-3">
             <div className="flex items-center justify-between gap-2">
               <div>
                 <p className="text-sm font-bold text-white flex items-center gap-1.5">
@@ -525,7 +527,7 @@ export function Perfil({
               </div>
             )}
 
-            <div className="flex items-center gap-2 pt-1">
+            <div className="flex flex-col xs:flex-row items-stretch xs:items-center gap-2 pt-1">
               <button
                 onClick={async () => {
                   const targetInfo = manualUpdateInfo || updateInfo;

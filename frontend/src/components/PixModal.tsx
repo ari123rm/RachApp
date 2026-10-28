@@ -162,29 +162,32 @@ export function PixModal({
 
   return createPortal(
     <div
-      className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[70] flex items-center justify-center p-4 animate-fade-in"
+      className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[70] flex items-end sm:items-center justify-center p-0 sm:p-4 animate-fade-in"
       onClick={onClose}
     >
       <div
-        className="bg-[#1c1c1e] w-full max-w-sm rounded-3xl p-6 border border-white/10 shadow-2xl relative max-h-[90vh] overflow-y-auto animate-slide-up"
+        className="bg-[#1c1c1e] w-full sm:max-w-md rounded-t-[28px] sm:rounded-3xl p-5 sm:p-6 border border-white/10 shadow-2xl relative max-h-[92dvh] sm:max-h-[90vh] overflow-y-auto animate-slide-up pb-safe"
         onClick={(e) => e.stopPropagation()}
       >
+        {/* Handle visual mobile */}
+        <div className="w-12 h-1 bg-white/20 rounded-full mx-auto mb-3.5 sm:hidden shrink-0" />
+
         <button
           onClick={onClose}
-          className="absolute top-5 right-5 text-gray-400 hover:text-white p-1 rounded-full hover:bg-white/10 transition-colors"
+          className="absolute top-5 right-5 text-gray-400 hover:text-white p-1 rounded-full hover:bg-white/10 transition-colors active:scale-95"
         >
           <X size={24} />
         </button>
 
-        <div className="flex items-center gap-2 mb-4">
-          <div className="w-10 h-10 rounded-2xl bg-[#2DD4BF]/20 text-[#2DD4BF] flex items-center justify-center">
+        <div className="flex items-center gap-3 mb-4 pr-8">
+          <div className="w-10 h-10 rounded-2xl bg-[#2DD4BF]/20 text-[#2DD4BF] flex items-center justify-center shrink-0">
             <QrCode size={22} />
           </div>
-          <div>
-            <h3 className="text-white font-bold text-lg">
+          <div className="min-w-0 flex-1">
+            <h3 className="text-white font-bold text-lg truncate">
               {allowEditAmount ? 'Teste de QR Code Pix' : 'Pagamento via Pix'}
             </h3>
-            <p className="text-xs text-gray-400">Recebedor: {recipientName}</p>
+            <p className="text-xs text-gray-400 truncate">Recebedor: {recipientName}</p>
           </div>
         </div>
 
@@ -281,14 +284,14 @@ export function PixModal({
             )}
 
             <div className="space-y-3 mb-5">
-              <div className="bg-[#2c2c2e] rounded-xl p-3 flex items-center justify-between gap-2">
-                <div className="overflow-hidden">
+              <div className="bg-[#2c2c2e] rounded-xl p-3 flex items-center justify-between gap-2.5">
+                <div className="min-w-0 flex-1 overflow-hidden">
                   <p className="text-[10px] text-gray-400 uppercase font-bold">Chave Pix</p>
                   <p className="text-sm text-white font-medium truncate">{pixKey}</p>
                 </div>
                 <button
                   onClick={handleCopyKey}
-                  className="bg-[#2DD4BF]/20 text-[#2DD4BF] hover:bg-[#2DD4BF]/30 px-3 py-2 rounded-lg text-xs font-bold flex items-center gap-1.5 shrink-0"
+                  className="bg-[#2DD4BF]/20 text-[#2DD4BF] hover:bg-[#2DD4BF]/30 px-3 py-2 rounded-lg text-xs font-bold flex items-center gap-1.5 shrink-0 active:scale-95"
                 >
                   {copiedKey ? <Check size={14} /> : <Copy size={14} />}
                   {copiedKey ? 'Copiada!' : 'Copiar'}
@@ -296,14 +299,14 @@ export function PixModal({
               </div>
 
               {copiaECola && (
-                <div className="bg-[#2c2c2e] rounded-xl p-3 flex items-center justify-between gap-2">
-                  <div className="overflow-hidden">
+                <div className="bg-[#2c2c2e] rounded-xl p-3 flex items-center justify-between gap-2.5">
+                  <div className="min-w-0 flex-1 overflow-hidden">
                     <p className="text-[10px] text-gray-400 uppercase font-bold">Pix Copia e Cola</p>
                     <p className="text-xs text-gray-300 font-mono truncate">{copiaECola}</p>
                   </div>
                   <button
                     onClick={handleCopyCode}
-                    className="bg-[#2DD4BF] text-[#05080f] hover:bg-[#25b5a3] px-3 py-2 rounded-lg text-xs font-bold flex items-center gap-1.5 shrink-0"
+                    className="bg-[#2DD4BF] text-[#05080f] hover:bg-[#25b5a3] px-3 py-2 rounded-lg text-xs font-bold flex items-center gap-1.5 shrink-0 active:scale-95"
                   >
                     {copiedCode ? <Check size={14} /> : <Copy size={14} />}
                     {copiedCode ? 'Copiado!' : 'Copiar'}

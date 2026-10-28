@@ -377,7 +377,7 @@ function App() {
   // Toast suave de Atualização OTA Pronta (Blue-Green)
   const otaReadyToast =
     (otaStatus === 'ready' || otaStatus === 'applying') && readyBundle ? (
-      <div className="fixed bottom-24 left-4 right-4 max-w-md mx-auto z-[95] bg-[#141a23]/95 border border-[#2DD4BF]/50 rounded-2xl p-4 shadow-2xl animate-fade-in backdrop-blur-md">
+      <div className="fixed bottom-[calc(5.25rem+env(safe-area-inset-bottom,0px))] left-3 right-3 sm:left-4 sm:right-4 max-w-md mx-auto z-[95] bg-[#141a23]/95 border border-[#2DD4BF]/50 rounded-2xl p-3.5 sm:p-4 shadow-2xl animate-fade-in backdrop-blur-md">
         <div className="flex items-start gap-3">
           <div className="w-9 h-9 rounded-xl bg-[#2DD4BF]/20 text-[#2DD4BF] flex items-center justify-center shrink-0 border border-[#2DD4BF]/30">
             {otaStatus === 'applying' ? (
@@ -479,7 +479,7 @@ function App() {
               ref={(el) => {
                 tabScrollRefs.current.home = el;
               }}
-              className="w-full h-full overflow-y-auto p-4 md:p-6 pb-24 max-w-lg md:max-w-xl lg:max-w-2xl mx-auto scrollbar-hide touch-pan-y"
+              className="w-full h-full overflow-y-auto px-3.5 sm:px-5 md:px-6 pt-[max(0.75rem,env(safe-area-inset-top,0px))] pb-[calc(5.75rem+env(safe-area-inset-bottom,0px))] max-w-lg md:max-w-xl lg:max-w-2xl mx-auto scrollbar-hide touch-pan-y overscroll-y-contain"
             >
               <Home
                 dataVersion={dataVersion}
@@ -497,7 +497,7 @@ function App() {
               ref={(el) => {
                 tabScrollRefs.current.viagens = el;
               }}
-              className="w-full h-full overflow-y-auto p-4 md:p-6 pb-24 max-w-lg md:max-w-xl lg:max-w-2xl mx-auto scrollbar-hide touch-pan-y"
+              className="w-full h-full overflow-y-auto px-3.5 sm:px-5 md:px-6 pt-[max(0.75rem,env(safe-area-inset-top,0px))] pb-[calc(5.75rem+env(safe-area-inset-bottom,0px))] max-w-lg md:max-w-xl lg:max-w-2xl mx-auto scrollbar-hide touch-pan-y overscroll-y-contain"
             >
               <Viagens dataVersion={dataVersion} onDataChange={refreshData} />
             </div>
@@ -509,7 +509,7 @@ function App() {
               ref={(el) => {
                 tabScrollRefs.current.amigos = el;
               }}
-              className="w-full h-full overflow-y-auto p-4 md:p-6 pb-24 max-w-lg md:max-w-xl lg:max-w-2xl mx-auto scrollbar-hide touch-pan-y"
+              className="w-full h-full overflow-y-auto px-3.5 sm:px-5 md:px-6 pt-[max(0.75rem,env(safe-area-inset-top,0px))] pb-[calc(5.75rem+env(safe-area-inset-bottom,0px))] max-w-lg md:max-w-xl lg:max-w-2xl mx-auto scrollbar-hide touch-pan-y overscroll-y-contain"
             >
               <Amigos
                 dataVersion={dataVersion}
@@ -526,7 +526,7 @@ function App() {
               ref={(el) => {
                 tabScrollRefs.current.perfil = el;
               }}
-              className="w-full h-full overflow-y-auto p-4 md:p-6 pb-24 max-w-lg md:max-w-xl lg:max-w-2xl mx-auto scrollbar-hide touch-pan-y"
+              className="w-full h-full overflow-y-auto px-3.5 sm:px-5 md:px-6 pt-[max(0.75rem,env(safe-area-inset-top,0px))] pb-[calc(5.75rem+env(safe-area-inset-bottom,0px))] max-w-lg md:max-w-xl lg:max-w-2xl mx-auto scrollbar-hide touch-pan-y overscroll-y-contain"
             >
               <Perfil
                 dataVersion={dataVersion}
@@ -556,7 +556,7 @@ function App() {
                 : 'Adicionar Amigo'
               : 'Novo Racha'
           }
-          className="fixed bottom-20 right-6 md:right-[max(1.5rem,calc(50%-22rem))] w-14 h-14 bg-[#2DD4BF] hover:bg-[#25b5a3] rounded-full flex items-center justify-center shadow-lg shadow-teal-500/30 transition-transform active:scale-95 z-40"
+          className="fixed bottom-[calc(4.75rem+env(safe-area-inset-bottom,0px))] right-4 sm:right-6 md:right-[max(1.5rem,calc(50%-22rem))] w-14 h-14 bg-[#2DD4BF] hover:bg-[#25b5a3] rounded-full flex items-center justify-center shadow-lg shadow-teal-500/30 transition-transform active:scale-90 z-40"
         >
           {activeTab === 'amigos' ? (
             amigosSubTab === 'grupos' ? (
@@ -633,7 +633,7 @@ function App() {
             setIsNotificationModalOpen(true);
             setInAppToast(null);
           }}
-          className="fixed top-4 left-4 right-4 max-w-md mx-auto z-50 bg-[#141a23]/95 border border-[#2DD4BF]/50 rounded-2xl p-3.5 shadow-2xl flex items-start gap-3 cursor-pointer animate-fade-in backdrop-blur-md"
+          className="fixed top-[max(0.75rem,env(safe-area-inset-top,0px))] left-3 right-3 sm:left-4 sm:right-4 max-w-md mx-auto z-50 bg-[#141a23]/95 border border-[#2DD4BF]/50 rounded-2xl p-3 sm:p-3.5 shadow-2xl flex items-start gap-3 cursor-pointer animate-fade-in backdrop-blur-md"
         >
           <div className="w-8 h-8 rounded-xl bg-[#2DD4BF]/20 text-[#2DD4BF] flex items-center justify-center shrink-0 mt-0.5 border border-[#2DD4BF]/30">
             <Bell size={18} />

@@ -15,8 +15,8 @@ export function BottomNav({ activeTab, setActiveTab }: BottomNavProps) {
   ];
 
   return (
-    <nav className="fixed bottom-0 left-0 w-full bg-[#0a0f16] border-t border-gray-800 pb-safe z-30">
-      <div className="flex justify-around items-center h-16 max-w-lg md:max-w-xl lg:max-w-2xl mx-auto px-4">
+    <nav className="fixed bottom-0 left-0 w-full bg-[#0a0f16]/95 backdrop-blur-md border-t border-gray-800/80 pb-safe z-30 select-none">
+      <div className="flex justify-around items-center h-16 max-w-lg md:max-w-xl lg:max-w-2xl mx-auto px-2 sm:px-4">
         {navItems.map((item) => {
           const Icon = item.icon;
           const isActive = activeTab === item.id;
@@ -24,13 +24,16 @@ export function BottomNav({ activeTab, setActiveTab }: BottomNavProps) {
           return (
             <button
               key={item.id}
+              type="button"
               onClick={() => setActiveTab(item.id)}
-              className={`flex flex-col items-center justify-center w-full h-full space-y-1 transition-colors ${
+              className={`flex flex-col items-center justify-center flex-1 h-full py-1 min-h-[48px] space-y-1 transition-all active:scale-90 ${
                 isActive ? 'text-[#2DD4BF]' : 'text-gray-500 hover:text-gray-400'
               }`}
             >
-              <Icon size={24} strokeWidth={isActive ? 2.5 : 2} />
-              <span className="text-[10px] font-medium">{item.label}</span>
+              <Icon size={22} strokeWidth={isActive ? 2.5 : 2} className="shrink-0" />
+              <span className="text-[10px] sm:text-xs font-semibold tracking-tight truncate max-w-full">
+                {item.label}
+              </span>
             </button>
           );
         })}

@@ -271,36 +271,36 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
 
   return createPortal(
     <div
-      className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4 animate-fade-in"
+      className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 animate-fade-in"
       onClick={onClose}
     >
       <div
-        className="bg-[#0b0f19] w-full max-w-md rounded-3xl border border-white/10 shadow-2xl flex flex-col max-h-[90vh] overflow-hidden animate-slide-up"
+        className="bg-[#0b0f19] w-full max-w-md rounded-t-[28px] sm:rounded-3xl border-t sm:border border-white/10 shadow-2xl flex flex-col max-h-[92dvh] sm:max-h-[90vh] pb-safe overflow-hidden animate-slide-up"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Cabeçalho */}
-        <div className="flex items-center justify-between p-4 border-b border-white/10 bg-[#0b0f19]/95 backdrop-blur-md shrink-0">
+        <div className="flex items-center justify-between p-3.5 sm:p-4 border-b border-white/10 bg-[#0b0f19]/95 backdrop-blur-md shrink-0">
           <button
             onClick={onClose}
-            className="p-2 text-white hover:bg-gray-800 rounded-full transition-colors"
+            className="p-1.5 sm:p-2 text-white hover:bg-gray-800 rounded-full transition-colors"
           >
-            <ChevronLeft size={26} />
+            <ChevronLeft size={24} />
           </button>
-          <h2 className="text-base font-semibold text-white">Detalhes Do Grupo</h2>
-          <div className="flex items-center gap-1">
+          <h2 className="text-sm sm:text-base font-semibold text-white truncate px-2">Detalhes Do Grupo</h2>
+          <div className="flex items-center gap-1 shrink-0">
             <button
               onClick={() => setIsEditGroupOpen(true)}
-              className="p-2 text-gray-300 hover:bg-white/10 hover:text-white rounded-full transition-colors"
+              className="p-1.5 sm:p-2 text-gray-300 hover:bg-white/10 hover:text-white rounded-full transition-colors"
               title="Editar Grupo"
             >
-              <Pencil size={18} />
+              <Pencil size={17} />
             </button>
             <button
               onClick={handleDeleteGroup}
-              className="p-2 text-red-500 hover:bg-red-500/20 hover:text-red-400 rounded-full transition-colors"
+              className="p-1.5 sm:p-2 text-red-500 hover:bg-red-500/20 hover:text-red-400 rounded-full transition-colors"
               title="Excluir Grupo"
             >
-              <Trash2 size={20} />
+              <Trash2 size={18} />
             </button>
           </div>
         </div>
@@ -310,7 +310,7 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
             <LoaderCircle size={40} className="animate-spin text-[#2DD4BF]" />
           </div>
         ) : (
-          <div className="p-5 overflow-y-auto flex-1 space-y-6">
+          <div className="p-4 sm:p-5 overflow-y-auto flex-1 space-y-5 sm:space-y-6">
             {/* Card Principal do Grupo */}
             <div className="bg-[#141923] rounded-3xl p-5 border border-white/10 shadow-xl">
               <div className="flex justify-between items-center mb-4">
@@ -554,14 +554,14 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
                     return (
                       <div
                         key={m.friendId}
-                        className="bg-[#1c1c1e] p-3.5 rounded-2xl border border-white/5 flex items-center justify-between"
+                        className="bg-[#1c1c1e] p-3 sm:p-3.5 rounded-2xl border border-white/5 flex items-center justify-between gap-2"
                       >
-                        <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1 pr-1">
                           <div
                             style={
                               memberAvatar ? undefined : { backgroundColor: getAvatarColor(m.color) }
                             }
-                            className="w-10 h-10 rounded-full overflow-hidden flex items-center justify-center font-bold text-white text-sm shrink-0"
+                            className="w-9 h-9 sm:w-10 sm:h-10 rounded-full overflow-hidden flex items-center justify-center font-bold text-white text-xs sm:text-sm shrink-0"
                           >
                             {memberAvatar ? (
                               <img
@@ -573,18 +573,16 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
                               m.name[0]?.toUpperCase()
                             )}
                           </div>
-                          <div>
-                            <div className="flex items-center gap-1.5">
-                              <p className="font-semibold text-white text-sm">{m.name}</p>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              <p className="font-semibold text-white text-xs sm:text-sm truncate">{m.name}</p>
                               {Boolean(
                                 (m as any).has_account ||
                                   (m as any).is_registered ||
                                   friendObj?.has_account
-                              ) && (
-                                <BadgeCheck size={14} className="text-[#2DD4BF] fill-[#2DD4BF]/20 shrink-0" />
                               )}
                             </div>
-                            <p className="text-[11px] text-gray-500">
+                            <p className="text-[10px] sm:text-[11px] text-gray-500 truncate">
                               {m.pendingCount > 0
                                 ? 'Dividindo despesas do grupo'
                                 : 'Sem pendências abertas'}
@@ -592,25 +590,25 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
                           </div>
                         </div>
 
-                        <div className="text-right flex items-center gap-2">
+                        <div className="text-right shrink-0 flex items-center gap-1.5 sm:gap-2">
                           <div>
                             {deveVoce ? (
                               <>
-                                <p className="text-xs font-bold text-[#2DD4BF]">
+                                <p className="text-xs font-bold text-[#2DD4BF] tabular-nums">
                                   Deve R$ {moneyConverter(m.owesYou)}
                                 </p>
                                 <p className="text-[10px] text-gray-500">
                                   {m.pendingCount}{' '}
-                                  {m.pendingCount === 1 ? 'conta pendente' : 'contas pendentes'}
+                                  {m.pendingCount === 1 ? 'pendente' : 'pendentes'}
                                 </p>
                               </>
                             ) : voceDeve ? (
-                              <p className="text-xs font-bold text-red-400">
+                              <p className="text-xs font-bold text-red-400 tabular-nums">
                                 Você deve R$ {moneyConverter(Math.abs(m.owesYou))}
                               </p>
                             ) : (
                               <span className="text-xs text-[#2DD4BF] flex items-center gap-1 font-medium">
-                                <CheckCircle2 size={13} /> Tudo pago
+                                <CheckCircle2 size={13} /> Quitado
                               </span>
                             )}
                           </div>
@@ -618,10 +616,10 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
                           {deveVoce && (
                             <button
                               onClick={() => handleQuitarMembroNoGrupo(m.friendId, m.owesYou, m.name)}
-                              className="p-2 bg-[#2DD4BF]/15 text-[#2DD4BF] hover:bg-[#2DD4BF]/25 rounded-xl transition-colors"
+                              className="p-1.5 sm:p-2 bg-[#2DD4BF]/15 text-[#2DD4BF] hover:bg-[#2DD4BF]/25 rounded-xl transition-colors shrink-0"
                               title="Confirmar que este membro te pagou"
                             >
-                              <DollarSign size={15} />
+                              <DollarSign size={14} />
                             </button>
                           )}
 
@@ -636,7 +634,7 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
                                   amount: Math.abs(m.owesYou),
                                 })
                               }
-                              className="px-2.5 py-1.5 bg-red-500/20 text-red-300 hover:bg-red-500/30 rounded-xl text-[11px] font-bold flex items-center gap-1 transition-colors"
+                              className="px-2.5 py-1.5 bg-red-500/20 text-red-300 hover:bg-red-500/30 rounded-xl text-[11px] font-bold flex items-center gap-1 transition-colors shrink-0"
                               title="Pagar mediante comprovante"
                             >
                               <Upload size={12} /> Pagar
@@ -756,24 +754,24 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
                       <div
                         key={expense.id}
                         onClick={() => setCorridaSelecionada(corridaCompleta)}
-                        className="bg-[#1c1c1e] hover:bg-[#2c2c2e] p-4 rounded-2xl border border-white/5 flex justify-between items-center cursor-pointer transition-colors"
+                        className="bg-[#1c1c1e] hover:bg-[#2c2c2e] p-3 sm:p-4 rounded-2xl border border-white/5 flex justify-between items-center cursor-pointer transition-colors gap-2"
                       >
-                        <div className="flex items-center gap-3 min-w-0">
-                          <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center text-[#2DD4BF] shrink-0">
-                            <Receipt size={18} />
+                        <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1 pr-1">
+                          <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-white/5 flex items-center justify-center text-[#2DD4BF] shrink-0">
+                            <Receipt size={17} />
                           </div>
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-1.5 flex-wrap">
-                              <h5 className="text-white font-semibold text-sm truncate">
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              <h5 className="text-white font-semibold text-xs sm:text-sm truncate">
                                 {expense.title}
                               </h5>
                             </div>
-                            <p className="text-xs text-gray-500 mt-0.5 truncate">
-                              {expense.expense_date?.split('T')[0]} • Dividido por {totalParts} • Total R$ {moneyConverter(valorTotalExp)}
+                            <p className="text-[11px] sm:text-xs text-gray-400 mt-0.5 truncate">
+                              {expense.expense_date?.split('T')[0]} • {totalParts} pessoas • Total R$ {moneyConverter(valorTotalExp)}
                             </p>
                           </div>
                         </div>
-                        <div className="text-right shrink-0 ml-2">
+                        <div className="text-right shrink-0">
                           <RideStatusView
                             userStatus={userStatus}
                             valorTotal={moneyConverter(valorTotalExp)}

@@ -70,13 +70,16 @@ export function ReceiptViewerModal({
 
   return createPortal(
     <div
-      className="fixed inset-0 bg-black/85 backdrop-blur-sm z-[80] flex items-center justify-center p-4 animate-fade-in"
+      className="fixed inset-0 bg-black/85 backdrop-blur-sm z-[80] flex items-end sm:items-center justify-center p-0 sm:p-4 animate-fade-in"
       onClick={onClose}
     >
       <div
-        className="bg-[#1c1c1e] w-full max-w-md rounded-3xl p-5 border border-white/10 shadow-2xl relative max-h-[88vh] flex flex-col"
+        className="bg-[#1c1c1e] w-full sm:max-w-md rounded-t-[28px] sm:rounded-3xl p-5 border border-white/10 shadow-2xl relative max-h-[92dvh] sm:max-h-[88vh] flex flex-col pb-safe"
         onClick={(e) => e.stopPropagation()}
       >
+        {/* Handle visual mobile */}
+        <div className="w-12 h-1 bg-white/20 rounded-full mx-auto mb-3 sm:hidden shrink-0" />
+
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2 min-w-0 pr-2">
             <div className="w-9 h-9 rounded-xl bg-[#2DD4BF]/20 text-[#2DD4BF] flex items-center justify-center shrink-0">
@@ -403,27 +406,30 @@ export function PayWithReceiptModal({
 
   return createPortal(
     <div
-      className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[75] flex items-center justify-center p-4 animate-fade-in"
+      className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[75] flex items-end sm:items-center justify-center p-0 sm:p-4 animate-fade-in"
       onClick={onClose}
     >
       <div
-        className="bg-[#1c1c1e] w-full max-w-md rounded-3xl p-6 border border-white/10 shadow-2xl relative max-h-[90vh] overflow-y-auto"
+        className="bg-[#1c1c1e] w-full sm:max-w-md rounded-t-[28px] sm:rounded-3xl p-5 sm:p-6 border border-white/10 shadow-2xl relative max-h-[92dvh] sm:max-h-[90vh] overflow-y-auto pb-safe"
         onClick={(e) => e.stopPropagation()}
       >
+        {/* Handle visual mobile */}
+        <div className="w-12 h-1 bg-white/20 rounded-full mx-auto mb-3.5 sm:hidden shrink-0" />
+
         <button
           onClick={onClose}
-          className="absolute top-5 right-5 text-gray-400 hover:text-white p-1 rounded-full hover:bg-white/10 transition-colors"
+          className="absolute top-5 right-5 text-gray-400 hover:text-white p-1 rounded-full hover:bg-white/10 transition-colors active:scale-95"
         >
           <X size={22} />
         </button>
 
-        <div className="flex items-center gap-3 mb-4">
+        <div className="flex items-center gap-3 mb-4 pr-8">
           <div className="w-10 h-10 rounded-2xl bg-[#2DD4BF]/20 text-[#2DD4BF] flex items-center justify-center shrink-0">
             <QrCode size={22} />
           </div>
-          <div>
-            <h3 className="text-white font-bold text-lg">Pagar {recipientName.split(' ')[0]}</h3>
-            <p className="text-xs text-gray-400">
+          <div className="min-w-0 flex-1">
+            <h3 className="text-white font-bold text-lg truncate">Pagar {recipientName.split(' ')[0]}</h3>
+            <p className="text-xs text-gray-400 truncate">
               Faça o Pix e anexe o comprovante para dar baixa
             </p>
           </div>

@@ -308,13 +308,16 @@ export function AssignReceiptModal({
 
   return createPortal(
     <div
-      className="fixed inset-0 bg-black/85 backdrop-blur-sm z-[90] flex items-center justify-center p-3 sm:p-4 animate-fade-in"
+      className="fixed inset-0 bg-black/85 backdrop-blur-sm z-[90] flex items-end sm:items-center justify-center p-0 sm:p-4 animate-fade-in"
       onClick={handleClose}
     >
       <div
-        className="bg-[#0b0f19] w-full max-w-lg rounded-3xl border border-white/10 shadow-2xl flex flex-col max-h-[92vh] overflow-hidden animate-slide-up"
+        className="bg-[#0b0f19] w-full sm:max-w-lg rounded-t-[28px] sm:rounded-3xl border border-white/10 shadow-2xl flex flex-col max-h-[92dvh] sm:max-h-[90vh] overflow-hidden animate-slide-up pb-safe"
         onClick={(e) => e.stopPropagation()}
       >
+        {/* Handle visual mobile */}
+        <div className="w-12 h-1 bg-white/20 rounded-full mx-auto mt-2.5 mb-1 sm:hidden shrink-0" />
+
         {/* Header + Stepper */}
         <div className="p-5 pb-4 border-b border-white/5 space-y-4">
           <div className="flex items-center justify-between">

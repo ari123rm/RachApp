@@ -535,41 +535,41 @@ export function FriendDetailsModal({
 
   return createPortal(
     <div
-      className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4 animate-fade-in"
+      className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 animate-fade-in"
       onClick={onClose}
     >
       <div
-        className="bg-[#0b0f19] w-full max-w-md rounded-3xl border border-white/10 shadow-2xl flex flex-col max-h-[90vh] overflow-hidden animate-slide-up"
+        className="bg-[#0b0f19] w-full max-w-md rounded-t-[28px] sm:rounded-3xl border-t sm:border border-white/10 shadow-2xl flex flex-col max-h-[92dvh] sm:max-h-[90vh] pb-safe overflow-hidden animate-slide-up"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Cabeçalho com Editar e Excluir */}
-        <div className="flex items-center justify-between p-4 border-b border-white/10 bg-[#0b0f19]/95 backdrop-blur-md shrink-0">
+        <div className="flex items-center justify-between p-3.5 sm:p-4 border-b border-white/10 bg-[#0b0f19]/95 backdrop-blur-md shrink-0">
           <button
             onClick={onClose}
-            className="p-2 text-white hover:bg-gray-800 rounded-full transition-colors"
+            className="p-1.5 sm:p-2 text-white hover:bg-gray-800 rounded-full transition-colors"
           >
-            <ChevronLeft size={26} />
+            <ChevronLeft size={24} />
           </button>
-          <h2 className="text-base font-semibold text-white">Detalhes do Amigo</h2>
-          <div className="flex items-center gap-1">
+          <h2 className="text-sm sm:text-base font-semibold text-white truncate px-2">Detalhes do Amigo</h2>
+          <div className="flex items-center gap-1 shrink-0">
             <button
               onClick={() => setIsEditModalOpen(true)}
-              className="p-2 text-gray-300 hover:bg-white/10 hover:text-white rounded-full transition-colors"
+              className="p-1.5 sm:p-2 text-gray-300 hover:bg-white/10 hover:text-white rounded-full transition-colors"
               title="Editar Amigo"
             >
-              <Pencil size={18} />
+              <Pencil size={17} />
             </button>
             <button
               onClick={() => onDelete(baseAmigo.id)}
-              className="p-2 text-red-500 hover:bg-red-500/20 hover:text-red-400 rounded-full transition-colors"
+              className="p-1.5 sm:p-2 text-red-500 hover:bg-red-500/20 hover:text-red-400 rounded-full transition-colors"
               title="Excluir Amigo"
             >
-              <Trash2 size={20} />
+              <Trash2 size={18} />
             </button>
           </div>
         </div>
 
-        <div className="px-5 py-5 overflow-y-auto flex-1">
+        <div className="px-4 py-4 sm:px-5 sm:py-5 overflow-y-auto flex-1">
           {/* Resumo do Perfil */}
           <div className="flex flex-col items-center mb-6">
             <div
@@ -659,32 +659,33 @@ export function FriendDetailsModal({
                   </button>
                 )}
 
-                <div className="grid grid-cols-2 gap-3 w-full">
+                <div className="grid grid-cols-2 gap-2 sm:gap-3 w-full">
                   <button
                     onClick={handleCobrarWhatsApp}
-                    className="bg-[#25D366] hover:bg-[#1ebd5a] text-white font-bold py-3 px-4 rounded-2xl text-sm flex items-center justify-center gap-2 transition-transform active:scale-95"
+                    className="bg-[#25D366] hover:bg-[#1ebd5a] text-white font-bold py-2.5 sm:py-3 px-2 sm:px-4 rounded-2xl text-xs sm:text-sm flex items-center justify-center gap-1.5 transition-transform active:scale-95 truncate"
                   >
                     <svg
                       viewBox="0 0 24 24"
-                      width="17"
-                      height="17"
+                      width="16"
+                      height="16"
                       stroke="currentColor"
                       strokeWidth="2"
                       fill="none"
                       strokeLinecap="round"
                       strokeLinejoin="round"
+                      className="shrink-0"
                     >
                       <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path>
                     </svg>
-                    Cobrar WhatsApp
+                    <span className="truncate">WhatsApp</span>
                   </button>
 
                   <button
                     onClick={handleOpenPixModal}
-                    className="bg-[#1c1c1e] hover:bg-[#2c2c2e] border border-[#2DD4BF]/40 text-[#2DD4BF] font-bold py-3 px-4 rounded-2xl text-sm flex items-center justify-center gap-2 transition-transform active:scale-95"
+                    className="bg-[#1c1c1e] hover:bg-[#2c2c2e] border border-[#2DD4BF]/40 text-[#2DD4BF] font-bold py-2.5 sm:py-3 px-2 sm:px-4 rounded-2xl text-xs sm:text-sm flex items-center justify-center gap-1.5 transition-transform active:scale-95 truncate"
                   >
-                    <QrCode size={17} />
-                    QR Code Pix
+                    <QrCode size={16} className="shrink-0" />
+                    <span className="truncate">QR Code Pix</span>
                   </button>
                 </div>
               </>
@@ -861,18 +862,18 @@ export function FriendDetailsModal({
                       </div>
                     </div>
 
-                    <div className="flex items-center text-white font-semibold mb-3">
+                    <div className="flex items-center text-white font-semibold mb-3 min-w-0">
                       <Banknote size={16} className="text-[#2DD4BF] mr-2 shrink-0" />
                       <span className="truncate">
                         {corrida.app} — {corrida.titulo}
                       </span>
                     </div>
 
-                    <div className="flex justify-between items-end text-sm pt-2 border-t border-white/5">
-                      <span className="text-gray-500 text-xs">
+                    <div className="flex flex-wrap sm:flex-nowrap justify-between items-end gap-1 text-sm pt-2 border-t border-white/5">
+                      <span className="text-gray-500 text-xs truncate">
                         Custo Total: R$ {corrida.precoTotal}
                       </span>
-                      <div className="text-right">
+                      <div className="text-right shrink-0">
                         <div className="text-xs text-gray-400">
                           {corrida.amigoFoiPagador ? 'Sua parte' : 'Parte dele'} ({corrida.partePct}%): R$ {corrida.parteAmigo}
                         </div>

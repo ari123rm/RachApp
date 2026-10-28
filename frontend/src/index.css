@@ -1,54 +1,116 @@
 @import "tailwindcss";
 
-/* Definindo algumas cores padrão que vi no seu design */
 @theme {
   --color-fundo: #05080f;
   --color-card: #0a0f16;
 }
 
-@supports (padding-bottom: env(safe-area-inset-bottom)) {
-  .pb-safe {
-    padding-bottom: env(safe-area-inset-bottom);
-  }
+/* Reset básico e experiência nativa mobile */
+:root {
+  --sat: env(safe-area-inset-top, 0px);
+  --sab: env(safe-area-inset-bottom, 0px);
+  --sal: env(safe-area-inset-left, 0px);
+  --sar: env(safe-area-inset-right, 0px);
 }
 
-/* Ocultar barra de rolagem */
+html,
+body,
+#root {
+  height: 100%;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  background-color: #05080f;
+  color: #ffffff;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  text-size-adjust: 100%;
+  -webkit-text-size-adjust: 100%;
+}
+
+/* Utilitários de Safe Area */
+.pt-safe {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+.pl-safe {
+  padding-left: env(safe-area-inset-left, 0px);
+}
+.pr-safe {
+  padding-right: env(safe-area-inset-right, 0px);
+}
+.mb-safe {
+  margin-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* Prevenção global de vazamento de texto */
+* {
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+/* Ocultar barra de rolagem mantendo a navegação suave */
 .scrollbar-hide::-webkit-scrollbar {
   display: none;
 }
 .scrollbar-hide {
   -ms-overflow-style: none;
   scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
 }
 
-/* Adicione no final do index.css */
+/* Animação suave para Bottom Sheets e Modais Mobile */
 @keyframes slideUp {
-  from { transform: translateY(100%); opacity: 0; }
-  to { transform: translateY(0); opacity: 1; }
+  from {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
 }
 
 .animate-slide-up {
-  animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: slideUp 0.28s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Evita que o iOS faça zoom indesejado ao focar em inputs de texto */
+@media (hover: none) and (pointer: coarse) {
+  input[type='text'],
+  input[type='tel'],
+  input[type='password'],
+  input[type='email'],
+  input[type='number'],
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
 }
 
 /* Custom Hue Slider Thumb */
 input[type='range'].hue-slider::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
-  width: 20px;
-  height: 20px;
+  width: 22px;
+  height: 22px;
   border-radius: 50%;
   background: #ffffff;
-  border: 2.5px solid rgba(0, 0, 0, 0.5);
+  border: 2.5px solid rgba(0, 0, 0, 0.6);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.6);
   cursor: pointer;
 }
 input[type='range'].hue-slider::-moz-range-thumb {
-  width: 20px;
-  height: 20px;
+  width: 22px;
+  height: 22px;
   border-radius: 50%;
   background: #ffffff;
-  border: 2.5px solid rgba(0, 0, 0, 0.5);
+  border: 2.5px solid rgba(0, 0, 0, 0.6);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.6);
   cursor: pointer;
 }
