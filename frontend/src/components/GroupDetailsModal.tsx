@@ -15,6 +15,8 @@ import {
   Users,
   Upload,
   BadgeCheck,
+  TrendingDown,
+  TrendingUp,
 } from 'lucide-react';
 import { dbService } from '../services/database';
 import moneyConverter from '../utils/moneyConverter';
@@ -58,6 +60,7 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
   const [isEditGroupOpen, setIsEditGroupOpen] = useState(false);
   const [isCreateFriendOpen, setIsCreateFriendOpen] = useState(false);
   const [corridaSelecionada, setCorridaSelecionada] = useState<Corrida | null>(null);
+  const [filtroStatusGrupo, setFiltroStatusGrupo] = useState<'tudo' | 'a_pagar' | 'a_receber' | 'quitados'>('tudo');
 
   const nettingCache = useMemo(
     () => new Map<string, Map<string, CorridaNettingInfo>>(),
@@ -265,6 +268,140 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
     !myConfig.id ||
     grupo.created_by === myConfig.id ||
     grupo.created_by === 'me';
+
+  const expensesWithStatus = useMemo(() => {
+    if (!grupo?.expenses) return [];
+    return grupo.expenses.map((expense: any) => {
+      const valorTotalExp = Number(expense.total_amount || 0);
+      const corridaCompleta: Corrida =
+        todasCorridas.find((c) => c.id === expense.id) || {
+          id: expense.id,
+          titulo: expense.title || 'Racha',
+          valorTotal: valorTotalExp,
+          selfAmountOwed:
+            expense.self_amount_owed !== undefined &&
+            expense.self_amount_owed !== null
+              ? Number(expense.self_amount_owed)
+              : undefined,
+          selfAmountPaid: Number(expense.self_amount_paid || 0),
+          selfReceiptUrl: expense.self_receipt_url || null,
+          data: expense.expense_date?.split('T')[0] || '',
+          tag: expense.tag || 'Uber',
+          groupId: grupo.id,
+          groupName: grupo.name,
+          paidByFriendId: expense.paid_by_friend_id || null,
+          paidByName: expense.paidByFriend?.name || 'Amigo',
+          participantesIds: (expense.participants || []).map(
+            (p: any) => p.friend_id
+          ),
+          pagamentos: Object.fromEntries(
+            (expense.participants || []).map((p: any) => [
+              p.friend_id,
+              Number(p.amount_paid || 0),
+            ])
+          ),
+          valoresDevidos: Object.fromEntries(
+            (expense.participants || []).map((p: any) => [
+              p.friend_id,
+              Number(p.amount_owed || 0),
+            ])
+          ),
+        };
+
+      const userStatus = getRideStatusForUser(
+        corridaCompleta,
+        todasCorridas,
+        todosAmigos,
+        nettingCache
+      );
+
+      const corridaParticipantes = [
+        { id: 0, nome: 'Você', cor: '#2DD4BF', avatar_url: myConfig.avatar_url },
+        ...(corridaCompleta.participantesIds || []).map((pid: string, idx: number) => {
+          const f = todosAmigos.find((a) => a.id === pid);
+          return {
+            id: pid || idx + 1,
+            nome: f?.nome || f?.name || 'Amigo',
+            cor: f?.cor || f?.color || '#0ea5e9',
+            avatar_url: f?.avatar_url || null,
+          };
+        }),
+      ];
+
+      return {
+        expense,
+        corridaCompleta,
+        userStatus,
+        corridaParticipantes,
+      };
+    });
+  }, [grupo?.expenses, todasCorridas, todosAmigos, nettingCache, grupo?.id, grupo?.name, myConfig.avatar_url]);
+
+  const contagensGrupo = useMemo(() => {
+    let aPagar = 0;
+    let aReceber = 0;
+    let quitados = 0;
+
+    for (const item of expensesWithStatus) {
+      if (item.userStatus.amountYouOwe > 0.005) {
+        aPagar++;
+      } else if (item.userStatus.amountOwedToYou > 0.005) {
+        aReceber++;
+      } else {
+        quitados++;
+      }
+    }
+
+    return {
+      tudo: expensesWithStatus.length,
+      aPagar,
+      aReceber,
+      quitados,
+    };
+  }, [expensesWithStatus]);
+
+  const botoesFiltroGrupo = [
+    { id: 'tudo' as const, label: 'Tudo', count: contagensGrupo.tudo },
+    {
+      id: 'a_pagar' as const,
+      label: 'A Pagar',
+      count: contagensGrupo.aPagar,
+      icon: TrendingDown,
+      color: 'text-red-400',
+    },
+    {
+      id: 'a_receber' as const,
+      label: 'A Receber',
+      count: contagensGrupo.aReceber,
+      icon: TrendingUp,
+      color: 'text-amber-400',
+    },
+    {
+      id: 'quitados' as const,
+      label: 'Quitados',
+      count: contagensGrupo.quitados,
+      icon: CheckCircle2,
+      color: 'text-emerald-400',
+    },
+  ];
+
+  const expensesFiltradas = useMemo(() => {
+    return expensesWithStatus.filter((item) => {
+      if (filtroStatusGrupo === 'a_pagar') {
+        return item.userStatus.amountYouOwe > 0.005;
+      }
+      if (filtroStatusGrupo === 'a_receber') {
+        return item.userStatus.amountOwedToYou > 0.005;
+      }
+      if (filtroStatusGrupo === 'quitados') {
+        return (
+          item.userStatus.status === 'quitado' ||
+          (item.userStatus.status === 'pagante' && item.userStatus.amountOwedToYou <= 0.005)
+        );
+      }
+      return true;
+    });
+  }, [expensesWithStatus, filtroStatusGrupo]);
 
   if (!isOpen) return null;
 
@@ -687,93 +824,89 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
               </div>
             )}
 
-            {/* Rachas Recentes no Grupo */}
+            {/* Rachas no Grupo */}
             <div>
               <div className="flex justify-between items-center mb-3">
-                <h4 className="text-white font-bold text-base">Rachas Recentes</h4>
+                <h4 className="text-white font-bold text-base">Rachas no Grupo</h4>
                 <span className="text-xs text-[#2DD4BF] font-medium">
-                  {grupo.expenses?.length || 0} rachas
+                  {expensesFiltradas.length}{' '}
+                  {expensesFiltradas.length === 1 ? 'racha' : 'rachas'}
                 </span>
               </div>
 
-              {!grupo.expenses || grupo.expenses.length === 0 ? (
+              {/* Botões de Filtros Rápidos de Status no Grupo */}
+              {expensesWithStatus.length > 0 && (
+                <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto pb-2 scrollbar-hide overscroll-x-contain touch-pan-x mb-2.5">
+                  {botoesFiltroGrupo.map((btn) => {
+                    const isActive = filtroStatusGrupo === btn.id;
+                    const Icon = btn.icon;
+                    return (
+                      <button
+                        key={btn.id}
+                        type="button"
+                        onClick={() => setFiltroStatusGrupo(btn.id)}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-1.5 shrink-0 ${
+                          isActive
+                            ? 'bg-[#2DD4BF] text-[#05080f] font-bold shadow-sm'
+                            : 'bg-[#1c1c1e] text-gray-400 hover:text-white border border-white/5'
+                        }`}
+                      >
+                        {Icon && (
+                          <Icon
+                            size={13}
+                            className={isActive ? 'text-[#05080f]' : btn.color}
+                          />
+                        )}
+                        <span>{btn.label}</span>
+                        <span
+                          className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                            isActive
+                              ? 'bg-[#05080f]/20 text-[#05080f]'
+                              : 'bg-white/5 text-gray-400'
+                          }`}
+                        >
+                          {btn.count}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
+              {expensesWithStatus.length === 0 ? (
                 <div className="bg-[#1c1c1e] p-6 rounded-2xl border border-white/5 text-center">
                   <p className="text-gray-500 text-sm italic">
                     Nenhuma despesa registrada neste grupo. Clique em "+ Novo Racha" acima!
                   </p>
                 </div>
+              ) : expensesFiltradas.length === 0 ? (
+                <div className="bg-[#1c1c1e] p-5 rounded-2xl border border-white/5 text-center">
+                  <p className="text-gray-400 text-xs">
+                    Nenhum racha encontrado com o filtro{' '}
+                    <span className="text-[#2DD4BF] font-semibold">
+                      {filtroStatusGrupo === 'a_pagar'
+                        ? 'A Pagar'
+                        : filtroStatusGrupo === 'a_receber'
+                        ? 'A Receber'
+                        : 'Quitados'}
+                    </span>
+                    .
+                  </p>
+                </div>
               ) : (
                 <div className="space-y-2.5">
-                  {grupo.expenses.map((expense: any) => {
-                    const valorTotalExp = Number(expense.total_amount || 0);
-                    const corridaCompleta: Corrida =
-                      todasCorridas.find((c) => c.id === expense.id) || {
-                        id: expense.id,
-                        titulo: expense.title || 'Racha',
-                        valorTotal: valorTotalExp,
-                        selfAmountOwed:
-                          expense.self_amount_owed !== undefined &&
-                          expense.self_amount_owed !== null
-                            ? Number(expense.self_amount_owed)
-                            : undefined,
-                        selfAmountPaid: Number(expense.self_amount_paid || 0),
-                        selfReceiptUrl: expense.self_receipt_url || null,
-                        data: expense.expense_date?.split('T')[0] || '',
-                        tag: expense.tag || 'Uber',
-                        groupId: grupo.id,
-                        groupName: grupo.name,
-                        paidByFriendId: expense.paid_by_friend_id || null,
-                        paidByName: expense.paidByFriend?.name || 'Amigo',
-                        participantesIds: (expense.participants || []).map(
-                          (p: any) => p.friend_id
-                        ),
-                        pagamentos: Object.fromEntries(
-                          (expense.participants || []).map((p: any) => [
-                            p.friend_id,
-                            Number(p.amount_paid || 0),
-                          ])
-                        ),
-                        valoresDevidos: Object.fromEntries(
-                          (expense.participants || []).map((p: any) => [
-                            p.friend_id,
-                            Number(p.amount_owed || 0),
-                          ])
-                        ),
-                      };
-
-                    const userStatus = getRideStatusForUser(
-                      corridaCompleta,
-                      todasCorridas,
-                      todosAmigos,
-                      nettingCache
-                    );
-
-                    const corridaParticipantes = [
-                      { id: 0, nome: 'Você', cor: '#2DD4BF', avatar_url: myConfig.avatar_url },
-                      ...(corridaCompleta.participantesIds || []).map((pid: string, idx: number) => {
-                        const f = todosAmigos.find((a) => a.id === pid);
-                        return {
-                          id: pid || idx + 1,
-                          nome: f?.nome || f?.name || 'Amigo',
-                          cor: f?.cor || f?.color || '#0ea5e9',
-                          avatar_url: f?.avatar_url || null,
-                        };
-                      }),
-                    ];
-
-                    return (
-                      <RideCard
-                        key={expense.id}
-                        data={corridaCompleta.data}
-                        tag={corridaCompleta.tag}
-                        titulo={corridaCompleta.titulo}
-                        valorTotal={moneyConverter(corridaCompleta.valorTotal)}
-                        userStatus={userStatus}
-                        participantes={corridaParticipantes}
-                        onClick={() => setCorridaSelecionada(corridaCompleta)}
-                      />
-                    );
-                  })}
+                  {expensesFiltradas.map(({ expense, corridaCompleta, userStatus, corridaParticipantes }) => (
+                    <RideCard
+                      key={expense.id}
+                      data={corridaCompleta.data}
+                      tag={corridaCompleta.tag}
+                      titulo={corridaCompleta.titulo}
+                      valorTotal={moneyConverter(corridaCompleta.valorTotal)}
+                      userStatus={userStatus}
+                      participantes={corridaParticipantes}
+                      onClick={() => setCorridaSelecionada(corridaCompleta)}
+                    />
+                  ))}
                 </div>
               )}
             </div>

@@ -61,7 +61,16 @@ function App() {
   const [inAppToast, setInAppToast] = useState<AppNotification | null>(null);
   const [selectedRideForModal, setSelectedRideForModal] = useState<Corrida | null>(null);
   const [amigosListForModal, setAmigosListForModal] = useState<Amigo[]>([]);
+  const [filtroRachasExterno, setFiltroRachasExterno] = useState<
+    'tudo' | 'a_pagar' | 'a_receber' | 'quitados'
+  >('tudo');
   const lastSyncedRef = useRef<string | null>(null);
+
+  const handleNavigateToRachas = (filtro: 'tudo' | 'a_pagar' | 'a_receber' | 'quitados') => {
+    setFiltroRachasExterno(filtro);
+    setActiveTab('viagens');
+    tabScrollRefs.current.viagens?.scrollTo({ top: 0, behavior: 'smooth' });
+  };
 
   const handleOpenRideById = async (rideId: string) => {
     try {
@@ -524,6 +533,7 @@ function App() {
                 updateInfo={updateInfo}
                 onOpenUpdateModal={() => setIsUpdateModalOpen(true)}
                 onOpenNotifications={() => setIsNotificationModalOpen(true)}
+                onNavigateToRachas={handleNavigateToRachas}
               />
             </div>
           </div>
@@ -536,7 +546,12 @@ function App() {
               }}
               className="w-full h-full overflow-y-auto px-3.5 sm:px-5 md:px-6 pt-[max(0.75rem,env(safe-area-inset-top,0px))] pb-[calc(5.75rem+env(safe-area-inset-bottom,0px))] max-w-lg md:max-w-xl lg:max-w-2xl mx-auto scrollbar-hide touch-pan-y overscroll-y-contain"
             >
-              <Viagens dataVersion={dataVersion} onDataChange={refreshData} />
+              <Viagens
+                dataVersion={dataVersion}
+                onDataChange={refreshData}
+                filtroExterno={filtroRachasExterno}
+                onFiltroExternoChange={setFiltroRachasExterno}
+              />
             </div>
           </div>
 

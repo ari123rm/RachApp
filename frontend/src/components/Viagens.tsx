@@ -13,6 +13,9 @@ import {
   Calendar,
   Tag,
   User,
+  TrendingDown,
+  TrendingUp,
+  CheckCircle2,
 } from 'lucide-react';
 import type { Corrida, Amigo } from '../types';
 import { dbService } from '../services/database';
@@ -27,7 +30,21 @@ function formatDateIso(d: Date): string {
   return `${year}-${month}-${day}`;
 }
 
-export function Viagens({ onDataChange, dataVersion }: { onDataChange?: () => void; dataVersion?: number }) {
+export type FiltroRachaStatus = 'tudo' | 'a_pagar' | 'a_receber' | 'quitados';
+
+interface ViagensProps {
+  onDataChange?: () => void;
+  dataVersion?: number;
+  filtroExterno?: FiltroRachaStatus;
+  onFiltroExternoChange?: (f: FiltroRachaStatus) => void;
+}
+
+export function Viagens({
+  onDataChange,
+  dataVersion,
+  filtroExterno,
+  onFiltroExternoChange,
+}: ViagensProps) {
   const [corridas, setCorridas] = useState<Corrida[]>([]);
   const [amigos, setAmigos] = useState<Amigo[]>([]);
   const [myAvatarUrl, setMyAvatarUrl] = useState<string | null>(null);
@@ -41,11 +58,82 @@ export function Viagens({ onDataChange, dataVersion }: { onDataChange?: () => vo
 
   // Estados de Busca e Filtros
   const [busca, setBusca] = useState('');
+  const [filtroStatus, setFiltroStatus] = useState<FiltroRachaStatus>(filtroExterno || 'tudo');
   const [filtroAmigoId, setFiltroAmigoId] = useState('');
   const [filtroTag, setFiltroTag] = useState('');
   const [dataInicio, setDataInicio] = useState('');
   const [dataFim, setDataFim] = useState('');
   const [mostrarFiltros, setMostrarFiltros] = useState(false);
+
+  useEffect(() => {
+    if (filtroExterno) {
+      setFiltroStatus(filtroExterno);
+      setItensVisiveis(8);
+    }
+  }, [filtroExterno]);
+
+  const handleSetFiltroStatus = (f: FiltroRachaStatus) => {
+    setFiltroStatus(f);
+    setItensVisiveis(8);
+    if (onFiltroExternoChange) {
+      onFiltroExternoChange(f);
+    }
+  };
+
+  const contagens = useMemo(() => {
+    let aPagar = 0;
+    let aReceber = 0;
+    let quitados = 0;
+
+    for (const c of corridas) {
+      const st = getRideStatusForUser(c, corridas, amigos, nettingCache);
+      if (st.amountYouOwe > 0.005) {
+        aPagar++;
+      } else if (st.amountOwedToYou > 0.005) {
+        aReceber++;
+      } else {
+        quitados++;
+      }
+    }
+
+    return {
+      tudo: corridas.length,
+      aPagar,
+      aReceber,
+      quitados,
+    };
+  }, [corridas, amigos, nettingCache]);
+
+  const botoesFiltro: {
+    id: FiltroRachaStatus;
+    label: string;
+    count: number;
+    icon?: any;
+    color?: string;
+  }[] = [
+    { id: 'tudo', label: 'Tudo', count: contagens.tudo },
+    {
+      id: 'a_pagar',
+      label: 'A Pagar',
+      count: contagens.aPagar,
+      icon: TrendingDown,
+      color: 'text-red-400',
+    },
+    {
+      id: 'a_receber',
+      label: 'A Receber',
+      count: contagens.aReceber,
+      icon: TrendingUp,
+      color: 'text-amber-400',
+    },
+    {
+      id: 'quitados',
+      label: 'Quitados',
+      count: contagens.quitados,
+      icon: CheckCircle2,
+      color: 'text-emerald-400',
+    },
+  ];
 
   const [ordemCrescente, setOrdemCrescente] = useState(false);
   const [itensVisiveis, setItensVisiveis] = useState(8);
@@ -134,6 +222,26 @@ export function Viagens({ onDataChange, dataVersion }: { onDataChange?: () => vo
   // Aplicação dos Filtros
   const corridasFiltradas = useMemo(() => {
     return corridas.filter((c) => {
+      // 0. Filtro de Status (Tudo, A Pagar, A Receber, Quitados)
+      if (filtroStatus !== 'tudo') {
+        const userStatus = getRideStatusForUser(c, corridas, amigos, nettingCache);
+        if (filtroStatus === 'a_pagar' && !(userStatus.amountYouOwe > 0.005)) {
+          return false;
+        }
+        if (filtroStatus === 'a_receber' && !(userStatus.amountOwedToYou > 0.005)) {
+          return false;
+        }
+        if (
+          filtroStatus === 'quitados' &&
+          !(
+            userStatus.status === 'quitado' ||
+            (userStatus.status === 'pagante' && userStatus.amountOwedToYou <= 0.005)
+          )
+        ) {
+          return false;
+        }
+      }
+
       // 1. Busca textual por nome, tag ou participante
       if (busca.trim()) {
         const termo = busca.trim().toLowerCase();
@@ -176,7 +284,7 @@ export function Viagens({ onDataChange, dataVersion }: { onDataChange?: () => vo
 
       return true;
     });
-  }, [corridas, amigos, busca, filtroAmigoId, filtroTag, dataInicio, dataFim]);
+  }, [corridas, amigos, busca, filtroStatus, filtroAmigoId, filtroTag, dataInicio, dataFim, nettingCache]);
 
   const corridasOrdenadas = useMemo(() => {
     return [...corridasFiltradas].sort((a, b) => {
@@ -208,12 +316,14 @@ export function Viagens({ onDataChange, dataVersion }: { onDataChange?: () => vo
   }, [corridasPaginadas, anoAtual, mesAtual]);
 
   const totalFiltrosAtivos =
+    (filtroStatus !== 'tudo' ? 1 : 0) +
     (busca.trim() ? 1 : 0) +
     (filtroAmigoId ? 1 : 0) +
     (filtroTag ? 1 : 0) +
     (dataInicio || dataFim ? 1 : 0);
 
   const limparFiltros = () => {
+    handleSetFiltroStatus('tudo');
     setBusca('');
     setFiltroAmigoId('');
     setFiltroTag('');
@@ -343,10 +453,60 @@ export function Viagens({ onDataChange, dataVersion }: { onDataChange?: () => vo
         )}
       </div>
 
+      {/* Botões de Filtros Rápidos de Status (Tudo, A Pagar, A Receber, Quitados) */}
+      <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto pb-1 scrollbar-hide overscroll-x-contain touch-pan-x pt-0.5">
+        {botoesFiltro.map((btn) => {
+          const isActive = filtroStatus === btn.id;
+          const Icon = btn.icon;
+          return (
+            <button
+              key={btn.id}
+              type="button"
+              onClick={() => handleSetFiltroStatus(btn.id)}
+              className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-1.5 shrink-0 ${
+                isActive
+                  ? 'bg-[#2DD4BF] text-[#05080f] font-bold shadow-sm'
+                  : 'bg-[#1c1c1e] text-gray-400 hover:text-white border border-white/5'
+              }`}
+            >
+              {Icon && (
+                <Icon
+                  size={13}
+                  className={isActive ? 'text-[#05080f]' : btn.color}
+                />
+              )}
+              <span>{btn.label}</span>
+              <span
+                className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                  isActive
+                    ? 'bg-[#05080f]/20 text-[#05080f]'
+                    : 'bg-white/5 text-gray-400'
+                }`}
+              >
+                {btn.count}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
       {/* Chips Rápidos de Filtros Ativos (aparecem quando qualquer filtro está ativo) */}
       {totalFiltrosAtivos > 0 && (
         <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-hide text-xs overscroll-x-contain touch-pan-x">
           <span className="text-[11px] text-gray-500 font-medium shrink-0 mr-1">Filtros:</span>
+
+          {filtroStatus !== 'tudo' && (
+            <span className="bg-[#2DD4BF]/15 text-[#2DD4BF] border border-[#2DD4BF]/30 px-2.5 py-1 rounded-full flex items-center gap-1.5 shrink-0">
+              {filtroStatus === 'a_pagar'
+                ? 'A Pagar'
+                : filtroStatus === 'a_receber'
+                ? 'A Receber'
+                : 'Quitados'}
+              <button onClick={() => handleSetFiltroStatus('tudo')} className="hover:text-white">
+                <X size={12} />
+              </button>
+            </span>
+          )}
 
           {busca.trim() && (
             <span className="bg-[#2DD4BF]/15 text-[#2DD4BF] border border-[#2DD4BF]/30 px-2.5 py-1 rounded-full flex items-center gap-1.5 shrink-0">

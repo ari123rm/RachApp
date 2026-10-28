@@ -40,12 +40,14 @@ export function Home({
   updateInfo,
   onOpenUpdateModal,
   onOpenNotifications,
+  onNavigateToRachas,
 }: {
   onDataChange?: () => void;
   dataVersion?: number;
   updateInfo?: AppReleaseInfo | null;
   onOpenUpdateModal?: () => void;
   onOpenNotifications?: () => void;
+  onNavigateToRachas?: (filtro: 'tudo' | 'a_pagar' | 'a_receber' | 'quitados') => void;
 }) {
   const dataAtual = new Date();
   const ymAtual = `${dataAtual.getFullYear()}-${String(dataAtual.getMonth() + 1).padStart(2, '0')}`;
@@ -298,7 +300,15 @@ export function Home({
 
           {/* Cards A Receber e A Pagar */}
           <div className="grid grid-cols-2 gap-2.5 sm:gap-3">
-            <div className="bg-white/10 backdrop-blur-md rounded-2xl p-3 sm:p-3.5 flex flex-col justify-between border border-white/10 min-w-0">
+            <div
+              onClick={() => onNavigateToRachas?.('a_receber')}
+              className={`bg-white/10 backdrop-blur-md rounded-2xl p-3 sm:p-3.5 flex flex-col justify-between border border-white/10 min-w-0 transition-all ${
+                onNavigateToRachas
+                  ? 'cursor-pointer hover:bg-white/15 active:scale-[0.98]'
+                  : ''
+              }`}
+              title="Filtrar rachas a receber"
+            >
               <div className="flex items-center gap-1.5 sm:gap-2 mb-1.5 sm:mb-2 min-w-0">
                 <div className="w-7 h-7 sm:w-8 sm:h-8 bg-amber-400 rounded-full flex items-center justify-center text-[#05080f] shrink-0">
                   <TrendingUp size={15} />
@@ -312,7 +322,15 @@ export function Home({
               </p>
             </div>
 
-            <div className="bg-white/10 backdrop-blur-md rounded-2xl p-3 sm:p-3.5 flex flex-col justify-between border border-white/10 min-w-0">
+            <div
+              onClick={() => onNavigateToRachas?.('a_pagar')}
+              className={`bg-white/10 backdrop-blur-md rounded-2xl p-3 sm:p-3.5 flex flex-col justify-between border border-white/10 min-w-0 transition-all ${
+                onNavigateToRachas
+                  ? 'cursor-pointer hover:bg-white/15 active:scale-[0.98]'
+                  : ''
+              }`}
+              title="Filtrar rachas a pagar"
+            >
               <div className="flex items-center gap-1.5 sm:gap-2 mb-1.5 sm:mb-2 min-w-0">
                 <div className="w-7 h-7 sm:w-8 sm:h-8 bg-red-500 rounded-full flex items-center justify-center text-white shrink-0">
                   <TrendingDown size={15} />
