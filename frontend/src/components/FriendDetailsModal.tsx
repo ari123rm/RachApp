@@ -266,8 +266,8 @@ export function FriendDetailsModal({
             Object.entries(corrida.comprovantes || {}).find(([k]) => matchingFriendIds.has(k))?.[1] ||
             null;
           const receiptUrl = amigoFoiPagador
-            ? corrida.selfReceiptUrl || receiptFromFriend
-            : receiptFromFriend || corrida.selfReceiptUrl || null;
+            ? corrida.selfReceiptUrl || null
+            : receiptFromFriend || null;
 
           return {
             id: corrida.id,

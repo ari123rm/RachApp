@@ -1,6 +1,6 @@
 // src/components/GroupDetailsModal.tsx
 import { createPortal } from 'react-dom';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   ChevronLeft,
   UserPlus,
@@ -16,7 +16,6 @@ import {
   Users,
   Upload,
   BadgeCheck,
-  FileCheck2,
 } from 'lucide-react';
 import { dbService } from '../services/database';
 import moneyConverter from '../utils/moneyConverter';
@@ -26,9 +25,12 @@ import { AddFriendModal } from './AddFriendModal';
 import { PixModal } from './PixModal';
 import { PayWithReceiptModal } from './ReceiptModals';
 import { RideDetailsModal } from './RideDetailsModal';
+import { RideStatusView } from './RideCard';
 import { formatPhoneBR } from '../utils/phoneFormatter';
 import { useModalBackHandler } from '../utils/modalBackHandler';
 import { getAvatarColor } from '../utils/avatarColor';
+import { getRideStatusForUser } from '../utils/rideStatus';
+import type { CorridaNettingInfo } from '../utils/netting';
 import type { Amigo, Corrida, Grupo, Transferencia } from '../types';
 
 interface GroupDetailsProps {
@@ -57,6 +59,11 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
   const [isEditGroupOpen, setIsEditGroupOpen] = useState(false);
   const [isCreateFriendOpen, setIsCreateFriendOpen] = useState(false);
   const [corridaSelecionada, setCorridaSelecionada] = useState<Corrida | null>(null);
+
+  const nettingCache = useMemo(
+    () => new Map<string, Map<string, CorridaNettingInfo>>(),
+    [todasCorridas, todosAmigos]
+  );
 
   const [payMemberTarget, setPayMemberTarget] = useState<{
     isOpen: boolean;
@@ -103,6 +110,9 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
       setGrupo(dadosGrupo);
       setTodosAmigos(amigos);
       setTodasCorridas(corridas);
+      setCorridaSelecionada((prev) =>
+        prev ? corridas.find((c) => c.id === prev.id) || prev : null
+      );
       setMyConfig({
         id: config.id,
         nome: config.nome || config.name || 'Você',
@@ -699,38 +709,54 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
                 <div className="space-y-2.5">
                   {grupo.expenses.map((expense: any) => {
                     const totalParts = (expense.participants?.length || 0) + 1;
-                    const partSum = (expense.participants || []).reduce(
-                      (acc: number, p: any) => acc + Number(p.amount_owed || 0),
-                      0
+                    const valorTotalExp = Number(expense.total_amount || 0);
+                    const corridaCompleta: Corrida =
+                      todasCorridas.find((c) => c.id === expense.id) || {
+                        id: expense.id,
+                        titulo: expense.title || 'Racha',
+                        valorTotal: valorTotalExp,
+                        selfAmountOwed:
+                          expense.self_amount_owed !== undefined &&
+                          expense.self_amount_owed !== null
+                            ? Number(expense.self_amount_owed)
+                            : undefined,
+                        selfAmountPaid: Number(expense.self_amount_paid || 0),
+                        selfReceiptUrl: expense.self_receipt_url || null,
+                        data: expense.expense_date?.split('T')[0] || '',
+                        tag: expense.tag || 'Uber',
+                        groupId: grupo.id,
+                        groupName: grupo.name,
+                        paidByFriendId: expense.paid_by_friend_id || null,
+                        paidByName: expense.paidByFriend?.name || 'Amigo',
+                        participantesIds: (expense.participants || []).map(
+                          (p: any) => p.friend_id
+                        ),
+                        pagamentos: Object.fromEntries(
+                          (expense.participants || []).map((p: any) => [
+                            p.friend_id,
+                            Number(p.amount_paid || 0),
+                          ])
+                        ),
+                        valoresDevidos: Object.fromEntries(
+                          (expense.participants || []).map((p: any) => [
+                            p.friend_id,
+                            Number(p.amount_owed || 0),
+                          ])
+                        ),
+                      };
+
+                    const userStatus = getRideStatusForUser(
+                      corridaCompleta,
+                      todasCorridas,
+                      todosAmigos,
+                      nettingCache
                     );
-                    const suaParte =
-                      expense.self_amount_owed !== null &&
-                      expense.self_amount_owed !== undefined &&
-                      Number(expense.self_amount_owed) > 0
-                        ? Number(expense.self_amount_owed)
-                        : Math.abs(partSum - Number(expense.total_amount || 0)) <= 0.1 ||
-                          partSum >= Number(expense.total_amount || 0) - 0.1
-                        ? 0
-                        : Number(expense.total_amount || 0) / totalParts;
-                    const corridaCompleta = todasCorridas.find((c) => c.id === expense.id);
-                    const receiptUrl =
-                      corridaCompleta?.selfReceiptUrl ||
-                      Object.values(corridaCompleta?.comprovantes || {}).find(Boolean) ||
-                      expense.self_receipt_url ||
-                      (expense.participants || []).find((p: any) => p.receipt_url)?.receipt_url ||
-                      null;
 
                     return (
                       <div
                         key={expense.id}
-                        onClick={() => {
-                          if (corridaCompleta) {
-                            setCorridaSelecionada(corridaCompleta);
-                          }
-                        }}
-                        className={`bg-[#1c1c1e] hover:bg-[#2c2c2e] p-4 rounded-2xl border flex justify-between items-center cursor-pointer transition-colors ${
-                          receiptUrl ? 'border-sky-500/30' : 'border-white/5'
-                        }`}
+                        onClick={() => setCorridaSelecionada(corridaCompleta)}
+                        className="bg-[#1c1c1e] hover:bg-[#2c2c2e] p-4 rounded-2xl border border-white/5 flex justify-between items-center cursor-pointer transition-colors"
                       >
                         <div className="flex items-center gap-3 min-w-0">
                           <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center text-[#2DD4BF] shrink-0">
@@ -741,22 +767,17 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
                               <h5 className="text-white font-semibold text-sm truncate">
                                 {expense.title}
                               </h5>
-                              {receiptUrl && (
-                                <span className="inline-flex items-center gap-1 text-[10px] bg-sky-500/20 text-sky-300 px-2 py-0.5 rounded-md font-semibold shrink-0">
-                                  <FileCheck2 size={10} /> Comprovante
-                                </span>
-                              )}
                             </div>
-                            <p className="text-xs text-gray-500 mt-0.5">
-                              {expense.expense_date?.split('T')[0]} • Dividido por {totalParts}
+                            <p className="text-xs text-gray-500 mt-0.5 truncate">
+                              {expense.expense_date?.split('T')[0]} • Dividido por {totalParts} • Total R$ {moneyConverter(valorTotalExp)}
                             </p>
                           </div>
                         </div>
                         <div className="text-right shrink-0 ml-2">
-                          <p className="text-sm font-bold text-white">
-                            R$ {moneyConverter(suaParte)}
-                          </p>
-                          <p className="text-[10px] text-gray-500">sua parte</p>
+                          <RideStatusView
+                            userStatus={userStatus}
+                            valorTotal={moneyConverter(valorTotalExp)}
+                          />
                         </div>
                       </div>
                     );

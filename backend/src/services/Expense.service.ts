@@ -138,7 +138,7 @@ export class ExpenseService {
         friend_id: ownerLocalFriend.id,
         amount_owed: ownerOwed,
         amount_paid: ownerPaid,
-        receipt_url: exp.self_receipt_url || null,
+        receipt_url: !exp.paid_by_friend_id ? null : exp.self_receipt_url || null,
         friend: ownerLocalFriend,
       },
     ];
@@ -162,12 +162,15 @@ export class ExpenseService {
             color: p.friend.color || 'bg-sky-500',
           }));
         if (participantFriend.id !== ownerLocalFriend.id) {
+          const isThisParticipantPayer = Boolean(
+            exp.paid_by_friend_id && exp.paid_by_friend_id === p.friend_id
+          );
           transformedParticipants.push({
             expense_id: exp.id,
             friend_id: participantFriend.id,
             amount_owed: Number(p.amount_owed),
             amount_paid: Number(p.amount_paid),
-            receipt_url: p.receipt_url || null,
+            receipt_url: isThisParticipantPayer ? null : p.receipt_url || null,
             friend: participantFriend,
           });
         }
@@ -184,7 +187,7 @@ export class ExpenseService {
       paidByFriend: transformedPaidByFriend,
       self_amount_owed: myOwed,
       self_amount_paid: myPaid,
-      self_receipt_url: myPart?.receipt_url || null,
+      self_receipt_url: iAmPayer ? null : myPart?.receipt_url || null,
       participants: transformedParticipants,
     };
   }

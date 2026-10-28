@@ -17,6 +17,8 @@ import {
 import type { Corrida, Amigo } from '../types';
 import { dbService } from '../services/database';
 import moneyConverter from '../utils/moneyConverter';
+import { getRideStatusForUser } from '../utils/rideStatus';
+import type { CorridaNettingInfo } from '../utils/netting';
 
 function formatDateIso(d: Date): string {
   const year = d.getFullYear();
@@ -32,14 +34,10 @@ export function Viagens({ onDataChange, dataVersion }: { onDataChange?: () => vo
   const [isLoading, setIsLoading] = useState(true);
   const [corridaSelecionadaId, setCorridaSelecionadaId] = useState<string | null>(null);
 
-  const obterComprovanteDaCorrida = (c: Corrida): string | null => {
-    if (c.selfReceiptUrl) return c.selfReceiptUrl;
-    if (c.comprovantes) {
-      const firstReceipt = Object.values(c.comprovantes).find((u) => Boolean(u));
-      if (firstReceipt) return firstReceipt;
-    }
-    return null;
-  };
+  const nettingCache = useMemo(
+    () => new Map<string, Map<string, CorridaNettingInfo>>(),
+    [corridas, amigos]
+  );
 
   // Estados de Busca e Filtros
   const [busca, setBusca] = useState('');
@@ -609,7 +607,7 @@ export function Viagens({ onDataChange, dataVersion }: { onDataChange?: () => vo
 
                 <div className="space-y-3">
                   {corridasDoMes.map((corrida) => {
-                    const receiptUrl = obterComprovanteDaCorrida(corrida);
+                    const userStatus = getRideStatusForUser(corrida, corridas, amigos, nettingCache);
                     return (
                       <RideCard
                         key={corrida.id}
@@ -617,7 +615,7 @@ export function Viagens({ onDataChange, dataVersion }: { onDataChange?: () => vo
                         tag={corrida.tag}
                         titulo={corrida.titulo}
                         valorTotal={moneyConverter(corrida.valorTotal)}
-                        hasReceipt={Boolean(receiptUrl)}
+                        userStatus={userStatus}
                         participantes={[
                           { id: 0, nome: 'Você', cor: '#2DD4BF', avatar_url: myAvatarUrl },
                           ...getParticipantesCompletos(corrida.participantesIds).map((a, idx) => ({

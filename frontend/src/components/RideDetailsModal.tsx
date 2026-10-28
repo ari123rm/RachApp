@@ -160,6 +160,10 @@ export function RideDetailsModal({
 
   if (!isOpen || !ride) return null;
 
+  const nonPayerFriendsCount = participantes.filter(
+    (item: any) => item.id !== ride.paidByFriendId
+  ).length;
+
   return createPortal(
     <div
       className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4 animate-fade-in"
@@ -267,12 +271,14 @@ export function RideDetailsModal({
                 const isFriendPayer = ride.paidByFriendId === p.id;
                 const pNetting = nettingMap.get(p.id);
                 const isQuitado = isFriendPayer || valorPago >= valorParte - 0.01 || !!pNetting?.isQuitada;
-                const receiptDoAmigo =
-                  ride.comprovantes?.[p.id] ||
-                  (participantes.length === 1 && ride.comprovantes
-                    ? Object.values(ride.comprovantes).find(Boolean) || null
-                    : null) ||
-                  (isFriendPayer ? ride.selfReceiptUrl || null : null);
+                const receiptDoAmigo = isFriendPayer
+                  ? null
+                  : ride.comprovantes?.[p.id] ||
+                    (nonPayerFriendsCount === 1 && ride.comprovantes
+                      ? Object.entries(ride.comprovantes).find(
+                          ([k, v]) => k !== ride.paidByFriendId && Boolean(v)
+                        )?.[1] || null
+                      : null);
                 const receiptsDoAmigo = parseReceiptUrls(receiptDoAmigo);
 
                 return (
@@ -283,9 +289,7 @@ export function RideDetailsModal({
                         setReceiptToView({
                           isOpen: true,
                           url: receiptDoAmigo,
-                          title: isFriendPayer
-                            ? `Comprovante pago para ${nome}`
-                            : `Comprovante de ${nome}`,
+                          title: `Comprovante de ${nome}`,
                           initialIndex: 0,
                         });
                       }
@@ -330,9 +334,7 @@ export function RideDetailsModal({
                                 setReceiptToView({
                                   isOpen: true,
                                   url: receiptDoAmigo,
-                                  title: isFriendPayer
-                                    ? `Comprovante pago para ${nome}`
-                                    : `Comprovante de ${nome}`,
+                                  title: `Comprovante de ${nome}`,
                                   initialIndex: 0,
                                 });
                               }}
@@ -351,9 +353,7 @@ export function RideDetailsModal({
                                   setReceiptToView({
                                     isOpen: true,
                                     url: receiptDoAmigo,
-                                    title: isFriendPayer
-                                      ? `Comprovante pago para ${nome}`
-                                      : `Comprovante de ${nome}`,
+                                    title: `Comprovante de ${nome}`,
                                     initialIndex: rIdx,
                                   });
                                 }}
@@ -416,11 +416,6 @@ export function RideDetailsModal({
                               )}
                             </span>
                           ))}
-                        {isFriendPayer && receiptDoAmigo && (
-                          <span className="text-[11px] font-semibold mt-0.5 flex items-center gap-1 text-[#34C759]">
-                            <Check size={12} /> Pago c/ comprovante (toque p/ ver)
-                          </span>
-                        )}
                       </div>
                     </div>
                     <div className="text-right shrink-0">
@@ -437,21 +432,22 @@ export function RideDetailsModal({
 
               {/* Card Você */}
               {(() => {
-                const selfReceipts = parseReceiptUrls(ride.selfReceiptUrl);
+                const selfReceiptUrl = voceEhPagador ? null : ride.selfReceiptUrl || null;
+                const selfReceipts = parseReceiptUrls(selfReceiptUrl);
                 return (
                   <div
                     onClick={() => {
-                      if (ride.selfReceiptUrl) {
+                      if (selfReceiptUrl) {
                         setReceiptToView({
                           isOpen: true,
-                          url: ride.selfReceiptUrl || null,
+                          url: selfReceiptUrl,
                           title: 'Seu Comprovante de Pagamento',
                           initialIndex: 0,
                         });
                       }
                     }}
                     className={`flex justify-between items-center bg-[#1c1c1e] p-3.5 rounded-xl border transition-all ${
-                      ride.selfReceiptUrl
+                      selfReceiptUrl
                         ? 'border-sky-500/30 hover:border-[#2DD4BF]/50 cursor-pointer active:scale-[0.99]'
                         : 'border-white/5'
                     }`}
@@ -479,7 +475,7 @@ export function RideDetailsModal({
                                 e.stopPropagation();
                                 setReceiptToView({
                                   isOpen: true,
-                                  url: ride.selfReceiptUrl || null,
+                                  url: selfReceiptUrl,
                                   title: 'Seu Comprovante de Pagamento',
                                   initialIndex: 0,
                                 });
@@ -498,7 +494,7 @@ export function RideDetailsModal({
                                   e.stopPropagation();
                                   setReceiptToView({
                                     isOpen: true,
-                                    url: ride.selfReceiptUrl || null,
+                                    url: selfReceiptUrl,
                                     title: 'Seu Comprovante de Pagamento',
                                     initialIndex: rIdx,
                                   });
@@ -514,7 +510,7 @@ export function RideDetailsModal({
                             <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                               <span className="text-[11px] font-semibold flex items-center gap-1 text-[#34C759]">
                                 <Check size={12} />{' '}
-                                {ride.selfReceiptUrl ? 'Pago (toque p/ ver comprovante)' : 'Pago'}
+                                {selfReceiptUrl ? 'Pago (toque p/ ver comprovante)' : 'Pago'}
                               </span>
                               <button
                                 type="button"
