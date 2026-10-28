@@ -76,6 +76,7 @@ function App() {
 
   const containerRef = useRef<HTMLElement | null>(null);
   const trackRef = useRef<HTMLDivElement | null>(null);
+  const tabScrollRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const dragRef = useRef<{
     active: boolean;
     startX: number;
@@ -266,6 +267,19 @@ function App() {
     } else {
       setIsRideModalOpen(true);
     }
+  };
+
+  // Se o usuário clicar no ícone da aba que já está aberta na navbar, rola suavemente para o topo
+  const handleNavTabSelect = (tab: string) => {
+    if (tab === activeTab) {
+      const scrollEl = tabScrollRefs.current[tab];
+      if (scrollEl) {
+        scrollEl.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+    setActiveTab(tab);
   };
 
   // Arraste horizontal em tempo real (acompanhando o dedo a 60/120fps via GPU translate3d)
@@ -461,7 +475,12 @@ function App() {
         >
           {/* TAB 0: HOME */}
           <div className="w-full min-w-full h-full shrink-0 overflow-hidden">
-            <div className="w-full h-full overflow-y-auto p-4 md:p-6 pb-24 max-w-lg md:max-w-xl lg:max-w-2xl mx-auto scrollbar-hide touch-pan-y">
+            <div
+              ref={(el) => {
+                tabScrollRefs.current.home = el;
+              }}
+              className="w-full h-full overflow-y-auto p-4 md:p-6 pb-24 max-w-lg md:max-w-xl lg:max-w-2xl mx-auto scrollbar-hide touch-pan-y"
+            >
               <Home
                 dataVersion={dataVersion}
                 onDataChange={refreshData}
@@ -474,14 +493,24 @@ function App() {
 
           {/* TAB 1: VIAGENS / RACHAS */}
           <div className="w-full min-w-full h-full shrink-0 overflow-hidden">
-            <div className="w-full h-full overflow-y-auto p-4 md:p-6 pb-24 max-w-lg md:max-w-xl lg:max-w-2xl mx-auto scrollbar-hide touch-pan-y">
+            <div
+              ref={(el) => {
+                tabScrollRefs.current.viagens = el;
+              }}
+              className="w-full h-full overflow-y-auto p-4 md:p-6 pb-24 max-w-lg md:max-w-xl lg:max-w-2xl mx-auto scrollbar-hide touch-pan-y"
+            >
               <Viagens dataVersion={dataVersion} onDataChange={refreshData} />
             </div>
           </div>
 
           {/* TAB 2: CONTATOS (com Amigos e Grupos internos) */}
           <div className="w-full min-w-full h-full shrink-0 overflow-hidden">
-            <div className="w-full h-full overflow-y-auto p-4 md:p-6 pb-24 max-w-lg md:max-w-xl lg:max-w-2xl mx-auto scrollbar-hide touch-pan-y">
+            <div
+              ref={(el) => {
+                tabScrollRefs.current.amigos = el;
+              }}
+              className="w-full h-full overflow-y-auto p-4 md:p-6 pb-24 max-w-lg md:max-w-xl lg:max-w-2xl mx-auto scrollbar-hide touch-pan-y"
+            >
               <Amigos
                 dataVersion={dataVersion}
                 onDataChange={refreshData}
@@ -493,7 +522,12 @@ function App() {
 
           {/* TAB 3: PERFIL */}
           <div className="w-full min-w-full h-full shrink-0 overflow-hidden">
-            <div className="w-full h-full overflow-y-auto p-4 md:p-6 pb-24 max-w-lg md:max-w-xl lg:max-w-2xl mx-auto scrollbar-hide touch-pan-y">
+            <div
+              ref={(el) => {
+                tabScrollRefs.current.perfil = el;
+              }}
+              className="w-full h-full overflow-y-auto p-4 md:p-6 pb-24 max-w-lg md:max-w-xl lg:max-w-2xl mx-auto scrollbar-hide touch-pan-y"
+            >
               <Perfil
                 dataVersion={dataVersion}
                 onDataChange={() => setIsAuthenticated(false)}
@@ -510,7 +544,7 @@ function App() {
         </div>
       </main>
 
-      <BottomNav activeTab={activeTab} setActiveTab={setActiveTab} />
+      <BottomNav activeTab={activeTab} setActiveTab={handleNavTabSelect} />
 
       {(activeTab === 'home' || activeTab === 'viagens' || activeTab === 'amigos') && (
         <button
