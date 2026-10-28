@@ -103,7 +103,7 @@ jobs:
 
           echo "⏳ Aguardando banco PostgreSQL ficar saudável..."
           for i in $(seq 1 15); do
-            if docker exec rachapp-db pg_isready -U "${{ secrets.POSTGRES_USER || 'postgres' }}" -d "${{ secrets.POSTGRES_DB || 'rachapp' }}" &> /dev/null; then
+            if docker exec rachapp-postgres pg_isready -U "${{ secrets.POSTGRES_USER || 'postgres' }}" -d "${{ secrets.POSTGRES_DB || 'rachapp' }}" &> /dev/null; then
               echo "✅ PostgreSQL pronto e aceitando conexões!"
               exit 0
             fi
@@ -111,7 +111,7 @@ jobs:
           done
 
           echo "⚠️ Timeout aguardando pg_isready, verificando status do container:"
-          docker ps --filter "name=rachapp-db"
+          docker ps --filter "name=rachapp-postgres"
 
   deploy-backend:
     name: 4. Build e Deploy da API Backend na VPS
@@ -149,15 +149,14 @@ jobs:
           EOF
 
           if docker compose version &> /dev/null; then
-            docker compose up -d --build --no-deps backend
+            docker compose up -d --build --no-deps --force-recreate backend
           else
-            docker-compose up -d --build --no-deps backend
+            docker-compose up -d --build --no-deps --force-recreate backend
           fi
 
           echo "⏳ Verificando healthcheck da API Backend..."
-          BACKEND_PORT="${{ secrets.PORT || '5000' }}"
-          for i in $(seq 1 20); do
-            if curl -fsS "http://localhost:${BACKEND_PORT}/health" &> /dev/null || curl -fsS "http://localhost/health" &> /dev/null; then
+          for i in $(seq 1 25); do
+            if docker exec rachapp-backend wget --no-verbose --tries=1 --spider http://localhost:5000/health &> /dev/null; then
               echo "✅ Backend online e respondendo ao /health!"
               exit 0
             fi
