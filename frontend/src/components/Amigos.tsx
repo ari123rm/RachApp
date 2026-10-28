@@ -11,7 +11,12 @@ import {
   BadgeCheck,
   X,
   BookUser,
+  UserPlus,
+  RefreshCw,
+  Phone,
 } from 'lucide-react';
+import { formatPhoneBR, stripCountryCode, phonesMatchBR } from '../utils/phoneFormatter';
+import { getCachedPhoneContacts, requestDeviceContacts } from '../utils/phoneContacts';
 import { FriendCard } from './FriendCard';
 import { FriendDetailsModal } from './FriendDetailsModal';
 import { AddFriendModal } from './AddFriendModal';
@@ -54,7 +59,10 @@ export function Amigos({
   const [grupos, setGrupos] = useState<Grupo[]>([]);
   const [solicitacoesAmizade, setSolicitacoesAmizade] = useState<any[]>([]);
   const [convitesGrupo, setConvitesGrupo] = useState<any[]>([]);
+  const [usuariosComConta, setUsuariosComConta] = useState<any[]>([]);
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
+  const [addingUserId, setAddingUserId] = useState<string | null>(null);
+  const [isSyncingAgenda, setIsSyncingAgenda] = useState(false);
 
   const [isAddFriendOpen, setIsAddFriendOpen] = useState(false);
   const [isAddGroupOpen, setIsAddGroupOpen] = useState(false);
@@ -68,12 +76,25 @@ export function Amigos({
       setIsLoading(true);
     }
     try {
-      const [sessionUser, dadosAmigos, dadosGrupos, dadosSolicitacoes, dadosConvites] = await Promise.all([
+      const cachedPhoneContacts = getCachedPhoneContacts().map((c) => ({
+        name: c.name,
+        phone: c.cleanPhone || c.phone,
+      }));
+
+      const [
+        sessionUser,
+        dadosAmigos,
+        dadosGrupos,
+        dadosSolicitacoes,
+        dadosConvites,
+        dadosUsuariosComConta,
+      ] = await Promise.all([
         dbService.auth.getSessionUser(),
         dbService.amigos.getAll(),
         dbService.grupos.getAll(),
         dbService.amigos.getPendingRequests(),
         dbService.grupos.getPendingInvitations(),
+        dbService.amigos.discoverRegisteredUsers(cachedPhoneContacts),
       ]);
 
       if (sessionUser?.id) {
@@ -106,6 +127,7 @@ export function Amigos({
       setGrupos(dadosGrupos);
       setSolicitacoesAmizade(dadosSolicitacoes);
       setConvitesGrupo(dadosConvites);
+      setUsuariosComConta(dadosUsuariosComConta);
     } catch (error) {
       console.error('Erro ao buscar amigos e grupos:', error);
     } finally {
@@ -129,6 +151,49 @@ export function Amigos({
       carregarDados(false);
     }
   }, [dataVersion]);
+
+  const handleSincronizarAgenda = async () => {
+    setIsSyncingAgenda(true);
+    try {
+      const res = await requestDeviceContacts();
+      if (res.status === 'ok') {
+        const discovered = await dbService.amigos.discoverRegisteredUsers(
+          res.contacts.map((c) => ({ name: c.name, phone: c.cleanPhone || c.phone }))
+        );
+        setUsuariosComConta(discovered);
+      } else if (res.status === 'permission_denied') {
+        alert(
+          'Permissão de acesso aos contatos negada. Permita o acesso aos contatos para encontrar amigos da sua agenda.'
+        );
+      } else if (res.status === 'unsupported_apk' || res.status === 'unsupported_browser') {
+        setIsImportContactsOpen(true);
+      }
+    } finally {
+      setIsSyncingAgenda(false);
+    }
+  };
+
+  const handleAdicionarUsuarioComConta = async (user: any) => {
+    setAddingUserId(user.id);
+    try {
+      const displayName = (user.contact_name || user.name || 'Amigo').trim().slice(0, 30);
+      const cleanPhone = stripCountryCode(user.phone || '');
+      await dbService.amigos.create({
+        nome: displayName,
+        telefone: cleanPhone,
+        pix_key: user.pix_key || '',
+        cor: user.color || 'bg-teal-500',
+        favorito: false,
+      });
+      setUsuariosComConta((prev) => prev.filter((u) => u.id !== user.id));
+      await carregarDados(false);
+      if (onDataChange) onDataChange();
+    } catch (err: any) {
+      alert(err?.message || 'Erro ao adicionar amigo.');
+    } finally {
+      setAddingUserId(null);
+    }
+  };
 
   const handleToggleFavorito = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -281,6 +346,31 @@ export function Amigos({
     return amigos.filter((a) => a.favorito);
   }, [amigos]);
 
+  const usuariosComContaFiltrados = useMemo(() => {
+    return usuariosComConta.filter((u) => {
+      const uPhone = stripCountryCode(u.phone || '');
+      const jaEhAmigo = amigos.some((f) => {
+        const fPhone = stripCountryCode(f.telefone || f.phone || '');
+        return Boolean(uPhone && fPhone && phonesMatchBR(uPhone, fPhone));
+      });
+      if (jaEhAmigo) return false;
+
+      if (buscaAmigos.trim()) {
+        const termo = buscaAmigos.trim().toLowerCase();
+        const termoDigits = termo.replace(/\D/g, '');
+        const nomeMatch =
+          (u.name || '').toLowerCase().includes(termo) ||
+          (u.contact_name || '').toLowerCase().includes(termo);
+        const foneMatch =
+          (u.phone || '').toLowerCase().includes(termo) ||
+          (termoDigits.length >= 3 && uPhone.includes(termoDigits));
+        if (!nomeMatch && !foneMatch) return false;
+      }
+
+      return true;
+    });
+  }, [usuariosComConta, amigos, buscaAmigos]);
+
   // Contagens para chips de filtro de grupos
   const contagemMeusGrupos = useMemo(() => {
     if (!currentUserId) return 0;
@@ -341,16 +431,6 @@ export function Amigos({
       <header className="mt-2 space-y-3.5">
         <div className="flex justify-between items-center gap-2">
           <h1 className="text-3xl font-bold text-white">Contatos</h1>
-          {subTab === 'amigos' && (
-            <button
-              type="button"
-              onClick={() => setIsImportContactsOpen(true)}
-              className="bg-[#2DD4BF]/15 hover:bg-[#2DD4BF]/25 border border-[#2DD4BF]/30 text-[#2DD4BF] px-3 py-2 rounded-2xl text-xs font-bold flex items-center gap-1.5 transition-all active:scale-95 shrink-0"
-            >
-              <BookUser size={15} />
-              <span>Adicionar da Lista de Contatos</span>
-            </button>
-          )}
         </div>
 
         {/* Barra de alternância Amigos / Grupos com indicador deslizante */}
@@ -720,6 +800,130 @@ export function Amigos({
                   ))
                 )}
               </div>
+            </section>
+
+            {/* AMIGOS QUE JÁ POSSUEM CONTA */}
+            <section className="pb-10">
+              <div className="flex items-center justify-between gap-2 mb-3">
+                <div className="flex items-center gap-2 min-w-0">
+                  <BadgeCheck size={18} className="text-[#2DD4BF] shrink-0" />
+                  <h2 className="text-lg font-bold text-white truncate">
+                    Amigos que já possuem conta
+                  </h2>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleSincronizarAgenda}
+                  disabled={isSyncingAgenda}
+                  className="text-xs font-bold text-[#2DD4BF] hover:underline flex items-center gap-1.5 shrink-0 disabled:opacity-50"
+                >
+                  <RefreshCw size={13} className={isSyncingAgenda ? 'animate-spin' : ''} />
+                  <span>Sincronizar agenda</span>
+                </button>
+              </div>
+
+              {usuariosComContaFiltrados.length === 0 ? (
+                <div className="bg-[#1c1c1e] p-6 rounded-3xl text-center border border-white/5 space-y-2.5">
+                  <p className="text-sm text-gray-300 font-medium">
+                    Nenhum novo contato com conta encontrado
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    Sincronize sua agenda do celular para encontrar contatos que já têm conta no RachApp.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={handleSincronizarAgenda}
+                    disabled={isSyncingAgenda}
+                    className="bg-[#2DD4BF]/15 text-[#2DD4BF] hover:bg-[#2DD4BF]/25 border border-[#2DD4BF]/30 px-4 py-2 rounded-xl text-xs font-bold inline-flex items-center gap-1.5 transition-colors disabled:opacity-50"
+                  >
+                    <BookUser size={14} />
+                    <span>Buscar na minha agenda</span>
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-2.5">
+                  {usuariosComContaFiltrados.map((user) => {
+                    const isAdding = addingUserId === user.id;
+                    const displayName = user.contact_name || user.name || 'Usuário';
+                    const subName =
+                      user.contact_name &&
+                      user.name &&
+                      user.contact_name.trim().toLowerCase() !== user.name.trim().toLowerCase()
+                        ? user.name
+                        : null;
+
+                    return (
+                      <div
+                        key={user.id}
+                        className="bg-[#1c1c1e] rounded-2xl p-3.5 border border-white/5 flex items-center justify-between gap-3 hover:border-[#2DD4BF]/30 transition-colors"
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div
+                            style={
+                              user.avatar_url
+                                ? undefined
+                                : { backgroundColor: getAvatarColor(user.color || 'bg-teal-500') }
+                            }
+                            className="w-11 h-11 rounded-2xl overflow-hidden flex items-center justify-center text-white font-bold text-base shrink-0 border border-white/10"
+                          >
+                            {user.avatar_url ? (
+                              <img
+                                src={user.avatar_url}
+                                alt={displayName}
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              displayName[0]?.toUpperCase() || 'U'
+                            )}
+                          </div>
+
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-1.5">
+                              <h3 className="text-sm font-bold text-white truncate">
+                                {displayName}
+                              </h3>
+                              <BadgeCheck
+                                size={14}
+                                className="text-[#2DD4BF] fill-[#2DD4BF]/20 shrink-0"
+                              />
+                              {user.is_in_contacts && (
+                                <span className="text-[10px] font-bold text-[#2DD4BF] bg-[#2DD4BF]/10 px-1.5 py-0.5 rounded-md shrink-0">
+                                  Na agenda
+                                </span>
+                              )}
+                            </div>
+
+                            {subName && (
+                              <p className="text-[11px] text-gray-400 truncate">
+                                Conta: {subName}
+                              </p>
+                            )}
+
+                            <p className="text-xs text-gray-400 flex items-center gap-1 mt-0.5 truncate">
+                              <Phone size={11} className="text-gray-500 shrink-0" />
+                              <span>{formatPhoneBR(stripCountryCode(user.phone || ''))}</span>
+                            </p>
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          disabled={isAdding}
+                          onClick={() => handleAdicionarUsuarioComConta(user)}
+                          className="px-3.5 py-2 rounded-xl text-xs font-bold bg-[#2DD4BF] text-[#05080f] hover:brightness-110 active:scale-95 transition-all shadow-md flex items-center gap-1.5 shrink-0 disabled:opacity-50"
+                        >
+                          {isAdding ? (
+                            <LoaderCircle size={14} className="animate-spin" />
+                          ) : (
+                            <UserPlus size={14} strokeWidth={2.5} />
+                          )}
+                          <span>Adicionar</span>
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </section>
           </div>
         ) : (

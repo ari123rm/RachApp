@@ -692,6 +692,79 @@ export class FriendService {
     }));
   }
 
+  static async discoverRegisteredUsers(
+    userId: string,
+    rawContacts?: Array<{ name?: string; phone?: string }>
+  ) {
+    const [myFriends, allRequests, allUsers] = await Promise.all([
+      prisma.friend.findMany({
+        where: { user_id: userId },
+        select: { id: true, name: true, phone: true },
+      }),
+      prisma.friendshipRequest.findMany({
+        where: {
+          OR: [{ sender_id: userId }, { receiver_id: userId }],
+        },
+      }),
+      prisma.user.findMany({
+        where: { id: { not: userId } },
+        select: {
+          id: true,
+          name: true,
+          phone: true,
+          pix_key: true,
+          avatar_url: true,
+        },
+        orderBy: { name: 'asc' },
+      }),
+    ]);
+
+    const contactsList = Array.isArray(rawContacts) ? rawContacts : [];
+
+    const results = allUsers
+      .filter((u) => {
+        if (!u.phone) return false;
+        // Filtra usuários que já estão na lista de amigos do usuário
+        const alreadyFriend = myFriends.some(
+          (f) => f.phone && phonesMatch(f.phone, u.phone)
+        );
+        return !alreadyFriend;
+      })
+      .map((u) => {
+        const matchedContact = contactsList.find(
+          (c) => c.phone && phonesMatch(c.phone, u.phone)
+        );
+        const existingReq = allRequests.find(
+          (r) =>
+            (r.sender_id === userId && r.receiver_id === u.id) ||
+            (r.sender_id === u.id && r.receiver_id === userId)
+        );
+
+        return {
+          id: u.id,
+          name: u.name,
+          contact_name: matchedContact?.name?.trim() || null,
+          phone: u.phone,
+          pix_key: u.pix_key?.trim() || null,
+          avatar_url: u.avatar_url || null,
+          has_account: true,
+          is_registered: true,
+          is_in_contacts: Boolean(matchedContact),
+          request_status: existingReq?.status || null,
+          color: 'bg-teal-500',
+        };
+      });
+
+    results.sort((a, b) => {
+      if (a.is_in_contacts !== b.is_in_contacts) {
+        return a.is_in_contacts ? -1 : 1;
+      }
+      return (a.name || '').localeCompare(b.name || '', 'pt-BR');
+    });
+
+    return results;
+  }
+
   static async acceptRequest(userId: string, requestId: string) {
     const request = await prisma.friendshipRequest.findFirst({
       where: {

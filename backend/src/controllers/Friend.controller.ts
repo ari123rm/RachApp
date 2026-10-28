@@ -31,6 +31,16 @@ export class FriendController {
     }
   }
 
+  static async discoverRegisteredUsers(req: Request, res: Response) {
+    try {
+      const contacts = Array.isArray(req.body?.contacts) ? req.body.contacts : [];
+      const users = await FriendService.discoverRegisteredUsers(req.user!.userId, contacts);
+      res.status(200).json(users);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  }
+
   static async acceptRequest(req: Request, res: Response) {
     try {
       const result = await FriendService.acceptRequest(req.user!.userId, req.params.id);

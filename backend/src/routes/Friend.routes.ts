@@ -10,7 +10,9 @@ router.use(authMiddleware);
 router.get('/', FriendController.list);
 router.post('/', FriendController.create);
 
-// Solicitações de amizade (devem vir antes de /:id)
+// Solicitações de amizade e descoberta de contas (devem vir antes de /:id)
+router.get('/discover', FriendController.discoverRegisteredUsers);
+router.post('/discover', FriendController.discoverRegisteredUsers);
 router.get('/requests', FriendController.listPendingRequests);
 router.post('/requests/:id/accept', FriendController.acceptRequest);
 router.post('/requests/:id/reject', FriendController.rejectRequest);

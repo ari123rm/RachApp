@@ -1210,6 +1210,20 @@ export const dbService = {
       await syncWithBackend(true);
       return data;
     },
+
+    discoverRegisteredUsers: async (
+      contacts?: Array<{ name?: string; phone?: string }>
+    ): Promise<any[]> => {
+      try {
+        const { data } = await api.post('/friends/discover', {
+          contacts: Array.isArray(contacts) ? contacts : [],
+        });
+        return Array.isArray(data) ? data : [];
+      } catch (err) {
+        console.warn('Erro ao buscar amigos que já possuem conta:', err);
+        return [];
+      }
+    },
   },
 
   // ==========================================

@@ -1,5 +1,5 @@
 // src/components/ImportContactsModal.tsx
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import {
   X,
@@ -11,61 +11,28 @@ import {
   Phone,
   AlertCircle,
   Upload,
+  BadgeCheck,
+  RefreshCw,
 } from 'lucide-react';
 import { dbService } from '../services/database';
 import { formatPhoneBR, stripCountryCode, phonesMatchBR } from '../utils/phoneFormatter';
 import { useModalBackHandler } from '../utils/modalBackHandler';
 import { getAvatarColor, PRESET_AVATAR_COLORS } from '../utils/avatarColor';
+import {
+  requestDeviceContacts,
+  parseVCardContacts,
+  getCachedPhoneContacts,
+  type RawContactItem,
+} from '../utils/phoneContacts';
 import type { Amigo } from '../types';
 
-export interface RawPhoneContact {
-  id: string;
-  name: string;
-  phone: string;
-  cleanPhone: string;
-}
+export type RawPhoneContact = RawContactItem;
 
 interface ImportContactsModalProps {
   isOpen: boolean;
   onClose: () => void;
   existingFriends?: Amigo[];
   onImported?: (importedFriends: Amigo[]) => void;
-}
-
-function parseVcfContacts(vcfText: string): RawPhoneContact[] {
-  const results: RawPhoneContact[] = [];
-  const cards = vcfText.split(/BEGIN:VCARD/i);
-  let idx = 0;
-
-  for (const card of cards) {
-    if (!card.trim()) continue;
-    const fnMatch = card.match(/^FN(?:;[^:]*)?:(.+)$/im);
-    const telMatches = Array.from(card.matchAll(/^TEL(?:;[^:]*)?:(.+)$/gim));
-    const rawName = fnMatch ? fnMatch[1].trim() : '';
-
-    if (telMatches.length === 0 && rawName) {
-      results.push({
-        id: `vcf_${idx++}`,
-        name: rawName,
-        phone: '',
-        cleanPhone: '',
-      });
-    } else {
-      for (const tm of telMatches) {
-        const rawPhone = (tm[1] || '').trim();
-        const cleanPhone = stripCountryCode(rawPhone);
-        if (!rawName && !cleanPhone) continue;
-        results.push({
-          id: `vcf_${idx++}_${cleanPhone}`,
-          name: rawName || formatPhoneBR(cleanPhone) || rawPhone,
-          phone: rawPhone,
-          cleanPhone,
-        });
-      }
-    }
-  }
-
-  return results;
 }
 
 export function ImportContactsModal({
@@ -83,81 +50,57 @@ export function ImportContactsModal({
   const [isImporting, setIsImporting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [friendsList, setFriendsList] = useState<Amigo[]>(existingFriends);
+  const [registeredUsers, setRegisteredUsers] = useState<any[]>([]);
   const vcfInputRef = useRef<HTMLInputElement | null>(null);
 
-  const hasNativeBridge =
-    typeof window !== 'undefined' &&
-    typeof (window as any).AndroidReceiptBridge?.requestContacts === 'function';
-
-  const hasWebContactPicker =
-    typeof navigator !== 'undefined' &&
-    'contacts' in navigator &&
-    typeof (navigator as any).contacts?.select === 'function';
-
-  const normalizeRawList = (rawItems: Array<{ name?: string; phone?: string }>): RawPhoneContact[] => {
-    const map = new Map<string, RawPhoneContact>();
-    rawItems.forEach((item, index) => {
-      const name = (item.name || '').trim();
-      const rawPhone = (item.phone || '').trim();
-      const cleanPhone = stripCountryCode(rawPhone);
-      if (!name && !cleanPhone) return;
-
-      const key = `${name.toLowerCase()}|${cleanPhone}`;
-      if (!map.has(key)) {
-        map.set(key, {
-          id: `c_${index}_${cleanPhone || name}`,
-          name: name || formatPhoneBR(cleanPhone) || rawPhone,
-          phone: rawPhone,
-          cleanPhone,
-        });
-      }
-    });
-
-    return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
-  };
-
-  const loadFromNativeBridge = () => {
+  const handleLoadContacts = useCallback(async () => {
     setIsLoading(true);
     setErrorMsg('');
     try {
-      (window as any).AndroidReceiptBridge.requestContacts();
-    } catch {
-      setIsLoading(false);
-      setErrorMsg('Não foi possível acessar a agenda nativa do aparelho.');
-    }
-  };
-
-  const loadFromWebContactPicker = async () => {
-    if (!hasWebContactPicker) return;
-    setIsLoading(true);
-    setErrorMsg('');
-    try {
-      const picked = await (navigator as any).contacts.select(['name', 'tel'], {
-        multiple: true,
-      });
-      if (Array.isArray(picked) && picked.length > 0) {
-        const flat: Array<{ name: string; phone: string }> = [];
-        for (const p of picked) {
-          const name = Array.isArray(p.name) ? p.name[0] || '' : p.name || '';
-          const tels = Array.isArray(p.tel) ? p.tel : [];
-          if (tels.length === 0) {
-            flat.push({ name, phone: '' });
-          } else {
-            flat.push({ name, phone: tels[0] || '' });
-          }
+      const res = await requestDeviceContacts();
+      if (res.status === 'ok') {
+        setContacts(res.contacts);
+        if (res.contacts.length === 0) {
+          setErrorMsg('Nenhum contato com número de telefone encontrado na agenda.');
+        } else {
+          dbService.amigos
+            .discoverRegisteredUsers(
+              res.contacts.map((c) => ({ name: c.name, phone: c.cleanPhone || c.phone }))
+            )
+            .then((users) => setRegisteredUsers(users))
+            .catch(() => {});
         }
-        const normalized = normalizeRawList(flat);
-        setContacts(normalized);
-        setSelectedIds(new Set(normalized.map((c) => c.id)));
+        return;
       }
-    } catch (err: any) {
-      if (err?.name !== 'AbortError') {
-        setErrorMsg('Não foi possível abrir o seletor de contatos do celular.');
+
+      if (res.status === 'permission_denied') {
+        setErrorMsg(
+          'Permissão de acesso aos contatos negada. Toque em "Permitir" quando solicitado ou libere a permissão de Contatos nas configurações do aplicativo.'
+        );
+        return;
+      }
+
+      if (res.status === 'unsupported_apk') {
+        setErrorMsg(
+          'Para acessar a agenda diretamente com permissão do Android, instale a versão mais recente do APK (atualizações rápidas OTA não adicionam novas permissões nativas do sistema) ou importe um arquivo .VCF abaixo.'
+        );
+        return;
+      }
+
+      if (res.status === 'unsupported_browser') {
+        setErrorMsg(
+          'Seu navegador atual não suporta leitura direta da agenda. Use o aplicativo Android ou importe um arquivo .VCF da sua agenda.'
+        );
+        return;
+      }
+
+      if (res.status === 'error') {
+        setErrorMsg('Não foi possível ler os contatos da agenda. Tente novamente.');
       }
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -171,41 +114,20 @@ export function ImportContactsModal({
       .then((all) => setFriendsList(all))
       .catch(() => {});
 
-    const handleNativeContactsEvent = (event: Event) => {
-      const custom = event as CustomEvent<{
-        contacts?: Array<{ name?: string; phone?: string }>;
-        error?: string | null;
-      }>;
-      setIsLoading(false);
-
-      if (custom.detail?.error === 'permission_denied') {
-        setErrorMsg(
-          'Permissão de acesso aos contatos negada. Permita o acesso aos contatos nas configurações do celular para listar sua agenda.'
-        );
-        return;
-      }
-
-      if (custom.detail?.error) {
-        setErrorMsg('Erro ao ler contatos do aparelho.');
-        return;
-      }
-
-      const raw = Array.isArray(custom.detail?.contacts) ? custom.detail.contacts : [];
-      setContacts(normalizeRawList(raw));
-    };
-
-    window.addEventListener('rachappPhoneContacts', handleNativeContactsEvent);
-
-    if (hasNativeBridge) {
-      loadFromNativeBridge();
-    } else if (hasWebContactPicker) {
-      loadFromWebContactPicker();
+    const cached = getCachedPhoneContacts();
+    if (cached.length > 0) {
+      setContacts(cached);
+      dbService.amigos
+        .discoverRegisteredUsers(
+          cached.map((c) => ({ name: c.name, phone: c.cleanPhone || c.phone }))
+        )
+        .then((users) => setRegisteredUsers(users))
+        .catch(() => {});
     }
 
-    return () => {
-      window.removeEventListener('rachappPhoneContacts', handleNativeContactsEvent);
-    };
-  }, [isOpen]);
+    // Solicita permissão / atualiza a agenda automaticamente ao abrir o modal
+    handleLoadContacts();
+  }, [isOpen, handleLoadContacts]);
 
   const isAlreadyFriend = (contact: RawPhoneContact): boolean => {
     return friendsList.some((f) => {
@@ -214,8 +136,15 @@ export function ImportContactsModal({
         return true;
       }
       const fName = (f.nome || f.name || '').trim().toLowerCase();
-      return !contact.cleanPhone && fName && fName === contact.name.trim().toLowerCase();
+      return !contact.cleanPhone && Boolean(fName) && fName === contact.name.trim().toLowerCase();
     });
+  };
+
+  const getRegisteredAccountForContact = (contact: RawPhoneContact) => {
+    if (!contact.cleanPhone) return null;
+    return registeredUsers.find(
+      (u) => u.phone && phonesMatchBR(contact.cleanPhone, stripCountryCode(u.phone))
+    );
   };
 
   const filteredContacts = useMemo(() => {
@@ -267,11 +196,17 @@ export function ImportContactsModal({
     setErrorMsg('');
     try {
       const text = await file.text();
-      const parsed = parseVcfContacts(text);
-      const normalized = normalizeRawList(parsed);
+      const normalized = parseVCardContacts(text);
       setContacts(normalized);
       if (normalized.length === 0) {
         setErrorMsg('Nenhum contato válido encontrado no arquivo .vcf.');
+      } else {
+        dbService.amigos
+          .discoverRegisteredUsers(
+            normalized.map((c) => ({ name: c.name, phone: c.cleanPhone || c.phone }))
+          )
+          .then((users) => setRegisteredUsers(users))
+          .catch(() => {});
       }
     } catch {
       setErrorMsg('Não foi possível ler o arquivo de contatos (.vcf).');
@@ -294,11 +229,12 @@ export function ImportContactsModal({
       const created: Amigo[] = [];
       for (let i = 0; i < chosen.length; i++) {
         const c = chosen[i];
+        const regAccount = getRegisteredAccountForContact(c);
         const color = PRESET_AVATAR_COLORS[i % PRESET_AVATAR_COLORS.length];
         const saved = await dbService.amigos.create({
           nome: c.name.slice(0, 30),
           telefone: c.cleanPhone,
-          pix_key: '',
+          pix_key: regAccount?.pix_key || '',
           cor: color,
           favorito: false,
         });
@@ -376,15 +312,15 @@ export function ImportContactsModal({
             </span>
 
             <div className="flex items-center gap-3">
-              {hasWebContactPicker && !hasNativeBridge && (
-                <button
-                  type="button"
-                  onClick={loadFromWebContactPicker}
-                  className="text-[#2DD4BF] font-bold hover:underline flex items-center gap-1"
-                >
-                  <UserPlus size={13} /> Escolher na Agenda
-                </button>
-              )}
+              <button
+                type="button"
+                onClick={handleLoadContacts}
+                disabled={isLoading}
+                className="text-[#2DD4BF] font-bold hover:underline flex items-center gap-1 disabled:opacity-50"
+              >
+                <RefreshCw size={12} className={isLoading ? 'animate-spin' : ''} />
+                <span>Atualizar agenda</span>
+              </button>
 
               {selectableFiltered.length > 0 && (
                 <button
@@ -402,8 +338,8 @@ export function ImportContactsModal({
         {/* Lista de Contatos */}
         <div className="flex-1 overflow-y-auto p-5 pt-3 space-y-2 scrollbar-hide">
           {errorMsg && (
-            <div className="bg-red-500/10 border border-red-500/30 p-3 rounded-xl flex items-center gap-2 text-red-400 text-xs mb-2">
-              <AlertCircle size={16} className="shrink-0" />
+            <div className="bg-red-500/10 border border-red-500/30 p-3 rounded-xl flex items-start gap-2 text-red-400 text-xs mb-2">
+              <AlertCircle size={16} className="shrink-0 mt-0.5" />
               <span>{errorMsg}</span>
             </div>
           )}
@@ -411,38 +347,28 @@ export function ImportContactsModal({
           {isLoading ? (
             <div className="flex flex-col items-center justify-center py-14 text-[#2DD4BF]">
               <LoaderCircle size={32} className="animate-spin mb-2" />
-              <span className="text-xs text-gray-400">Lendo contatos da sua agenda...</span>
+              <span className="text-xs text-gray-400">
+                Solicitando permissão e lendo contatos da sua agenda...
+              </span>
             </div>
           ) : contacts.length === 0 ? (
             <div className="bg-[#121622] rounded-2xl p-6 text-center border border-white/5 space-y-3">
               <BookUser size={32} className="text-[#2DD4BF] mx-auto opacity-80" />
               <div>
-                <p className="text-sm font-bold text-white">Sua agenda aparecerá aqui</p>
+                <p className="text-sm font-bold text-white">Permitir acesso aos seus contatos</p>
                 <p className="text-xs text-gray-400 mt-1">
-                  Toque no botão abaixo para buscar os contatos do seu celular.
+                  Toque no botão abaixo para autorizar a permissão de contatos e listar a agenda do seu celular.
                 </p>
               </div>
 
               <div className="flex flex-col sm:flex-row items-center justify-center gap-2.5 pt-2">
-                {hasNativeBridge && (
-                  <button
-                    type="button"
-                    onClick={loadFromNativeBridge}
-                    className="w-full sm:w-auto bg-[#2DD4BF] hover:bg-[#25b5a3] text-[#05080f] font-bold px-5 py-2.5 rounded-xl text-xs flex items-center justify-center gap-2 transition-transform active:scale-95"
-                  >
-                    <BookUser size={15} /> Carregar Contatos do Celular
-                  </button>
-                )}
-
-                {hasWebContactPicker && (
-                  <button
-                    type="button"
-                    onClick={loadFromWebContactPicker}
-                    className="w-full sm:w-auto bg-[#2DD4BF] hover:bg-[#25b5a3] text-[#05080f] font-bold px-5 py-2.5 rounded-xl text-xs flex items-center justify-center gap-2 transition-transform active:scale-95"
-                  >
-                    <BookUser size={15} /> Selecionar Contatos do Celular
-                  </button>
-                )}
+                <button
+                  type="button"
+                  onClick={handleLoadContacts}
+                  className="w-full sm:w-auto bg-[#2DD4BF] hover:bg-[#25b5a3] text-[#05080f] font-bold px-5 py-2.5 rounded-xl text-xs flex items-center justify-center gap-2 transition-transform active:scale-95 shadow-lg shadow-[#2DD4BF]/20"
+                >
+                  <BookUser size={15} /> Permitir e Carregar Contatos
+                </button>
 
                 <input
                   ref={vcfInputRef}
@@ -469,6 +395,7 @@ export function ImportContactsModal({
           ) : (
             filteredContacts.map((contact, idx) => {
               const alreadyAdded = isAlreadyFriend(contact);
+              const regUser = getRegisteredAccountForContact(contact);
               const isSelected = selectedIds.has(contact.id);
               const color = PRESET_AVATAR_COLORS[idx % PRESET_AVATAR_COLORS.length];
 
@@ -488,13 +415,33 @@ export function ImportContactsModal({
                 >
                   <div className="flex items-center gap-3 min-w-0">
                     <div
-                      style={{ backgroundColor: getAvatarColor(color) }}
-                      className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm shrink-0"
+                      style={
+                        regUser?.avatar_url
+                          ? undefined
+                          : { backgroundColor: getAvatarColor(color) }
+                      }
+                      className="w-10 h-10 rounded-full overflow-hidden flex items-center justify-center text-white font-bold text-sm shrink-0"
                     >
-                      {contact.name[0]?.toUpperCase() || '?'}
+                      {regUser?.avatar_url ? (
+                        <img
+                          src={regUser.avatar_url}
+                          alt={contact.name}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        contact.name[0]?.toUpperCase() || '?'
+                      )}
                     </div>
                     <div className="min-w-0">
-                      <h4 className="text-sm font-bold text-white truncate">{contact.name}</h4>
+                      <div className="flex items-center gap-1.5">
+                        <h4 className="text-sm font-bold text-white truncate">{contact.name}</h4>
+                        {regUser && (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-bold text-[#2DD4BF] bg-[#2DD4BF]/10 px-1.5 py-0.5 rounded-md shrink-0">
+                            <BadgeCheck size={11} />
+                            Tem conta
+                          </span>
+                        )}
+                      </div>
                       <p className="text-xs text-gray-400 flex items-center gap-1 truncate">
                         <Phone size={11} className="text-gray-500 shrink-0" />
                         <span>
