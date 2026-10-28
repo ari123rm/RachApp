@@ -12,17 +12,21 @@ import {
   Image as ImageIcon,
   Trash2,
   Share2,
+  ChevronLeft,
+  ChevronRight,
+  Plus,
 } from 'lucide-react';
 import moneyConverter from '../utils/moneyConverter';
 import { generatePixCopiaECola, generatePixQRCodeDataUrl } from '../utils/pixGenerator';
 import { compressReceiptImage, useModalBackHandler } from '../utils/modalBackHandler';
-import { shareReceipt } from '../utils/receiptShare';
+import { shareReceipt, parseReceiptUrls, serializeReceiptUrls } from '../utils/receiptShare';
 
 interface ReceiptViewerModalProps {
   isOpen: boolean;
   onClose: () => void;
-  receiptUrl: string | null | undefined;
+  receiptUrl: string | string[] | null | undefined;
   title?: string;
+  initialIndex?: number;
   onViewDetails?: () => void;
 }
 
@@ -31,16 +35,30 @@ export function ReceiptViewerModal({
   onClose,
   receiptUrl,
   title = 'Comprovante de Pagamento',
+  initialIndex = 0,
   onViewDetails,
 }: ReceiptViewerModalProps) {
   useModalBackHandler(isOpen, onClose);
+  const receipts = parseReceiptUrls(receiptUrl);
+  const [activeIndex, setActiveIndex] = useState(0);
   const [isSharing, setIsSharing] = useState(false);
   const [sharedFeedback, setSharedFeedback] = useState(false);
 
+  useEffect(() => {
+    if (isOpen) {
+      const clamped = Math.min(Math.max(0, initialIndex || 0), Math.max(0, receipts.length - 1));
+      setActiveIndex(clamped);
+    }
+  }, [isOpen, initialIndex, receiptUrl]);
+
+  const currentReceiptUrl = receipts[activeIndex] || receipts[0] || null;
+
   const handleShare = async () => {
-    if (!receiptUrl) return;
+    if (!currentReceiptUrl) return;
     setIsSharing(true);
-    const result = await shareReceipt(receiptUrl, title);
+    const shareTitle =
+      receipts.length > 1 ? `${title} (${activeIndex + 1}/${receipts.length})` : title;
+    const result = await shareReceipt(currentReceiptUrl, shareTitle);
     setIsSharing(false);
     if (result.success) {
       setSharedFeedback(true);
@@ -48,7 +66,7 @@ export function ReceiptViewerModal({
     }
   };
 
-  if (!isOpen || !receiptUrl) return null;
+  if (!isOpen || receipts.length === 0 || !currentReceiptUrl) return null;
 
   return createPortal(
     <div
@@ -59,12 +77,19 @@ export function ReceiptViewerModal({
         className="bg-[#1c1c1e] w-full max-w-md rounded-3xl p-5 border border-white/10 shadow-2xl relative max-h-[88vh] flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2 min-w-0 pr-2">
             <div className="w-9 h-9 rounded-xl bg-[#2DD4BF]/20 text-[#2DD4BF] flex items-center justify-center shrink-0">
               <FileCheck2 size={18} />
             </div>
-            <h3 className="text-white font-bold text-base truncate">{title}</h3>
+            <div className="min-w-0">
+              <h3 className="text-white font-bold text-base truncate">{title}</h3>
+              {receipts.length > 1 && (
+                <p className="text-[11px] text-[#2DD4BF] font-semibold">
+                  Comprovante {activeIndex + 1} de {receipts.length}
+                </p>
+              )}
+            </div>
           </div>
           <div className="flex items-center gap-1 shrink-0">
             <button
@@ -84,12 +109,65 @@ export function ReceiptViewerModal({
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto bg-[#05080f] rounded-2xl p-2 border border-white/5 flex items-center justify-center min-h-[240px]">
+        {/* Seletor de Comprovantes quando há mais de 1 */}
+        {receipts.length > 1 && (
+          <div className="mb-3">
+            <p className="text-[11px] text-gray-400 font-semibold mb-1.5">
+              Escolha qual comprovante deseja visualizar:
+            </p>
+            <div className="flex items-center gap-2 overflow-x-auto pb-1">
+              {receipts.map((_, idx) => {
+                const isSelected = idx === activeIndex;
+                return (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => setActiveIndex(idx)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold shrink-0 flex items-center gap-1.5 transition-all ${
+                      isSelected
+                        ? 'bg-[#2DD4BF] text-[#05080f] shadow-md shadow-teal-500/20'
+                        : 'bg-[#2c2c2e] text-gray-300 hover:text-white border border-white/10'
+                    }`}
+                  >
+                    <FileCheck2 size={13} />
+                    Comprovante {idx + 1}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        <div className="flex-1 overflow-y-auto bg-[#05080f] rounded-2xl p-2 border border-white/5 flex items-center justify-center min-h-[240px] relative">
+          {receipts.length > 1 && (
+            <button
+              type="button"
+              onClick={() =>
+                setActiveIndex((prev) => (prev - 1 + receipts.length) % receipts.length)
+              }
+              className="absolute left-2.5 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-black/70 hover:bg-black/90 text-white border border-white/15 flex items-center justify-center shadow-lg z-10"
+              title="Comprovante anterior"
+            >
+              <ChevronLeft size={20} />
+            </button>
+          )}
+
           <img
-            src={receiptUrl}
-            alt="Comprovante de Pagamento"
-            className="max-w-full max-h-[65vh] object-contain rounded-xl"
+            src={currentReceiptUrl}
+            alt={`Comprovante de Pagamento ${activeIndex + 1}`}
+            className="max-w-full max-h-[58vh] object-contain rounded-xl"
           />
+
+          {receipts.length > 1 && (
+            <button
+              type="button"
+              onClick={() => setActiveIndex((prev) => (prev + 1) % receipts.length)}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-black/70 hover:bg-black/90 text-white border border-white/15 flex items-center justify-center shadow-lg z-10"
+              title="Próximo comprovante"
+            >
+              <ChevronRight size={20} />
+            </button>
+          )}
         </div>
 
         <div className="flex flex-col gap-2 mt-4">
@@ -168,7 +246,7 @@ export function PayWithReceiptModal({
   useModalBackHandler(isOpen, onClose);
 
   const [amountStr, setAmountStr] = useState('');
-  const [receiptDataUrl, setReceiptDataUrl] = useState<string | null>(null);
+  const [receiptList, setReceiptList] = useState<string[]>([]);
   const [isCompressing, setIsCompressing] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
@@ -187,7 +265,7 @@ export function PayWithReceiptModal({
   useEffect(() => {
     if (isOpen) {
       setAmountStr(moneyConverter(defaultAmount));
-      setReceiptDataUrl(null);
+      setReceiptList([]);
       setErrorMsg('');
       setIsSubmitting(false);
     }
@@ -229,13 +307,17 @@ export function PayWithReceiptModal({
   };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = e.target.files ? Array.from(e.target.files) : [];
+    if (files.length === 0) return;
     setErrorMsg('');
     setIsCompressing(true);
     try {
-      const compressed = await compressReceiptImage(file);
-      setReceiptDataUrl(compressed);
+      const compressedList: string[] = [];
+      for (const file of files) {
+        const compressed = await compressReceiptImage(file);
+        compressedList.push(compressed);
+      }
+      setReceiptList((prev) => [...prev, ...compressedList]);
     } catch (err: any) {
       setErrorMsg(err?.message || 'Erro ao carregar imagem do comprovante.');
     } finally {
@@ -298,14 +380,15 @@ export function PayWithReceiptModal({
       setErrorMsg('Informe um valor válido para o pagamento.');
       return;
     }
-    if (!receiptDataUrl) {
+    const serialized = serializeReceiptUrls(receiptList);
+    if (!serialized) {
       setErrorMsg('Anexe a foto/print do comprovante de pagamento para confirmar.');
       return;
     }
 
     setIsSubmitting(true);
     try {
-      await onConfirm(numericAmount, receiptDataUrl);
+      await onConfirm(numericAmount, serialized);
       onClose();
     } catch (err: any) {
       setErrorMsg(
@@ -426,18 +509,19 @@ export function PayWithReceiptModal({
         {/* Upload Obrigatório de Comprovante */}
         <div className="mb-5">
           <label className="block text-gray-300 text-xs uppercase font-bold mb-2">
-            Comprovante de Pagamento <span className="text-amber-400">* Obrigatório</span>
+            Comprovante(s) de Pagamento <span className="text-amber-400">* Obrigatório</span>
           </label>
 
           <input
             ref={fileInputRef}
             type="file"
             accept="image/*"
+            multiple
             onChange={handleFileChange}
             className="hidden"
           />
 
-          {!receiptDataUrl ? (
+          {receiptList.length === 0 ? (
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
@@ -460,30 +544,61 @@ export function PayWithReceiptModal({
                     Anexar Imagem do Comprovante
                   </span>
                   <span className="text-[11px] text-gray-400">
-                    Toque para escolher print ou foto do recibo
+                    Toque para escolher um ou mais prints de Pix
                   </span>
                 </>
               )}
             </button>
           ) : (
-            <div className="bg-[#05080f] border border-[#2DD4BF]/40 rounded-2xl p-3 relative">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-bold text-[#34C759] flex items-center gap-1.5">
-                  <ImageIcon size={14} /> Comprovante anexado
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setReceiptDataUrl(null)}
-                  className="text-xs text-red-400 hover:text-red-300 flex items-center gap-1 font-semibold"
+            <div className="space-y-2.5">
+              {receiptList.map((url, idx) => (
+                <div
+                  key={idx}
+                  className="bg-[#05080f] border border-[#2DD4BF]/40 rounded-2xl p-3 relative"
                 >
-                  <Trash2 size={13} /> Trocar
-                </button>
-              </div>
-              <img
-                src={receiptDataUrl}
-                alt="Preview do Comprovante"
-                className="w-full max-h-44 object-contain rounded-xl bg-black/40"
-              />
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-bold text-[#34C759] flex items-center gap-1.5">
+                      <ImageIcon size={14} />{' '}
+                      {receiptList.length > 1
+                        ? `Comprovante ${idx + 1} de ${receiptList.length}`
+                        : 'Comprovante anexado'}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setReceiptList((prev) => prev.filter((_, itemIdx) => itemIdx !== idx))
+                      }
+                      className="text-xs text-red-400 hover:text-red-300 flex items-center gap-1 font-semibold"
+                    >
+                      <Trash2 size={13} /> Remover
+                    </button>
+                  </div>
+                  <img
+                    src={url}
+                    alt={`Preview do Comprovante ${idx + 1}`}
+                    className="w-full max-h-36 object-contain rounded-xl bg-black/40"
+                  />
+                </div>
+              ))}
+
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isCompressing}
+                className="w-full py-2.5 rounded-xl border border-dashed border-[#2DD4BF]/40 hover:border-[#2DD4BF] bg-[#2DD4BF]/10 hover:bg-[#2DD4BF]/15 text-[#2DD4BF] text-xs font-bold flex items-center justify-center gap-1.5 transition-colors"
+              >
+                {isCompressing ? (
+                  <>
+                    <LoaderCircle size={14} className="animate-spin" />
+                    <span>Adicionando comprovante...</span>
+                  </>
+                ) : (
+                  <>
+                    <Plus size={14} />
+                    <span>Adicionar outro comprovante (Pix separado)</span>
+                  </>
+                )}
+              </button>
             </div>
           )}
         </div>
@@ -499,7 +614,7 @@ export function PayWithReceiptModal({
           <button
             type="button"
             onClick={handleSubmit}
-            disabled={isSubmitting || isCompressing || !receiptDataUrl}
+            disabled={isSubmitting || isCompressing || receiptList.length === 0}
             className="flex-1 bg-[#2DD4BF] hover:bg-[#25b5a3] text-[#05080f] font-bold py-3.5 px-4 rounded-xl transition-colors disabled:opacity-40 flex items-center justify-center gap-2 text-sm"
           >
             {isSubmitting ? (

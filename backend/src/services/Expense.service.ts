@@ -5,6 +5,49 @@ import { FriendService } from './Friend.service';
 import { NotificationService } from './Notification.service';
 import { notifySync } from './socket.service';
 
+function parseReceiptUrlsBackend(raw?: string | string[] | null): string[] {
+  if (!raw) return [];
+  if (Array.isArray(raw)) {
+    return raw
+      .flatMap((item) => parseReceiptUrlsBackend(item))
+      .filter((u, idx, arr) => Boolean(u) && arr.indexOf(u) === idx);
+  }
+  const trimmed = String(raw).trim();
+  if (!trimmed) return [];
+  if (trimmed.startsWith('[')) {
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (Array.isArray(parsed)) {
+        return parsed
+          .map((item) =>
+            typeof item === 'string'
+              ? item.trim()
+              : item?.url
+              ? String(item.url).trim()
+              : ''
+          )
+          .filter((u, idx, arr) => Boolean(u) && arr.indexOf(u) === idx);
+      }
+    } catch {
+      // Fallback string única
+    }
+  }
+  return [trimmed];
+}
+
+function mergeReceiptUrlsBackend(
+  existingRaw?: string | string[] | null,
+  incomingRaw?: string | string[] | null
+): string | null {
+  const clean = [
+    ...parseReceiptUrlsBackend(existingRaw),
+    ...parseReceiptUrlsBackend(incomingRaw),
+  ].filter((u, idx, arr) => Boolean(u) && arr.indexOf(u) === idx);
+  if (clean.length === 0) return null;
+  if (clean.length === 1) return clean[0];
+  return JSON.stringify(clean);
+}
+
 export interface Transfer {
   fromId: string;
   fromName: string;
@@ -765,11 +808,14 @@ export class ExpenseService {
           }
         }
 
+        const mergedSelfReceipt =
+          target <= 0 ? null : mergeReceiptUrlsBackend(expense.self_receipt_url, receiptUrl);
+
         const updatedSelf = await prisma.expense.update({
           where: { id: expenseId },
           data: {
             self_amount_paid: Number(target.toFixed(2)),
-            self_receipt_url: target <= 0 ? null : receiptUrl || expense.self_receipt_url || null,
+            self_receipt_url: mergedSelfReceipt,
           } as any,
         });
 
@@ -806,6 +852,9 @@ export class ExpenseService {
           ? Math.min(Number(part.amount_owed), Math.max(0, Number(amountPaid)))
           : 0;
 
+      const mergedPartReceipt =
+        targetAmount <= 0 ? null : mergeReceiptUrlsBackend(part.receipt_url, receiptUrl);
+
       const updatedPart = await prisma.expenseParticipant.update({
         where: {
           expense_id_friend_id: {
@@ -815,7 +864,7 @@ export class ExpenseService {
         },
         data: {
           amount_paid: targetAmount,
-          receipt_url: targetAmount <= 0 ? null : receiptUrl || part.receipt_url || null,
+          receipt_url: mergedPartReceipt,
         } as any,
       });
 
@@ -865,6 +914,9 @@ export class ExpenseService {
         }
       }
 
+      const mergedMyPartReceipt =
+        targetAmount <= 0 ? null : mergeReceiptUrlsBackend(myPart.receipt_url, receiptUrl);
+
       const updatedPart = await prisma.expenseParticipant.update({
         where: {
           expense_id_friend_id: {
@@ -874,7 +926,7 @@ export class ExpenseService {
         },
         data: {
           amount_paid: Number(targetAmount.toFixed(2)),
-          receipt_url: targetAmount <= 0 ? null : receiptUrl || myPart.receipt_url || null,
+          receipt_url: mergedMyPartReceipt,
         } as any,
       });
 
@@ -926,11 +978,14 @@ export class ExpenseService {
       const targetAmount =
         amountPaid !== undefined ? Math.min(ownerOwed, Math.max(0, Number(amountPaid))) : 0;
 
+      const mergedOwnerReceipt =
+        targetAmount <= 0 ? null : mergeReceiptUrlsBackend(expense.self_receipt_url, receiptUrl);
+
       const updatedOwnerExp = await prisma.expense.update({
         where: { id: expenseId },
         data: {
           self_amount_paid: Number(targetAmount.toFixed(2)),
-          self_receipt_url: targetAmount <= 0 ? null : receiptUrl || expense.self_receipt_url || null,
+          self_receipt_url: mergedOwnerReceipt,
         } as any,
       });
 
@@ -957,6 +1012,9 @@ export class ExpenseService {
         ? Math.min(Number(otherPart.amount_owed), Math.max(0, Number(amountPaid)))
         : 0;
 
+    const mergedOtherReceipt =
+      targetAmount <= 0 ? null : mergeReceiptUrlsBackend(otherPart.receipt_url, receiptUrl);
+
     const updatedOther = await prisma.expenseParticipant.update({
       where: {
         expense_id_friend_id: {
@@ -966,7 +1024,7 @@ export class ExpenseService {
       },
       data: {
         amount_paid: Number(targetAmount.toFixed(2)),
-        receipt_url: targetAmount <= 0 ? null : receiptUrl || otherPart.receipt_url || null,
+        receipt_url: mergedOtherReceipt,
       } as any,
     });
 
@@ -1247,40 +1305,21 @@ export class ExpenseService {
 
     let remainingAmount = Number(amount);
 
-    let effectiveDirection = direction;
-    if (!effectiveDirection) {
-      let divida = 0;
-      let voceDeve = 0;
-      for (const expense of filtered) {
-        if (!expense.paid_by_friend_id) {
-          const part = (expense.participants || []).find((p: any) => p.friend_id === debtorFriendId);
-          if (part) {
-            const pending = Number(part.amount_owed) - Number(part.amount_paid);
-            if (pending > 0.005) divida += pending;
-          }
-        } else if (expense.paid_by_friend_id === debtorFriendId) {
-          const totalParts = (expense.participants?.length || 0) + 1;
-          const selfOwed =
-            expense.self_amount_owed !== null && expense.self_amount_owed !== undefined && Number(expense.self_amount_owed) > 0
-              ? Number(expense.self_amount_owed)
-              : ((expense.participants || []).reduce((acc: number, p: any) => acc + Number(p.amount_owed || 0), 0) >= Number(expense.total_amount) - 0.1)
-              ? 0
-              : Number(expense.total_amount) / totalParts;
-          const selfPaid = Number(expense.self_amount_paid || 0);
-          const pending = selfOwed - selfPaid;
-          if (pending > 0.005) voceDeve += pending;
+    // Calcula a compensação bilateral FIFO para dar baixa nas despesas realmente em aberto
+    const filaAmigo: { id: string; restante: number }[] = [];
+    const filaVoce: { id: string; restante: number }[] = [];
+    let dividaBruta = 0;
+    let voceDeveBruto = 0;
+
+    for (const expense of filtered) {
+      if (!expense.paid_by_friend_id) {
+        const part = (expense.participants || []).find((p: any) => p.friend_id === debtorFriendId);
+        if (part) {
+          const pending = Math.max(0, Number(part.amount_owed) - Number(part.amount_paid));
+          dividaBruta += pending;
+          filaAmigo.push({ id: expense.id, restante: pending });
         }
-      }
-      effectiveDirection = voceDeve > divida ? 'to_friend' : 'from_friend';
-    }
-
-    if (effectiveDirection === 'to_friend') {
-      // VOCÊ ESTÁ PAGANDO O AMIGO:
-      // Abate nas despesas em que o amigo pagou e Você devia para ele
-      for (const expense of filtered) {
-        if (remainingAmount <= 0.005) break;
-        if (expense.paid_by_friend_id !== debtorFriendId) continue;
-
+      } else if (expense.paid_by_friend_id === debtorFriendId) {
         const totalParts = (expense.participants?.length || 0) + 1;
         const selfOwed =
           expense.self_amount_owed !== null && expense.self_amount_owed !== undefined && Number(expense.self_amount_owed) > 0
@@ -1289,7 +1328,43 @@ export class ExpenseService {
             ? 0
             : Number(expense.total_amount) / totalParts;
         const selfPaid = Number(expense.self_amount_paid || 0);
-        const pending = selfOwed - selfPaid;
+        const pending = Math.max(0, selfOwed - selfPaid);
+        voceDeveBruto += pending;
+        filaVoce.push({ id: expense.id, restante: pending });
+      }
+    }
+
+    let iA = 0;
+    let iV = 0;
+    while (iA < filaAmigo.length && iV < filaVoce.length) {
+      if (filaAmigo[iA].restante <= 0.005) { iA++; continue; }
+      if (filaVoce[iV].restante <= 0.005) { iV++; continue; }
+      const comp = Math.min(filaAmigo[iA].restante, filaVoce[iV].restante);
+      filaAmigo[iA].restante = Number((filaAmigo[iA].restante - comp).toFixed(2));
+      filaVoce[iV].restante = Number((filaVoce[iV].restante - comp).toFixed(2));
+      if (filaAmigo[iA].restante <= 0.005) iA++;
+      if (filaVoce[iV].restante <= 0.005) iV++;
+    }
+
+    const uncompAmigoMap = new Map(filaAmigo.map((x) => [x.id, x.restante]));
+    const uncompVoceMap = new Map(filaVoce.map((x) => [x.id, x.restante]));
+
+    let effectiveDirection = direction;
+    if (!effectiveDirection) {
+      effectiveDirection = voceDeveBruto > dividaBruta ? 'to_friend' : 'from_friend';
+    }
+
+    let updatedAny = false;
+
+    if (effectiveDirection === 'to_friend') {
+      // VOCÊ ESTÁ PAGANDO O AMIGO:
+      // Abate nas despesas não compensadas em que o amigo pagou e Você devia para ele
+      for (const expense of filtered) {
+        if (remainingAmount <= 0.005) break;
+        if (expense.paid_by_friend_id !== debtorFriendId) continue;
+
+        const selfPaid = Number(expense.self_amount_paid || 0);
+        const pending = uncompVoceMap.get(expense.id) ?? 0;
 
         if (pending > 0.005) {
           const amountToPayHere = Math.min(pending, remainingAmount);
@@ -1300,12 +1375,28 @@ export class ExpenseService {
             Number((selfPaid + amountToPayHere).toFixed(2)),
             receiptUrl
           );
+          updatedAny = true;
           remainingAmount -= amountToPayHere;
+        }
+      }
+
+      if (receiptUrl && !updatedAny) {
+        const lastFriendPaid = [...filtered]
+          .reverse()
+          .find((e) => e.paid_by_friend_id === debtorFriendId);
+        if (lastFriendPaid) {
+          await this.setParticipantPayment(
+            creditorId,
+            lastFriendPaid.id,
+            'self',
+            Number(lastFriendPaid.self_amount_paid || 0),
+            receiptUrl
+          );
         }
       }
     } else {
       // O AMIGO ESTÁ PAGANDO VOCÊ:
-      // Abate nas despesas em que Você pagou e o amigo devia para Você
+      // Abate nas despesas não compensadas em que Você pagou e o amigo devia para Você
       for (const expense of filtered) {
         if (remainingAmount <= 0.005) break;
         if (expense.paid_by_friend_id) continue;
@@ -1313,9 +1404,8 @@ export class ExpenseService {
         const part = (expense.participants || []).find((p: any) => p.friend_id === debtorFriendId);
         if (!part) continue;
 
-        const owed = Number(part.amount_owed);
         const paid = Number(part.amount_paid);
-        const pending = owed - paid;
+        const pending = uncompAmigoMap.get(expense.id) ?? 0;
 
         if (pending > 0.005) {
           const amountToPayHere = Math.min(pending, remainingAmount);
@@ -1326,7 +1416,30 @@ export class ExpenseService {
             Number((paid + amountToPayHere).toFixed(2)),
             receiptUrl
           );
+          updatedAny = true;
           remainingAmount -= amountToPayHere;
+        }
+      }
+
+      if (receiptUrl && !updatedAny) {
+        const lastSelfPaid = [...filtered]
+          .reverse()
+          .find(
+            (e) =>
+              !e.paid_by_friend_id &&
+              (e.participants || []).some((p: any) => p.friend_id === debtorFriendId)
+          );
+        if (lastSelfPaid) {
+          const part = (lastSelfPaid.participants || []).find(
+            (p: any) => p.friend_id === debtorFriendId
+          );
+          await this.setParticipantPayment(
+            creditorId,
+            lastSelfPaid.id,
+            debtorFriendId,
+            Number(part?.amount_paid || 0),
+            receiptUrl
+          );
         }
       }
     }

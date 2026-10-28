@@ -28,6 +28,7 @@ import { formatPhoneBR, openWhatsApp, phonesMatchBR, stripCountryCode } from '..
 import { useModalBackHandler } from '../utils/modalBackHandler';
 import { getAvatarColor } from '../utils/avatarColor';
 import { applyBilateralNetting } from '../utils/netting';
+import { parseReceiptUrls } from '../utils/receiptShare';
 
 function parseCurrency(val: any): number {
   if (typeof val === 'number') return isNaN(val) ? 0 : val;
@@ -84,10 +85,12 @@ export function FriendDetailsModal({
     isOpen: boolean;
     url: string | null;
     title: string;
+    initialIndex?: number;
   }>({
     isOpen: false,
     url: null,
     title: '',
+    initialIndex: 0,
   });
 
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -441,10 +444,14 @@ export function FriendDetailsModal({
 
   const handleConfirmPayWithReceipt = async (amount: number, receiptBase64: string) => {
     if (payWithReceiptTarget.mode === 'single' && payWithReceiptTarget.corridaId) {
+      const targetRide = corridasDoAmigo.find((c) => c.id === payWithReceiptTarget.corridaId);
+      const jaPago = Number(targetRide?.jaPago || 0);
+      const parteTotal = Number(targetRide?.parteNumero || amount);
+      const novoTotalPago = Math.min(parteTotal, Number((jaPago + amount).toFixed(2)));
       await dbService.financeiro.definirPagamentoParticipante(
         payWithReceiptTarget.corridaId,
         payWithReceiptTarget.participantFriendId || 'self',
-        amount,
+        novoTotalPago > 0 ? novoTotalPago : amount,
         receiptBase64
       );
     } else {
@@ -717,6 +724,7 @@ export function FriendDetailsModal({
                   ? corrida.voceDeve <= 0.005
                   : corrida.pendente <= 0.005;
                 const temPagamento = corrida.jaPago > 0.005;
+                const corridaReceipts = parseReceiptUrls(corrida.receiptUrl);
                 return (
                   <div
                     key={corrida.id}
@@ -726,6 +734,7 @@ export function FriendDetailsModal({
                           isOpen: true,
                           url: corrida.receiptUrl,
                           title: `Comprovante — ${corrida.titulo}`,
+                          initialIndex: 0,
                         });
                       }
                     }}
@@ -753,7 +762,7 @@ export function FriendDetailsModal({
                       </div>
 
                       <div className="flex items-center gap-1.5 flex-wrap">
-                        {corrida.receiptUrl && (
+                        {corridaReceipts.length === 1 && (
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
@@ -761,6 +770,7 @@ export function FriendDetailsModal({
                                 isOpen: true,
                                 url: corrida.receiptUrl,
                                 title: `Comprovante — ${corrida.titulo}`,
+                                initialIndex: 0,
                               });
                             }}
                             className="text-[11px] bg-sky-500/20 text-sky-300 hover:bg-sky-500/30 px-2 py-0.5 rounded-md font-semibold flex items-center gap-1 transition-colors"
@@ -769,6 +779,25 @@ export function FriendDetailsModal({
                             <FileCheck2 size={12} /> Comprovante
                           </button>
                         )}
+                        {corridaReceipts.length > 1 &&
+                          corridaReceipts.map((_, rIdx) => (
+                            <button
+                              key={rIdx}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setReceiptToView({
+                                  isOpen: true,
+                                  url: corrida.receiptUrl,
+                                  title: `Comprovante — ${corrida.titulo}`,
+                                  initialIndex: rIdx,
+                                });
+                              }}
+                              className="text-[11px] bg-sky-500/20 text-sky-300 hover:bg-sky-500/30 px-2 py-0.5 rounded-md font-semibold flex items-center gap-1 transition-colors"
+                              title={`Visualizar Comprovante ${rIdx + 1}`}
+                            >
+                              <FileCheck2 size={12} /> Comprovante {rIdx + 1}
+                            </button>
+                          ))}
 
                         {isQuitada ? (
                           <span className="bg-[#34C759]/20 text-[#34C759] text-xs px-2.5 py-0.5 rounded-full font-bold flex items-center gap-1">
@@ -941,7 +970,7 @@ export function FriendDetailsModal({
         recipientName={nome}
         pixKey={friendPix}
         defaultAmount={payWithReceiptTarget.amount}
-        allowCustomAmount={false}
+        allowCustomAmount={true}
         description={payWithReceiptTarget.description}
         onConfirm={handleConfirmPayWithReceipt}
       />
@@ -949,9 +978,10 @@ export function FriendDetailsModal({
       {/* Modal de Visualização de Comprovante */}
       <ReceiptViewerModal
         isOpen={receiptToView.isOpen}
-        onClose={() => setReceiptToView({ isOpen: false, url: null, title: '' })}
+        onClose={() => setReceiptToView({ isOpen: false, url: null, title: '', initialIndex: 0 })}
         receiptUrl={receiptToView.url}
         title={receiptToView.title}
+        initialIndex={receiptToView.initialIndex}
       />
 
       {/* Modal de Editar Amigo */}

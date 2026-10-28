@@ -13,6 +13,61 @@ declare global {
 }
 
 /**
+ * Extrai a lista de URLs/base64 de comprovantes a partir do valor armazenado (string única ou JSON array).
+ */
+export function parseReceiptUrls(raw?: string | string[] | null): string[] {
+  if (!raw) return [];
+  if (Array.isArray(raw)) {
+    return raw
+      .flatMap((item) => parseReceiptUrls(item))
+      .filter((u, idx, arr) => Boolean(u) && arr.indexOf(u) === idx);
+  }
+  const trimmed = String(raw).trim();
+  if (!trimmed) return [];
+  if (trimmed.startsWith('[')) {
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (Array.isArray(parsed)) {
+        return parsed
+          .map((item) =>
+            typeof item === 'string'
+              ? item.trim()
+              : item?.url
+              ? String(item.url).trim()
+              : ''
+          )
+          .filter((u, idx, arr) => Boolean(u) && arr.indexOf(u) === idx);
+      }
+    } catch {
+      // Fallback para string única caso não seja JSON válido
+    }
+  }
+  return [trimmed];
+}
+
+/**
+ * Serializa uma lista de comprovantes de volta para string compatível com o banco (string única se 1, JSON se >1).
+ */
+export function serializeReceiptUrls(urls: string[]): string | null {
+  const clean = urls.filter((u, idx, arr) => Boolean(u) && arr.indexOf(u) === idx);
+  if (clean.length === 0) return null;
+  if (clean.length === 1) return clean[0];
+  return JSON.stringify(clean);
+}
+
+/**
+ * Mescla comprovante(s) existente(s) com novo(s) comprovante(s) sem perder os anteriores e sem duplicar.
+ */
+export function mergeReceiptUrls(
+  existingRaw?: string | string[] | null,
+  incomingRaw?: string | string[] | null
+): string | null {
+  const existing = parseReceiptUrls(existingRaw);
+  const incoming = parseReceiptUrls(incomingRaw);
+  return serializeReceiptUrls([...existing, ...incoming]);
+}
+
+/**
  * Limpa completamente qualquer comprovante pendente no cache/bridge para evitar reaberturas acidentais.
  */
 export function clearSharedReceipt(): void {

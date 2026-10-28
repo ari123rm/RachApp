@@ -24,7 +24,7 @@ import { AddRideModal } from './AddRideModal';
 import { AddGroupModal } from './AddGroupModal';
 import { AddFriendModal } from './AddFriendModal';
 import { PixModal } from './PixModal';
-import { PayWithReceiptModal, ReceiptViewerModal } from './ReceiptModals';
+import { PayWithReceiptModal } from './ReceiptModals';
 import { RideDetailsModal } from './RideDetailsModal';
 import { formatPhoneBR } from '../utils/phoneFormatter';
 import { useModalBackHandler } from '../utils/modalBackHandler';
@@ -57,17 +57,6 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
   const [isEditGroupOpen, setIsEditGroupOpen] = useState(false);
   const [isCreateFriendOpen, setIsCreateFriendOpen] = useState(false);
   const [corridaSelecionada, setCorridaSelecionada] = useState<Corrida | null>(null);
-  const [receiptToView, setReceiptToView] = useState<{
-    isOpen: boolean;
-    url: string | null;
-    title: string;
-    ride: Corrida | null;
-  }>({
-    isOpen: false,
-    url: null,
-    title: '',
-    ride: null,
-  });
 
   const [payMemberTarget, setPayMemberTarget] = useState<{
     isOpen: boolean;
@@ -735,14 +724,7 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
                       <div
                         key={expense.id}
                         onClick={() => {
-                          if (receiptUrl) {
-                            setReceiptToView({
-                              isOpen: true,
-                              url: receiptUrl,
-                              title: `Comprovante — ${expense.title}`,
-                              ride: corridaCompleta || null,
-                            });
-                          } else if (corridaCompleta) {
+                          if (corridaCompleta) {
                             setCorridaSelecionada(corridaCompleta);
                           }
                         }}
@@ -863,19 +845,6 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
         description={pixModalData.description}
         whatsappPhone={pixModalData.whatsappPhone}
         whatsappCustomMessage={pixModalData.whatsappCustomMessage}
-      />
-
-      {/* Modal de Visualização de Comprovante */}
-      <ReceiptViewerModal
-        isOpen={receiptToView.isOpen}
-        onClose={() => setReceiptToView({ isOpen: false, url: null, title: '', ride: null })}
-        receiptUrl={receiptToView.url}
-        title={receiptToView.title}
-        onViewDetails={
-          receiptToView.ride
-            ? () => setCorridaSelecionada(receiptToView.ride)
-            : undefined
-        }
       />
     </div>,
     document.body

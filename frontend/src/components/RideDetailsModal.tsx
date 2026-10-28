@@ -22,6 +22,7 @@ import { dbService } from '../services/database';
 import { useModalBackHandler } from '../utils/modalBackHandler';
 import { getAvatarColor } from '../utils/avatarColor';
 import { applyBilateralNetting } from '../utils/netting';
+import { parseReceiptUrls } from '../utils/receiptShare';
 
 interface RideDetailsProps {
   ride?: Corrida;
@@ -48,10 +49,12 @@ export function RideDetailsModal({
     isOpen: boolean;
     url: string | null;
     title: string;
+    initialIndex?: number;
   }>({
     isOpen: false,
     url: null,
     title: '',
+    initialIndex: 0,
   });
 
   useModalBackHandler(isOpen, onClose);
@@ -145,10 +148,11 @@ export function RideDetailsModal({
 
   // Devedor ("Você", quando um amigo pagou a conta) envia o comprovante para dar baixa na sua parte
   const handleDebtorConfirmSelfPayment = async (amount: number, receiptBase64: string) => {
+    const novoTotalPago = Math.min(minhaParte, Number((meuValorPago + amount).toFixed(2)));
     await dbService.financeiro.definirPagamentoParticipante(
       ride.id,
       'self',
-      amount,
+      novoTotalPago > 0 ? novoTotalPago : amount,
       receiptBase64
     );
     if (onUpdated) onUpdated();
@@ -263,7 +267,13 @@ export function RideDetailsModal({
                 const isFriendPayer = ride.paidByFriendId === p.id;
                 const pNetting = nettingMap.get(p.id);
                 const isQuitado = isFriendPayer || valorPago >= valorParte - 0.01 || !!pNetting?.isQuitada;
-                const receiptDoAmigo = ride.comprovantes?.[p.id] || null;
+                const receiptDoAmigo =
+                  ride.comprovantes?.[p.id] ||
+                  (participantes.length === 1 && ride.comprovantes
+                    ? Object.values(ride.comprovantes).find(Boolean) || null
+                    : null) ||
+                  (isFriendPayer ? ride.selfReceiptUrl || null : null);
+                const receiptsDoAmigo = parseReceiptUrls(receiptDoAmigo);
 
                 return (
                   <div
@@ -273,7 +283,10 @@ export function RideDetailsModal({
                         setReceiptToView({
                           isOpen: true,
                           url: receiptDoAmigo,
-                          title: `Comprovante de ${nome}`,
+                          title: isFriendPayer
+                            ? `Comprovante pago para ${nome}`
+                            : `Comprovante de ${nome}`,
+                          initialIndex: 0,
                         });
                       }
                     }}
@@ -309,7 +322,7 @@ export function RideDetailsModal({
                               Pagador
                             </span>
                           )}
-                          {receiptDoAmigo && (
+                          {receiptsDoAmigo.length === 1 && (
                             <button
                               type="button"
                               onClick={(e) => {
@@ -317,7 +330,10 @@ export function RideDetailsModal({
                                 setReceiptToView({
                                   isOpen: true,
                                   url: receiptDoAmigo,
-                                  title: `Comprovante de ${nome}`,
+                                  title: isFriendPayer
+                                    ? `Comprovante pago para ${nome}`
+                                    : `Comprovante de ${nome}`,
+                                  initialIndex: 0,
                                 });
                               }}
                               className="text-[10px] bg-sky-500/20 text-sky-300 hover:bg-sky-500/30 px-2 py-0.5 rounded-md font-semibold flex items-center gap-1"
@@ -325,27 +341,66 @@ export function RideDetailsModal({
                               <FileCheck2 size={11} /> Ver Comprovante
                             </button>
                           )}
+                          {receiptsDoAmigo.length > 1 &&
+                            receiptsDoAmigo.map((_, rIdx) => (
+                              <button
+                                key={rIdx}
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setReceiptToView({
+                                    isOpen: true,
+                                    url: receiptDoAmigo,
+                                    title: isFriendPayer
+                                      ? `Comprovante pago para ${nome}`
+                                      : `Comprovante de ${nome}`,
+                                    initialIndex: rIdx,
+                                  });
+                                }}
+                                className="text-[10px] bg-sky-500/20 text-sky-300 hover:bg-sky-500/30 px-2 py-0.5 rounded-md font-semibold flex items-center gap-1"
+                              >
+                                <FileCheck2 size={11} /> Comprovante {rIdx + 1}
+                              </button>
+                            ))}
                         </div>
 
                         {!isFriendPayer &&
                           (voceEhPagador ? (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleCreditorTogglePaid(p.id, isQuitado, valorParte);
-                              }}
-                              className={`text-[11px] font-semibold mt-0.5 flex items-center gap-1 ${
-                                isQuitado ? 'text-[#34C759]' : 'text-amber-400 hover:underline'
-                              }`}
-                            >
-                              {isQuitado ? (
-                                <>
-                                  <Check size={12} /> Pago (clique p/ desfazer)
-                                </>
-                              ) : (
-                                '• Pendente (clique p/ quitar)'
-                              )}
-                            </button>
+                            isQuitado && receiptDoAmigo ? (
+                              <div className="flex items-center gap-2 mt-0.5">
+                                <span className="text-[11px] font-semibold text-[#34C759] flex items-center gap-1">
+                                  <Check size={12} /> Pago (toque p/ ver comprovante)
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleCreditorTogglePaid(p.id, isQuitado, valorParte);
+                                  }}
+                                  className="text-[10px] text-gray-400 hover:text-red-400 underline"
+                                >
+                                  Desfazer
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleCreditorTogglePaid(p.id, isQuitado, valorParte);
+                                }}
+                                className={`text-[11px] font-semibold mt-0.5 flex items-center gap-1 ${
+                                  isQuitado ? 'text-[#34C759]' : 'text-amber-400 hover:underline'
+                                }`}
+                              >
+                                {isQuitado ? (
+                                  <>
+                                    <Check size={12} /> Pago (clique p/ desfazer)
+                                  </>
+                                ) : (
+                                  '• Pendente (clique p/ quitar)'
+                                )}
+                              </button>
+                            )
                           ) : (
                             <span
                               className={`text-[11px] font-semibold mt-0.5 flex items-center gap-1 ${
@@ -354,13 +409,18 @@ export function RideDetailsModal({
                             >
                               {isQuitado ? (
                                 <>
-                                  <Check size={12} /> Pago
+                                  <Check size={12} /> {receiptDoAmigo ? 'Pago (toque p/ ver comprovante)' : 'Pago'}
                                 </>
                               ) : (
                                 '• Pendente'
                               )}
                             </span>
                           ))}
+                        {isFriendPayer && receiptDoAmigo && (
+                          <span className="text-[11px] font-semibold mt-0.5 flex items-center gap-1 text-[#34C759]">
+                            <Check size={12} /> Pago c/ comprovante (toque p/ ver)
+                          </span>
+                        )}
                       </div>
                     </div>
                     <div className="text-right shrink-0">
@@ -376,82 +436,132 @@ export function RideDetailsModal({
               })}
 
               {/* Card Você */}
-              <div
-                onClick={() => {
-                  if (ride.selfReceiptUrl) {
-                    setReceiptToView({
-                      isOpen: true,
-                      url: ride.selfReceiptUrl || null,
-                      title: 'Seu Comprovante de Pagamento',
-                    });
-                  }
-                }}
-                className={`flex justify-between items-center bg-[#1c1c1e] p-3.5 rounded-xl border transition-all ${
-                  ride.selfReceiptUrl
-                    ? 'border-sky-500/30 hover:border-[#2DD4BF]/50 cursor-pointer active:scale-[0.99]'
-                    : 'border-white/5'
-                }`}
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full overflow-hidden bg-[#2DD4BF] flex items-center justify-center font-bold text-[#05080f] shrink-0">
-                    {myAvatarUrl ? (
-                      <img src={myAvatarUrl} alt="Você" className="w-full h-full object-cover" />
-                    ) : (
-                      'V'
-                    )}
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-medium text-white text-sm">Você</span>
-                      {voceEhPagador && (
-                        <span className="text-[10px] bg-[#2DD4BF]/20 text-[#2DD4BF] px-2 py-0.5 rounded-md font-bold">
-                          Pagador
-                        </span>
-                      )}
-                      {ride.selfReceiptUrl && (
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setReceiptToView({
-                              isOpen: true,
-                              url: ride.selfReceiptUrl || null,
-                              title: 'Seu Comprovante de Pagamento',
-                            });
-                          }}
-                          className="text-[10px] bg-sky-500/20 text-sky-300 hover:bg-sky-500/30 px-2 py-0.5 rounded-md font-semibold flex items-center gap-1"
-                        >
-                          <FileCheck2 size={11} /> Ver Comprovante
-                        </button>
-                      )}
+              {(() => {
+                const selfReceipts = parseReceiptUrls(ride.selfReceiptUrl);
+                return (
+                  <div
+                    onClick={() => {
+                      if (ride.selfReceiptUrl) {
+                        setReceiptToView({
+                          isOpen: true,
+                          url: ride.selfReceiptUrl || null,
+                          title: 'Seu Comprovante de Pagamento',
+                          initialIndex: 0,
+                        });
+                      }
+                    }}
+                    className={`flex justify-between items-center bg-[#1c1c1e] p-3.5 rounded-xl border transition-all ${
+                      ride.selfReceiptUrl
+                        ? 'border-sky-500/30 hover:border-[#2DD4BF]/50 cursor-pointer active:scale-[0.99]'
+                        : 'border-white/5'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full overflow-hidden bg-[#2DD4BF] flex items-center justify-center font-bold text-[#05080f] shrink-0">
+                        {myAvatarUrl ? (
+                          <img src={myAvatarUrl} alt="Você" className="w-full h-full object-cover" />
+                        ) : (
+                          'V'
+                        )}
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="font-medium text-white text-sm">Você</span>
+                          {voceEhPagador && (
+                            <span className="text-[10px] bg-[#2DD4BF]/20 text-[#2DD4BF] px-2 py-0.5 rounded-md font-bold">
+                              Pagador
+                            </span>
+                          )}
+                          {selfReceipts.length === 1 && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setReceiptToView({
+                                  isOpen: true,
+                                  url: ride.selfReceiptUrl || null,
+                                  title: 'Seu Comprovante de Pagamento',
+                                  initialIndex: 0,
+                                });
+                              }}
+                              className="text-[10px] bg-sky-500/20 text-sky-300 hover:bg-sky-500/30 px-2 py-0.5 rounded-md font-semibold flex items-center gap-1"
+                            >
+                              <FileCheck2 size={11} /> Ver Comprovante
+                            </button>
+                          )}
+                          {selfReceipts.length > 1 &&
+                            selfReceipts.map((_, rIdx) => (
+                              <button
+                                key={rIdx}
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setReceiptToView({
+                                    isOpen: true,
+                                    url: ride.selfReceiptUrl || null,
+                                    title: 'Seu Comprovante de Pagamento',
+                                    initialIndex: rIdx,
+                                  });
+                                }}
+                                className="text-[10px] bg-sky-500/20 text-sky-300 hover:bg-sky-500/30 px-2 py-0.5 rounded-md font-semibold flex items-center gap-1"
+                              >
+                                <FileCheck2 size={11} /> Comprovante {rIdx + 1}
+                              </button>
+                            ))}
+                        </div>
+                        {!voceEhPagador &&
+                          (isSelfQuitado ? (
+                            <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                              <span className="text-[11px] font-semibold flex items-center gap-1 text-[#34C759]">
+                                <Check size={12} />{' '}
+                                {ride.selfReceiptUrl ? 'Pago (toque p/ ver comprovante)' : 'Pago'}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setIsPaySelfOpen(true);
+                                }}
+                                className="text-[10px] bg-white/5 hover:bg-white/10 text-gray-300 px-2 py-0.5 rounded-md font-semibold"
+                              >
+                                + Comprovante
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="mt-1 space-y-1">
+                              {meuValorPago > 0.005 && (
+                                <p className="text-[10px] text-[#2DD4BF] font-semibold">
+                                  Já pago: R$ {moneyConverter(meuValorPago)} • Falta: R${' '}
+                                  {moneyConverter(Math.max(0, minhaParte - meuValorPago))}
+                                </p>
+                              )}
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setIsPaySelfOpen(true);
+                                }}
+                                className="text-[11px] bg-amber-500/20 text-amber-300 hover:bg-amber-500/30 px-2.5 py-1 rounded-lg font-bold flex items-center gap-1 transition-colors"
+                              >
+                                <Upload size={11} />{' '}
+                                {meuValorPago > 0.005
+                                  ? 'Pagar Restante c/ Comprovante'
+                                  : 'Pagar c/ Comprovante'}
+                              </button>
+                            </div>
+                          ))}
+                      </div>
                     </div>
-                    {!voceEhPagador &&
-                      (isSelfQuitado ? (
-                        <span className="text-[11px] font-semibold mt-0.5 flex items-center gap-1 text-[#34C759]">
-                          <Check size={12} /> Pago
-                        </span>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setIsPaySelfOpen(true);
-                          }}
-                          className="text-[11px] bg-amber-500/20 text-amber-300 hover:bg-amber-500/30 px-2.5 py-1 rounded-lg font-bold mt-1 flex items-center gap-1 transition-colors"
-                        >
-                          <Upload size={11} /> Pagar c/ Comprovante
-                        </button>
-                      ))}
+                    <div className="text-right shrink-0">
+                      <p className="text-xs text-gray-500 mb-0.5">
+                        Sua parte (
+                        {valorNumerico > 0 ? ((minhaParte / valorNumerico) * 100).toFixed(1) : '0'}%)
+                      </p>
+                      <p className="font-bold text-white text-sm">R$ {moneyConverter(minhaParte)}</p>
+                    </div>
                   </div>
-                </div>
-                <div className="text-right shrink-0">
-                  <p className="text-xs text-gray-500 mb-0.5">
-                    Sua parte (
-                    {valorNumerico > 0 ? ((minhaParte / valorNumerico) * 100).toFixed(1) : '0'}%)
-                  </p>
-                  <p className="font-bold text-white text-sm">R$ {moneyConverter(minhaParte)}</p>
-                </div>
-              </div>
+                );
+              })()}
             </div>
           </div>
         </div>
@@ -463,8 +573,12 @@ export function RideDetailsModal({
         onClose={() => setIsPaySelfOpen(false)}
         recipientName={pagadorNome}
         pixKey={pagadorPix}
-        defaultAmount={Math.max(0, Number((minhaParte - meuValorPago).toFixed(2)))}
-        allowCustomAmount={false}
+        defaultAmount={
+          Math.max(0, Number((minhaParte - meuValorPago).toFixed(2))) > 0.005
+            ? Number((minhaParte - meuValorPago).toFixed(2))
+            : Number(minhaParte.toFixed(2))
+        }
+        allowCustomAmount={true}
         description={`${ride.tag || 'Uber'} - ${ride.titulo}`}
         onConfirm={handleDebtorConfirmSelfPayment}
       />
@@ -472,9 +586,10 @@ export function RideDetailsModal({
       {/* Modal de Visualização de Comprovante */}
       <ReceiptViewerModal
         isOpen={receiptToView.isOpen}
-        onClose={() => setReceiptToView({ isOpen: false, url: null, title: '' })}
+        onClose={() => setReceiptToView({ isOpen: false, url: null, title: '', initialIndex: 0 })}
         receiptUrl={receiptToView.url}
         title={receiptToView.title}
+        initialIndex={receiptToView.initialIndex}
       />
 
       <AddRideModal

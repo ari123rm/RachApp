@@ -2,6 +2,8 @@
 import axios from 'axios';
 import { getSQLiteDB, runSQL, queryAll, queryOne, flushSQLite } from './sqlite';
 import { stripCountryCode } from '../utils/phoneFormatter';
+import { applyBilateralNetting } from '../utils/netting';
+import { mergeReceiptUrls } from '../utils/receiptShare';
 import type { Amigo, Corrida, Grupo, MembroSaldo, SyncStatus, Transferencia, UserProfile, AppNotification } from '../types';
 
 function generateUUID(): string {
@@ -2248,45 +2250,51 @@ export const dbService = {
     ): Promise<void> => {
       const rounded = Number(valorPago.toFixed(2));
       if (amigoId === 'self') {
-        if (receiptUrl !== undefined) {
-          await runSQL(
-            `UPDATE expenses SET self_amount_paid = ?, self_receipt_url = ? WHERE id = ?`,
-            [rounded, receiptUrl, corridaId],
-            true
-          );
-        } else {
-          await runSQL(
-            `UPDATE expenses SET self_amount_paid = ? WHERE id = ?`,
-            [rounded, corridaId],
-            true
-          );
-        }
+        const currentExp = await queryOne<{ self_receipt_url?: string | null }>(
+          'SELECT self_receipt_url FROM expenses WHERE id = ?',
+          [corridaId]
+        );
+        const mergedReceipt =
+          rounded <= 0
+            ? null
+            : receiptUrl
+            ? mergeReceiptUrls(currentExp?.self_receipt_url, receiptUrl)
+            : currentExp?.self_receipt_url || null;
+
+        await runSQL(
+          `UPDATE expenses SET self_amount_paid = ?, self_receipt_url = ? WHERE id = ?`,
+          [rounded, mergedReceipt, corridaId],
+          true
+        );
         await enqueueSync('payment', 'set_participant', corridaId, {
           friendId: 'self',
           amountPaid: rounded,
-          receiptUrl: receiptUrl || null,
+          receiptUrl: mergedReceipt,
         });
         syncWithBackend(true).catch(() => {});
         return;
       }
 
-      if (receiptUrl !== undefined) {
-        await runSQL(
-          `UPDATE expense_participants SET amount_paid = ?, receipt_url = ? WHERE expense_id = ? AND friend_id = ?`,
-          [rounded, receiptUrl, corridaId, amigoId],
-          true
-        );
-      } else {
-        await runSQL(
-          `UPDATE expense_participants SET amount_paid = ? WHERE expense_id = ? AND friend_id = ?`,
-          [rounded, corridaId, amigoId],
-          true
-        );
-      }
+      const currentPart = await queryOne<{ receipt_url?: string | null }>(
+        'SELECT receipt_url FROM expense_participants WHERE expense_id = ? AND friend_id = ?',
+        [corridaId, amigoId]
+      );
+      const mergedPartReceipt =
+        rounded <= 0
+          ? null
+          : receiptUrl
+          ? mergeReceiptUrls(currentPart?.receipt_url, receiptUrl)
+          : currentPart?.receipt_url || null;
+
+      await runSQL(
+        `UPDATE expense_participants SET amount_paid = ?, receipt_url = ? WHERE expense_id = ? AND friend_id = ?`,
+        [rounded, mergedPartReceipt, corridaId, amigoId],
+        true
+      );
       await enqueueSync('payment', 'set_participant', corridaId, {
         friendId: amigoId,
         amountPaid: rounded,
-        receiptUrl: receiptUrl || null,
+        receiptUrl: mergedPartReceipt,
       });
       syncWithBackend(true).catch(() => {});
     },
@@ -2302,17 +2310,35 @@ export const dbService = {
       const normPhone = stripCountryCode(friendRow?.phone || '');
       const friendName = (friendRow?.name || '').trim();
 
+      const [allAmigos, allCorridas] = await Promise.all([
+        dbService.amigos.getAll(),
+        dbService.corridas.getAll(),
+      ]);
+      const currentFriend = allAmigos.find((a) => a.id === amigoId);
+
       // Se direction não foi informada, deduz a partir do saldo líquido
       let effectiveDirection = direction;
       if (!effectiveDirection) {
-        const allAmigos = await dbService.amigos.getAll();
-        const currentFriend = allAmigos.find((a) => a.id === amigoId);
         const voceDeve = Number(currentFriend?.voceDeveNumerico || 0);
         const eleDeve = Number(currentFriend?.dividaNumerica || 0);
         effectiveDirection = voceDeve > eleDeve ? 'to_friend' : 'from_friend';
       }
 
+      const corridasEscopo = groupId
+        ? allCorridas.filter((c) => c.groupId === groupId)
+        : allCorridas;
+      const nettingMap = applyBilateralNetting(
+        corridasEscopo,
+        {
+          id: amigoId,
+          phone: normPhone,
+          name: friendName,
+        },
+        allAmigos
+      );
+
       let saldoRestante = Number(valorPago);
+      let updatedAny = false;
 
       if (effectiveDirection === 'to_friend') {
         // VOCÊ ESTÁ PAGANDO O AMIGO:
@@ -2321,11 +2347,12 @@ export const dbService = {
           id: string;
           self_amount_owed: number;
           self_amount_paid: number;
+          self_receipt_url?: string | null;
           total_amount: number;
           part_count: number;
           part_sum: number;
         }>(
-          `SELECT e.id, e.self_amount_owed, e.self_amount_paid, e.total_amount,
+          `SELECT e.id, e.self_amount_owed, e.self_amount_paid, e.self_receipt_url, e.total_amount,
                   (SELECT COUNT(*) FROM expense_participants ep2 WHERE ep2.expense_id = e.id) as part_count,
                   (SELECT COALESCE(SUM(amount_owed), 0) FROM expense_participants ep3 WHERE ep3.expense_id = e.id) as part_sum
            FROM expenses e
@@ -2343,6 +2370,7 @@ export const dbService = {
             : [amigoId, normPhone, normPhone, friendName, friendName]
         );
 
+        // Prioriza despesas não compensadas pelo netting bilateral
         for (const sr of selfRows) {
           if (saldoRestante <= 0.005) break;
           const totalPeople = Number(sr.part_count || 1) + 1;
@@ -2354,14 +2382,19 @@ export const dbService = {
               ? 0
               : Number(sr.total_amount || 0) / totalPeople;
           const selfPaid = Number(sr.self_amount_paid || 0);
-          const faltaPagar = selfOwed - selfPaid;
+          const netInfo = nettingMap.get(sr.id);
+          const faltaPagar = netInfo
+            ? Number(netInfo.voceDeveRestante || 0)
+            : Math.max(0, selfOwed - selfPaid);
+
           if (faltaPagar > 0.005) {
             const abater = Math.min(faltaPagar, saldoRestante);
             const novoPago = Number((selfPaid + abater).toFixed(2));
             if (receiptUrl) {
+              const merged = mergeReceiptUrls(sr.self_receipt_url, receiptUrl);
               await runSQL(
                 `UPDATE expenses SET self_amount_paid = ?, self_receipt_url = ? WHERE id = ?`,
-                [novoPago, receiptUrl, sr.id],
+                [novoPago, merged, sr.id],
                 false
               );
             } else {
@@ -2371,8 +2404,57 @@ export const dbService = {
                 false
               );
             }
+            updatedAny = true;
             saldoRestante -= abater;
           }
+        }
+
+        // Caso sobre saldoRestante (ou não houvesse netting aplicável), abate nas demais
+        if (saldoRestante > 0.005 && !updatedAny) {
+          for (const sr of selfRows) {
+            if (saldoRestante <= 0.005) break;
+            const totalPeople = Number(sr.part_count || 1) + 1;
+            const partSum = Number(sr.part_sum || 0);
+            const selfOwed =
+              sr.self_amount_owed !== null && sr.self_amount_owed !== undefined && Number(sr.self_amount_owed) > 0
+                ? Number(sr.self_amount_owed)
+                : Math.abs(partSum - Number(sr.total_amount || 0)) <= 0.1 || partSum >= Number(sr.total_amount || 0) - 0.1
+                ? 0
+                : Number(sr.total_amount || 0) / totalPeople;
+            const selfPaid = Number(sr.self_amount_paid || 0);
+            const faltaPagar = selfOwed - selfPaid;
+            if (faltaPagar > 0.005) {
+              const abater = Math.min(faltaPagar, saldoRestante);
+              const novoPago = Number((selfPaid + abater).toFixed(2));
+              if (receiptUrl) {
+                const merged = mergeReceiptUrls(sr.self_receipt_url, receiptUrl);
+                await runSQL(
+                  `UPDATE expenses SET self_amount_paid = ?, self_receipt_url = ? WHERE id = ?`,
+                  [novoPago, merged, sr.id],
+                  false
+                );
+              } else {
+                await runSQL(
+                  `UPDATE expenses SET self_amount_paid = ? WHERE id = ?`,
+                  [novoPago, sr.id],
+                  false
+                );
+              }
+              updatedAny = true;
+              saldoRestante -= abater;
+            }
+          }
+        }
+
+        // Fallback: se enviou comprovante e todas já estavam quitadas, vincula ao racha mais recente
+        if (receiptUrl && !updatedAny && selfRows.length > 0) {
+          const latestRow = selfRows[selfRows.length - 1];
+          const merged = mergeReceiptUrls(latestRow.self_receipt_url, receiptUrl);
+          await runSQL(
+            `UPDATE expenses SET self_receipt_url = ? WHERE id = ?`,
+            [merged, latestRow.id],
+            false
+          );
         }
       } else {
         // O AMIGO ESTÁ PAGANDO VOCÊ:
@@ -2382,8 +2464,9 @@ export const dbService = {
           friend_id: string;
           amount_owed: number;
           amount_paid: number;
+          receipt_url?: string | null;
         }>(
-          `SELECT ep.expense_id, ep.friend_id, ep.amount_owed, ep.amount_paid
+          `SELECT ep.expense_id, ep.friend_id, ep.amount_owed, ep.amount_paid, ep.receipt_url
            FROM expense_participants ep
            JOIN expenses e ON e.id = ep.expense_id
            LEFT JOIN friends f ON f.id = ep.friend_id
@@ -2402,14 +2485,18 @@ export const dbService = {
 
         for (const r of rows) {
           if (saldoRestante <= 0.005) break;
-          const faltaPagar = Number(r.amount_owed) - Number(r.amount_paid);
+          const netInfo = nettingMap.get(r.expense_id);
+          const faltaPagar = netInfo
+            ? Number(netInfo.pendenteRestante || 0)
+            : Math.max(0, Number(r.amount_owed) - Number(r.amount_paid));
           if (faltaPagar > 0.005) {
             const abater = Math.min(faltaPagar, saldoRestante);
             const novoPago = Number((Number(r.amount_paid) + abater).toFixed(2));
             if (receiptUrl) {
+              const merged = mergeReceiptUrls(r.receipt_url, receiptUrl);
               await runSQL(
                 `UPDATE expense_participants SET amount_paid = ?, receipt_url = ? WHERE expense_id = ? AND friend_id = ?`,
-                [novoPago, receiptUrl, r.expense_id, r.friend_id],
+                [novoPago, merged, r.expense_id, r.friend_id],
                 false
               );
             } else {
@@ -2419,8 +2506,46 @@ export const dbService = {
                 false
               );
             }
+            updatedAny = true;
             saldoRestante -= abater;
           }
+        }
+
+        if (saldoRestante > 0.005 && !updatedAny) {
+          for (const r of rows) {
+            if (saldoRestante <= 0.005) break;
+            const faltaPagar = Number(r.amount_owed) - Number(r.amount_paid);
+            if (faltaPagar > 0.005) {
+              const abater = Math.min(faltaPagar, saldoRestante);
+              const novoPago = Number((Number(r.amount_paid) + abater).toFixed(2));
+              if (receiptUrl) {
+                const merged = mergeReceiptUrls(r.receipt_url, receiptUrl);
+                await runSQL(
+                  `UPDATE expense_participants SET amount_paid = ?, receipt_url = ? WHERE expense_id = ? AND friend_id = ?`,
+                  [novoPago, merged, r.expense_id, r.friend_id],
+                  false
+                );
+              } else {
+                await runSQL(
+                  `UPDATE expense_participants SET amount_paid = ? WHERE expense_id = ? AND friend_id = ?`,
+                  [novoPago, r.expense_id, r.friend_id],
+                  false
+                );
+              }
+              updatedAny = true;
+              saldoRestante -= abater;
+            }
+          }
+        }
+
+        if (receiptUrl && !updatedAny && rows.length > 0) {
+          const latestRow = rows[rows.length - 1];
+          const merged = mergeReceiptUrls(latestRow.receipt_url, receiptUrl);
+          await runSQL(
+            `UPDATE expense_participants SET receipt_url = ? WHERE expense_id = ? AND friend_id = ?`,
+            [merged, latestRow.expense_id, latestRow.friend_id],
+            false
+          );
         }
       }
 
