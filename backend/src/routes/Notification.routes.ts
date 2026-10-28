@@ -8,6 +8,7 @@ router.use(authMiddleware);
 
 router.get('/', NotificationController.list);
 router.patch('/read-all', NotificationController.markAllAsRead);
+router.patch('/read-expense/:expenseId', NotificationController.markAsReadByExpense);
 router.patch('/:id/read', NotificationController.markAsRead);
 router.delete('/:id', NotificationController.delete);
 router.post('/fcm-token', NotificationController.updateFcmToken);

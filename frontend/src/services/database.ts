@@ -2684,6 +2684,35 @@ export const dbService = {
       await runSQL('UPDATE notifications SET read = 1 WHERE id = ?', [id], true);
       api.patch(`/notifications/${id}/read`).catch(() => {});
     },
+    markAsReadByExpenseId: async (expenseId: string): Promise<string[]> => {
+      if (!expenseId) return [];
+      try {
+        const unread = await queryAll<{ id: string; data: string }>(
+          'SELECT id, data FROM notifications WHERE read = 0'
+        );
+        const matchingIds: string[] = [];
+        for (const row of unread) {
+          if (!row.data) continue;
+          try {
+            const parsed = typeof row.data === 'string' ? JSON.parse(row.data) : row.data;
+            if (parsed?.expenseId === expenseId || parsed?.expense_id === expenseId) {
+              matchingIds.push(row.id);
+            }
+          } catch {}
+        }
+
+        if (matchingIds.length > 0) {
+          for (const id of matchingIds) {
+            await runSQL('UPDATE notifications SET read = 1 WHERE id = ?', [id], true);
+          }
+          api.patch(`/notifications/read-expense/${expenseId}`).catch(() => {});
+        }
+        return matchingIds;
+      } catch (err) {
+        console.warn('Erro ao marcar notificações do racha como lidas:', err);
+        return [];
+      }
+    },
     markAllAsRead: async (): Promise<void> => {
       await runSQL('UPDATE notifications SET read = 1 WHERE read = 0', [], true);
       api.patch('/notifications/read-all').catch(() => {});

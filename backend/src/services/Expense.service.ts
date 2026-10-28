@@ -829,7 +829,30 @@ export class ExpenseService {
               (u) => u.id !== userId && phonesMatch(u.phone, expense.paidByFriend.phone)
             );
             if (targetUser) {
-              notifySync(targetUser.id, 'PAYMENT_UPDATED');
+              if (target > 0) {
+                const payer = await prisma.user.findUnique({
+                  where: { id: userId },
+                  select: { name: true },
+                });
+                const payerName = payer?.name || 'Um amigo';
+                const formatted = target.toFixed(2).replace('.', ',');
+                const hasReceipt = !!(receiptUrl || expense.self_receipt_url);
+                await NotificationService.createNotification({
+                  userId: targetUser.id,
+                  type: hasReceipt ? 'RECEIPT_UPLOADED' : 'PAYMENT_RECEIVED',
+                  title: hasReceipt ? 'Comprovante recebido' : 'Pagamento recebido',
+                  message: hasReceipt
+                    ? `${payerName} enviou o comprovante de pagamento de R$ ${formatted} no racha "${expense.title}"`
+                    : `${payerName} registrou o pagamento de R$ ${formatted} no racha "${expense.title}"`,
+                  data: {
+                    expenseId: expense.id,
+                    amount: target,
+                    receiptUrl: receiptUrl || expense.self_receipt_url || null,
+                  },
+                });
+              } else {
+                notifySync(targetUser.id, 'PAYMENT_UPDATED');
+              }
             }
           } catch {
             // ignore
@@ -943,11 +966,14 @@ export class ExpenseService {
             });
             const payerName = payer?.name || 'Um amigo';
             const formatted = targetAmount.toFixed(2).replace('.', ',');
+            const hasReceipt = !!(receiptUrl || myPart.receipt_url);
             await NotificationService.createNotification({
               userId: expense.owner.id,
-              type: 'PAYMENT_RECEIVED',
-              title: 'Pagamento recebido',
-              message: `${payerName} registrou o pagamento de R$ ${formatted} no racha "${expense.title}"`,
+              type: hasReceipt ? 'RECEIPT_UPLOADED' : 'PAYMENT_RECEIVED',
+              title: hasReceipt ? 'Comprovante recebido' : 'Pagamento recebido',
+              message: hasReceipt
+                ? `${payerName} enviou o comprovante de pagamento de R$ ${formatted} no racha "${expense.title}"`
+                : `${payerName} registrou o pagamento de R$ ${formatted} no racha "${expense.title}"`,
               data: {
                 expenseId: expense.id,
                 amount: targetAmount,
@@ -1358,6 +1384,7 @@ export class ExpenseService {
     }
 
     let updatedAny = false;
+    let lastUpdatedExpenseId: string | null = null;
 
     if (effectiveDirection === 'to_friend') {
       // VOCÊ ESTÁ PAGANDO O AMIGO:
@@ -1379,6 +1406,7 @@ export class ExpenseService {
             receiptUrl
           );
           updatedAny = true;
+          lastUpdatedExpenseId = expense.id;
           remainingAmount -= amountToPayHere;
         }
       }
@@ -1395,6 +1423,7 @@ export class ExpenseService {
             Number(lastFriendPaid.self_amount_paid || 0),
             receiptUrl
           );
+          lastUpdatedExpenseId = lastFriendPaid.id;
         }
       }
     } else {
@@ -1420,6 +1449,7 @@ export class ExpenseService {
             receiptUrl
           );
           updatedAny = true;
+          lastUpdatedExpenseId = expense.id;
           remainingAmount -= amountToPayHere;
         }
       }
@@ -1443,6 +1473,7 @@ export class ExpenseService {
             Number(part?.amount_paid || 0),
             receiptUrl
           );
+          lastUpdatedExpenseId = lastSelfPaid.id;
         }
       }
     }
@@ -1472,12 +1503,19 @@ export class ExpenseService {
 
           if (effectiveDirection === 'to_friend') {
             // Creditor pagou o amigo (targetUser recebeu)
+            const hasReceipt = !!receiptUrl;
             await NotificationService.createNotification({
               userId: targetUser.id,
-              type: 'PAYMENT_RECEIVED',
-              title: 'Pagamento recebido',
-              message: `${payerName} registrou um pagamento de R$ ${formatted} para você`,
-              data: { amount: Number(amount) },
+              type: hasReceipt ? 'RECEIPT_UPLOADED' : 'PAYMENT_RECEIVED',
+              title: hasReceipt ? 'Comprovante recebido' : 'Pagamento recebido',
+              message: hasReceipt
+                ? `${payerName} enviou o comprovante de pagamento de R$ ${formatted} para você`
+                : `${payerName} registrou um pagamento de R$ ${formatted} para você`,
+              data: {
+                amount: Number(amount),
+                receiptUrl: receiptUrl || null,
+                expenseId: lastUpdatedExpenseId || undefined,
+              },
             });
           } else {
             // Creditor deu baixa no pagamento que o amigo fez

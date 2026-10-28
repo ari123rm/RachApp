@@ -5,7 +5,6 @@ import {
   ChevronLeft,
   UserPlus,
   LoaderCircle,
-  Receipt,
   Plus,
   QrCode,
   CheckCircle2,
@@ -25,7 +24,7 @@ import { AddFriendModal } from './AddFriendModal';
 import { PixModal } from './PixModal';
 import { PayWithReceiptModal } from './ReceiptModals';
 import { RideDetailsModal } from './RideDetailsModal';
-import { RideStatusView } from './RideCard';
+import { RideCard } from './RideCard';
 import { formatPhoneBR } from '../utils/phoneFormatter';
 import { useModalBackHandler } from '../utils/modalBackHandler';
 import { getAvatarColor } from '../utils/avatarColor';
@@ -706,7 +705,6 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
               ) : (
                 <div className="space-y-2.5">
                   {grupo.expenses.map((expense: any) => {
-                    const totalParts = (expense.participants?.length || 0) + 1;
                     const valorTotalExp = Number(expense.total_amount || 0);
                     const corridaCompleta: Corrida =
                       todasCorridas.find((c) => c.id === expense.id) || {
@@ -750,34 +748,30 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
                       nettingCache
                     );
 
+                    const corridaParticipantes = [
+                      { id: 0, nome: 'Você', cor: '#2DD4BF', avatar_url: myConfig.avatar_url },
+                      ...(corridaCompleta.participantesIds || []).map((pid: string, idx: number) => {
+                        const f = todosAmigos.find((a) => a.id === pid);
+                        return {
+                          id: pid || idx + 1,
+                          nome: f?.nome || f?.name || 'Amigo',
+                          cor: f?.cor || f?.color || '#0ea5e9',
+                          avatar_url: f?.avatar_url || null,
+                        };
+                      }),
+                    ];
+
                     return (
-                      <div
+                      <RideCard
                         key={expense.id}
+                        data={corridaCompleta.data}
+                        tag={corridaCompleta.tag}
+                        titulo={corridaCompleta.titulo}
+                        valorTotal={moneyConverter(corridaCompleta.valorTotal)}
+                        userStatus={userStatus}
+                        participantes={corridaParticipantes}
                         onClick={() => setCorridaSelecionada(corridaCompleta)}
-                        className="bg-[#1c1c1e] hover:bg-[#2c2c2e] p-3 sm:p-4 rounded-2xl border border-white/5 flex justify-between items-center cursor-pointer transition-colors gap-2"
-                      >
-                        <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1 pr-1">
-                          <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-white/5 flex items-center justify-center text-[#2DD4BF] shrink-0">
-                            <Receipt size={17} />
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-1.5 min-w-0">
-                              <h5 className="text-white font-semibold text-xs sm:text-sm truncate">
-                                {expense.title}
-                              </h5>
-                            </div>
-                            <p className="text-[11px] sm:text-xs text-gray-400 mt-0.5 truncate">
-                              {expense.expense_date?.split('T')[0]} • {totalParts} pessoas • Total R$ {moneyConverter(valorTotalExp)}
-                            </p>
-                          </div>
-                        </div>
-                        <div className="text-right shrink-0">
-                          <RideStatusView
-                            userStatus={userStatus}
-                            valorTotal={moneyConverter(valorTotalExp)}
-                          />
-                        </div>
-                      </div>
+                      />
                     );
                   })}
                 </div>

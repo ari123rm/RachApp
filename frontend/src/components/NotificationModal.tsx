@@ -10,6 +10,8 @@ import {
   Car,
   Clock,
   Sparkles,
+  FileCheck,
+  ChevronRight,
 } from 'lucide-react';
 import { dbService } from '../services/database';
 import type { AppNotification } from '../types';
@@ -18,6 +20,7 @@ interface NotificationModalProps {
   isOpen: boolean;
   onClose: () => void;
   onDataChange?: () => void;
+  onOpenRide?: (expenseId: string) => void;
 }
 
 function formatNotificationDate(dateStr: string): string {
@@ -54,7 +57,7 @@ function formatNotificationDate(dateStr: string): string {
   }
 }
 
-export function NotificationModal({ isOpen, onClose, onDataChange }: NotificationModalProps) {
+export function NotificationModal({ isOpen, onClose, onDataChange, onOpenRide }: NotificationModalProps) {
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -97,10 +100,23 @@ export function NotificationModal({ isOpen, onClose, onDataChange }: Notificatio
     if (onDataChange) onDataChange();
   };
 
+  const handleItemClick = async (notif: AppNotification) => {
+    if (!notif.read) {
+      await handleMarkAsRead(notif.id);
+    }
+    const expenseId = notif.data?.expenseId || notif.data?.expense_id;
+    if (expenseId && onOpenRide) {
+      onClose();
+      onOpenRide(expenseId);
+    }
+  };
+
   const unreadCount = notifications.filter((n) => !n.read).length;
 
   const getIconForType = (type: string) => {
     switch (type) {
+      case 'RECEIPT_UPLOADED':
+        return <FileCheck size={18} className="text-emerald-400" />;
       case 'PAYMENT_RECEIVED':
         return <DollarSign size={18} className="text-emerald-400" />;
       case 'GROUP_INVITE':
@@ -176,51 +192,62 @@ export function NotificationModal({ isOpen, onClose, onDataChange }: Notificatio
               </p>
             </div>
           ) : (
-            notifications.map((notif) => (
-              <div
-                key={notif.id}
-                onClick={() => {
-                  if (!notif.read) handleMarkAsRead(notif.id);
-                }}
-                className={`p-3.5 rounded-2xl border transition-all flex items-start justify-between gap-3 ${
-                  notif.read
-                    ? 'bg-[#18202c]/40 border-gray-800/50 opacity-75'
-                    : 'bg-[#1a2332] border-[#2DD4BF]/30 shadow-md'
-                }`}
-              >
-                <div className="flex items-start gap-3 min-w-0 flex-1">
-                  <div className="w-8 h-8 rounded-xl bg-gray-800/80 flex items-center justify-center shrink-0 border border-gray-700/50 mt-0.5">
-                    {getIconForType(notif.type)}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <p className="text-xs font-bold text-white truncate">{notif.title}</p>
-                      {!notif.read && (
-                        <span className="w-2 h-2 rounded-full bg-[#2DD4BF] shrink-0" />
-                      )}
-                    </div>
-                    <p className="text-xs text-gray-300 mt-1 leading-relaxed break-words">
-                      {notif.message}
-                    </p>
-                    <div className="flex items-center gap-1.5 mt-2 text-[10px] text-gray-500">
-                      <Clock size={11} />
-                      <span>{formatNotificationDate(notif.created_at)}</span>
-                    </div>
-                  </div>
-                </div>
-
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleDelete(notif.id);
-                  }}
-                  title="Excluir notificação"
-                  className="text-gray-500 hover:text-red-400 p-1.5 rounded-lg hover:bg-gray-800/40 transition-colors"
+            notifications.map((notif) => {
+              const hasRide = Boolean(notif.data?.expenseId || notif.data?.expense_id);
+              return (
+                <div
+                  key={notif.id}
+                  onClick={() => handleItemClick(notif)}
+                  className={`p-3.5 rounded-2xl border transition-all flex items-start justify-between gap-3 ${
+                    hasRide ? 'cursor-pointer hover:border-[#2DD4BF]/60 active:scale-[0.99]' : ''
+                  } ${
+                    notif.read
+                      ? 'bg-[#18202c]/40 border-gray-800/50 opacity-75'
+                      : 'bg-[#1a2332] border-[#2DD4BF]/30 shadow-md'
+                  }`}
                 >
-                  <Trash2 size={14} />
-                </button>
-              </div>
-            ))
+                  <div className="flex items-start gap-3 min-w-0 flex-1">
+                    <div className="w-8 h-8 rounded-xl bg-gray-800/80 flex items-center justify-center shrink-0 border border-gray-700/50 mt-0.5">
+                      {getIconForType(notif.type)}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <p className="text-xs font-bold text-white truncate">{notif.title}</p>
+                        {!notif.read && (
+                          <span className="w-2 h-2 rounded-full bg-[#2DD4BF] shrink-0" />
+                        )}
+                      </div>
+                      <p className="text-xs text-gray-300 mt-1 leading-relaxed break-words">
+                        {notif.message}
+                      </p>
+                      <div className="flex items-center justify-between gap-2 mt-2">
+                        <div className="flex items-center gap-1.5 text-[10px] text-gray-500">
+                          <Clock size={11} />
+                          <span>{formatNotificationDate(notif.created_at)}</span>
+                        </div>
+                        {hasRide && (
+                          <div className="flex items-center gap-0.5 text-[11px] font-semibold text-[#2DD4BF]">
+                            <span>Ver racha</span>
+                            <ChevronRight size={13} />
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDelete(notif.id);
+                    }}
+                    title="Excluir notificação"
+                    className="text-gray-500 hover:text-red-400 p-1.5 rounded-lg hover:bg-gray-800/40 transition-colors shrink-0"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              );
+            })
           )}
         </div>
       </div>

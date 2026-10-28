@@ -28,6 +28,19 @@ export class NotificationController {
     }
   }
 
+  static async markAsReadByExpense(req: Request, res: Response) {
+    try {
+      const userId = req.user?.userId;
+      if (!userId) return res.status(401).json({ error: 'Não autorizado.' });
+
+      const { expenseId } = req.params;
+      const ids = await NotificationService.markAsReadByExpense(userId, expenseId);
+      return res.status(200).json({ success: true, count: ids.length, ids });
+    } catch (error: any) {
+      return res.status(400).json({ error: error.message });
+    }
+  }
+
   static async markAllAsRead(req: Request, res: Response) {
     try {
       const userId = req.user?.userId;

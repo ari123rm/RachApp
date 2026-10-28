@@ -5,6 +5,16 @@ import { api, syncWithBackend } from './api';
 
 let isPushInitialized = false;
 
+type PushActionCallback = (payload: { expenseId?: string; notificationId?: string; raw?: any }) => void;
+let pushActionCallbacks: PushActionCallback[] = [];
+
+export function onPushNotificationAction(callback: PushActionCallback): () => void {
+  pushActionCallbacks.push(callback);
+  return () => {
+    pushActionCallbacks = pushActionCallbacks.filter((cb) => cb !== callback);
+  };
+}
+
 export async function initPushNotifications(): Promise<void> {
   // Push Notifications nativas só rodam no Android / iOS via Capacitor
   if (!Capacitor.isNativePlatform()) {
@@ -84,6 +94,16 @@ export async function initPushNotifications(): Promise<void> {
       await PushNotifications.addListener('pushNotificationActionPerformed', (action) => {
         console.log('[Capacitor Push] Notificação tocada pelo usuário:', action);
         syncWithBackend(true).catch(() => {});
+        const notifData = action.notification?.data || {};
+        const expenseId = notifData.expenseId || notifData.expense_id || notifData.corridaId;
+        const notificationId = notifData.notificationId || notifData.id;
+        pushActionCallbacks.forEach((cb) => {
+          try {
+            cb({ expenseId, notificationId, raw: action });
+          } catch (e) {
+            console.warn('Erro ao processar callback de ação de push:', e);
+          }
+        });
       });
     } catch (listenerErr) {
       console.warn('Aviso ao registrar ouvintes de push:', listenerErr);

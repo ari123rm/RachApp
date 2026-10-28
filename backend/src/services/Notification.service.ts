@@ -99,6 +99,44 @@ export class NotificationService {
   }
 
   /**
+   * Marca como lidas todas as notificações relacionadas a uma despesa específica
+   */
+  static async markAsReadByExpense(userId: string, expenseId: string) {
+    const unread = await prisma.notification.findMany({
+      where: {
+        user_id: userId,
+        read: false,
+      },
+    });
+
+    const idsToMark = unread
+      .filter((n: any) => {
+        if (!n.data) return false;
+        try {
+          const d = typeof n.data === 'string' ? JSON.parse(n.data) : n.data;
+          return d?.expenseId === expenseId || d?.expense_id === expenseId;
+        } catch {
+          return false;
+        }
+      })
+      .map((n) => n.id);
+
+    if (idsToMark.length > 0) {
+      await prisma.notification.updateMany({
+        where: {
+          id: { in: idsToMark },
+          user_id: userId,
+        },
+        data: {
+          read: true,
+        },
+      });
+    }
+
+    return idsToMark;
+  }
+
+  /**
    * Marca todas as notificações do usuário como lidas
    */
   static async markAllAsRead(userId: string) {

@@ -67,6 +67,17 @@ export function RideDetailsModal({
         .catch(() => {});
 
       if (ride) {
+        dbService.notifications
+          .markAsReadByExpenseId(ride.id)
+          .then((marked) => {
+            if (marked.length > 0 && onUpdated) {
+              onUpdated();
+            }
+          })
+          .catch((err) => {
+            console.warn('Erro ao marcar notificações do racha como lidas:', err);
+          });
+
         Promise.all([dbService.corridas.getAll(), dbService.amigos.getAll()])
           .then(([allRides, allFriends]) => {
             const map = new Map<string, any>();

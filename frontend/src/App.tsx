@@ -13,6 +13,7 @@ import { AddGroupModal } from './components/AddGroupModal';
 import { AssignReceiptModal } from './components/AssignReceiptModal';
 import { UpdateModal } from './components/UpdateModal';
 import { NotificationModal } from './components/NotificationModal';
+import { RideDetailsModal } from './components/RideDetailsModal';
 import { useOtaUpdater } from './services/updateService';
 import { App as CapApp } from '@capacitor/app';
 import {
@@ -22,10 +23,11 @@ import {
   onSocketNotification,
   initPushNotifications,
   unregisterPushNotifications,
+  onPushNotificationAction,
 } from './services/api';
 import { closeTopModal, closeAllModals } from './utils/modalBackHandler';
 import { listenForSharedReceipt, clearSharedReceipt } from './utils/receiptShare';
-import type { AppNotification } from './types';
+import type { AppNotification, Corrida, Amigo } from './types';
 
 const TABS = ['home', 'viagens', 'amigos', 'perfil'] as const;
 
@@ -57,7 +59,32 @@ function App() {
   const [isUpdateModalOpen, setIsUpdateModalOpen] = useState(false);
   const [isNotificationModalOpen, setIsNotificationModalOpen] = useState(false);
   const [inAppToast, setInAppToast] = useState<AppNotification | null>(null);
+  const [selectedRideForModal, setSelectedRideForModal] = useState<Corrida | null>(null);
+  const [amigosListForModal, setAmigosListForModal] = useState<Amigo[]>([]);
   const lastSyncedRef = useRef<string | null>(null);
+
+  const handleOpenRideById = async (rideId: string) => {
+    try {
+      let corridas = await dbService.corridas.getAll();
+      let ride = corridas.find((c) => c.id === rideId);
+
+      // Se ainda não estiver no banco local (ex: notificação instantânea), faz sync
+      if (!ride) {
+        await dbService.sync.now();
+        corridas = await dbService.corridas.getAll();
+        ride = corridas.find((c) => c.id === rideId);
+      }
+
+      if (ride) {
+        const amigos = await dbService.amigos.getAll();
+        setAmigosListForModal(amigos);
+        setSelectedRideForModal(ride);
+        setIsNotificationModalOpen(false);
+      }
+    } catch (err) {
+      console.warn('Erro ao abrir racha pela notificação:', err);
+    }
+  };
 
   // Serviço/Hook de atualização OTA Self-Hosted em background
   const {
@@ -150,6 +177,15 @@ function App() {
     initSocket();
     initPushNotifications();
 
+    const unsubPushAction = onPushNotificationAction(async ({ expenseId, notificationId }) => {
+      if (notificationId) {
+        dbService.notifications.markAsRead(notificationId).catch(() => {});
+      }
+      if (expenseId) {
+        await handleOpenRideById(expenseId);
+      }
+    });
+
     const unsubNotif = onSocketNotification((notif: AppNotification) => {
       setInAppToast(notif);
       refreshData();
@@ -189,6 +225,7 @@ function App() {
 
     return () => {
       unsubNotif();
+      unsubPushAction();
       clearInterval(syncInterval);
       if (appStateHandle && typeof appStateHandle.remove === 'function') {
         appStateHandle.remove();
@@ -621,6 +658,7 @@ function App() {
         isOpen={isNotificationModalOpen}
         onClose={() => setIsNotificationModalOpen(false)}
         onDataChange={refreshData}
+        onOpenRide={handleOpenRideById}
       />
 
       {/* Toast suave de Atualização OTA Pronta (3 segundos / próximo boot) */}
@@ -629,9 +667,17 @@ function App() {
       {/* Toast flutuante de notificação em tempo real */}
       {inAppToast && (
         <div
-          onClick={() => {
-            setIsNotificationModalOpen(true);
+          onClick={async () => {
+            const expenseId = inAppToast.data?.expenseId || inAppToast.data?.expense_id;
+            if (inAppToast.id) {
+              dbService.notifications.markAsRead(inAppToast.id).catch(() => {});
+            }
             setInAppToast(null);
+            if (expenseId) {
+              await handleOpenRideById(expenseId);
+            } else {
+              setIsNotificationModalOpen(true);
+            }
           }}
           className="fixed top-[max(0.75rem,env(safe-area-inset-top,0px))] left-3 right-3 sm:left-4 sm:right-4 max-w-md mx-auto z-50 bg-[#141a23]/95 border border-[#2DD4BF]/50 rounded-2xl p-3 sm:p-3.5 shadow-2xl flex items-start gap-3 cursor-pointer animate-fade-in backdrop-blur-md"
         >
@@ -655,6 +701,24 @@ function App() {
           </button>
         </div>
       )}
+
+      {/* Modal de Detalhes da Corrida aberto via Notificação */}
+      <RideDetailsModal
+        isOpen={!!selectedRideForModal}
+        ride={selectedRideForModal || undefined}
+        participantes={amigosListForModal.filter((a) =>
+          selectedRideForModal?.participantesIds?.includes(a.id)
+        )}
+        onClose={() => setSelectedRideForModal(null)}
+        onDelete={async (id) => {
+          await dbService.corridas.delete(id);
+          setSelectedRideForModal(null);
+          refreshData();
+        }}
+        onUpdated={() => {
+          refreshData();
+        }}
+      />
     </div>
   );
 }

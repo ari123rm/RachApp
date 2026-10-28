@@ -1,20 +1,15 @@
 import { createPortal } from 'react-dom';
 // src/components/FriendDetailsModal.tsx
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   ChevronLeft,
-  Banknote,
   Trash2,
   LoaderCircle,
   DollarSign,
   X,
-  Undo2,
   Pencil,
   QrCode,
-  Check,
   Phone,
-  UsersRound,
-  FileCheck2,
   Upload,
   BadgeCheck,
 } from 'lucide-react';
@@ -23,12 +18,16 @@ import moneyConverter from '../utils/moneyConverter';
 import { AddFriendModal } from './AddFriendModal';
 import { PixModal } from './PixModal';
 import { PayWithReceiptModal, ReceiptViewerModal } from './ReceiptModals';
+import { RideCard } from './RideCard';
+import { RideDetailsModal } from './RideDetailsModal';
 import { generatePixCopiaECola } from '../utils/pixGenerator';
 import { formatPhoneBR, openWhatsApp, phonesMatchBR, stripCountryCode } from '../utils/phoneFormatter';
 import { useModalBackHandler } from '../utils/modalBackHandler';
 import { getAvatarColor } from '../utils/avatarColor';
 import { applyBilateralNetting } from '../utils/netting';
-import { parseReceiptUrls } from '../utils/receiptShare';
+import { getRideStatusForUser } from '../utils/rideStatus';
+import type { CorridaNettingInfo } from '../utils/netting';
+import type { Corrida, Amigo } from '../types';
 
 function parseCurrency(val: any): number {
   if (typeof val === 'number') return isNaN(val) ? 0 : val;
@@ -58,7 +57,16 @@ export function FriendDetailsModal({
 }: FriendDetailsProps) {
   const [amigoAtual, setAmigoAtual] = useState<any>(amigo);
   const [corridasDoAmigo, setCorridasDoAmigo] = useState<any[]>([]);
+  const [todasCorridas, setTodasCorridas] = useState<Corrida[]>([]);
+  const [todosAmigos, setTodosAmigos] = useState<Amigo[]>([]);
+  const [myAvatarUrl, setMyAvatarUrl] = useState<string | null>(null);
+  const [corridaSelecionada, setCorridaSelecionada] = useState<Corrida | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+
+  const nettingCache = useMemo(
+    () => new Map<string, Map<string, CorridaNettingInfo>>(),
+    [todasCorridas, todosAmigos]
+  );
 
   // Modal de Registrar Recebimento (usado quando o amigo deve para Você — você é o lesado/credor)
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
@@ -114,12 +122,17 @@ export function FriendDetailsModal({
     if (!targetAmigo?.id) return;
     setIsLoading(true);
     try {
-      const [todasCorridas, config, todosAmigos, todosGrupos] = await Promise.all([
+      const [todasCorridasData, config, todosAmigosData, todosGrupos, sessionUser] = await Promise.all([
         dbService.corridas.getAll(),
         dbService.settings.get(),
         dbService.amigos.getAll(),
         dbService.grupos.getAll(),
+        dbService.auth.getSessionUser(),
       ]);
+
+      setTodasCorridas(todasCorridasData);
+      setTodosAmigos(todosAmigosData);
+      setMyAvatarUrl(sessionUser?.avatar_url || null);
 
       setMyConfig({
         nome: config.nome || config.name || 'Você',
@@ -130,8 +143,8 @@ export function FriendDetailsModal({
       const targetName = (targetAmigo.nome || targetAmigo.name || '').trim().toLowerCase();
 
       const atualizado =
-        todosAmigos.find((a) => a.id === targetAmigo.id) ||
-        todosAmigos.find((a) => {
+        todosAmigosData.find((a) => a.id === targetAmigo.id) ||
+        todosAmigosData.find((a) => {
           const aPhone = stripCountryCode(a.telefone || a.phone || '');
           if (targetPhone && aPhone && phonesMatchBR(targetPhone, aPhone)) return true;
           const aName = (a.nome || a.name || '').trim().toLowerCase();
@@ -149,7 +162,7 @@ export function FriendDetailsModal({
       if (atualizado.id) matchingFriendIds.add(atualizado.id);
       if (targetAmigo.id) matchingFriendIds.add(targetAmigo.id);
 
-      todosAmigos.forEach((a) => {
+      todosAmigosData.forEach((a) => {
         const aPhone = stripCountryCode(a.telefone || a.phone || '');
         const aName = (a.nome || a.name || '').trim().toLowerCase();
         if (
@@ -178,7 +191,7 @@ export function FriendDetailsModal({
       const checkIfFriendIsParticipant = (c: any) => {
         return (c.participantesIds || []).some((pid: string) => {
           if (matchingFriendIds.has(pid)) return true;
-          const f = todosAmigos.find((a) => a.id === pid);
+          const f = todosAmigosData.find((a) => a.id === pid);
           if (f) {
             const fPhone = stripCountryCode(f.telefone || f.phone || '');
             const fName = (f.nome || f.name || '').trim().toLowerCase();
@@ -190,7 +203,7 @@ export function FriendDetailsModal({
       };
 
       // Prioriza a chave Pix que o amigo cadastrou para si (caso exista em racha pago por ele)
-      const rachaComPix = todasCorridas.find(
+      const rachaComPix = todasCorridasData.find(
         (c) => checkIfFriendIsPayer(c) && c.payerPixKey?.trim()
       );
       if (rachaComPix?.payerPixKey?.trim()) {
@@ -199,9 +212,9 @@ export function FriendDetailsModal({
         setAmigoAtual({ ...atualizado });
       }
 
-      const nettingMap = applyBilateralNetting(todasCorridas, atualizado, todosAmigos);
+      const nettingMap = applyBilateralNetting(todasCorridasData, atualizado, todosAmigosData);
 
-      const corridasFormatadas = todasCorridas
+      const corridasFormatadas = todasCorridasData
         .map((corrida) => {
           const amigoFoiPagador = checkIfFriendIsPayer(corrida);
           const amigoEhParticipante = checkIfFriendIsParticipant(corrida);
@@ -271,6 +284,7 @@ export function FriendDetailsModal({
 
           return {
             id: corrida.id,
+            rawCorrida: corrida,
             participantFriendId: amigoFoiPagador ? 'self' : pid,
             data: corrida.data,
             app: corrida.tag || 'Uber',
@@ -361,51 +375,6 @@ export function FriendDetailsModal({
     : eleDeveNoSaldo
     ? Number((totalEleDeve - totalVoceDeve).toFixed(2))
     : 0;
-
-  // Apenas o credor ("lesado") pode desfazer o pagamento
-  const handleUndoPayment = async (corridaId: string, participantId?: string) => {
-    if (
-      window.confirm(
-        'Deseja desfazer o pagamento deste racha? O valor voltará para a dívida pendente.'
-      )
-    ) {
-      setIsLoading(true);
-      try {
-        await dbService.financeiro.desfazerPagamentoDaCorrida(
-          corridaId,
-          participantId || baseAmigo.id
-        );
-        await carregarCorridas();
-        if (update) update();
-      } catch (error) {
-        console.error('Erro ao desfazer pagamento:', error);
-      } finally {
-        setIsLoading(false);
-      }
-    }
-  };
-
-  // Apenas o credor ("lesado") pode quitar diretamente sem comprovante
-  const handleQuitarCorridaUnicaCredor = async (
-    corridaId: string,
-    valorTotalParte: number,
-    participantId?: string
-  ) => {
-    setIsLoading(true);
-    try {
-      await dbService.financeiro.definirPagamentoParticipante(
-        corridaId,
-        participantId || baseAmigo.id,
-        valorTotalParte
-      );
-      await carregarCorridas();
-      if (update) update();
-    } catch (error) {
-      console.error('Erro ao quitar corrida:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   const handlePaymentAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const apenasNumeros = e.target.value.replace(/\D/g, '');
@@ -720,182 +689,49 @@ export function FriendDetailsModal({
             </div>
           ) : (
             <div className="space-y-3 pb-4">
-              {corridasDoAmigo.map((corrida) => {
-                const isQuitada = corrida.amigoFoiPagador
-                  ? corrida.voceDeve <= 0.005
-                  : corrida.pendente <= 0.005;
-                const temPagamento = corrida.jaPago > 0.005;
-                const corridaReceipts = parseReceiptUrls(corrida.receiptUrl);
+              {corridasDoAmigo.map((corridaItem) => {
+                const corridaCompleta: Corrida =
+                  corridaItem.rawCorrida ||
+                  todasCorridas.find((c) => c.id === corridaItem.id) || {
+                    id: corridaItem.id,
+                    titulo: corridaItem.titulo,
+                    valorTotal: parseCurrency(corridaItem.precoTotal),
+                    data: corridaItem.data,
+                    tag: corridaItem.app,
+                    participantesIds: [],
+                  };
+
+                const userStatus = getRideStatusForUser(
+                  corridaCompleta,
+                  todasCorridas,
+                  todosAmigos,
+                  nettingCache
+                );
+
+                const corridaParticipantes = [
+                  { id: 0, nome: 'Você', cor: '#2DD4BF', avatar_url: myAvatarUrl },
+                  ...(corridaCompleta.participantesIds || []).map((pid: string, idx: number) => {
+                    const f = todosAmigos.find((a) => a.id === pid);
+                    return {
+                      id: pid || idx + 1,
+                      nome: f?.nome || f?.name || 'Amigo',
+                      cor: f?.cor || f?.color || '#0ea5e9',
+                      avatar_url: f?.avatar_url || null,
+                    };
+                  }),
+                ];
+
                 return (
-                  <div
-                    key={corrida.id}
-                    onClick={() => {
-                      if (corrida.receiptUrl) {
-                        setReceiptToView({
-                          isOpen: true,
-                          url: corrida.receiptUrl,
-                          title: `Comprovante — ${corrida.titulo}`,
-                          initialIndex: 0,
-                        });
-                      }
-                    }}
-                    className={`p-4 rounded-2xl border transition-all ${
-                      isQuitada ? 'bg-[#14171f] opacity-85' : 'bg-[#1c1c1e]'
-                    } ${
-                      corrida.receiptUrl
-                        ? 'border-sky-500/30 hover:border-[#2DD4BF]/50 cursor-pointer active:scale-[0.99]'
-                        : 'border-white/5'
-                    }`}
-                  >
-                    <div className="flex justify-between items-center mb-2 gap-2 flex-wrap">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <p className="text-gray-400 text-xs">{formatarDataCurta(corrida.data)}</p>
-                        {corrida.amigoFoiPagador && (
-                          <span className="text-[10px] bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded-full font-semibold">
-                            Pago por {nome.split(' ')[0]}
-                          </span>
-                        )}
-                        {corrida.groupName && (
-                          <span className="text-[10px] bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded-full font-semibold flex items-center gap-1">
-                            <UsersRound size={10} /> {corrida.groupName}
-                          </span>
-                        )}
-                      </div>
-
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        {corridaReceipts.length === 1 && (
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setReceiptToView({
-                                isOpen: true,
-                                url: corrida.receiptUrl,
-                                title: `Comprovante — ${corrida.titulo}`,
-                                initialIndex: 0,
-                              });
-                            }}
-                            className="text-[11px] bg-sky-500/20 text-sky-300 hover:bg-sky-500/30 px-2 py-0.5 rounded-md font-semibold flex items-center gap-1 transition-colors"
-                            title="Visualizar comprovante de pagamento"
-                          >
-                            <FileCheck2 size={12} /> Comprovante
-                          </button>
-                        )}
-                        {corridaReceipts.length > 1 &&
-                          corridaReceipts.map((_, rIdx) => (
-                            <button
-                              key={rIdx}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setReceiptToView({
-                                  isOpen: true,
-                                  url: corrida.receiptUrl,
-                                  title: `Comprovante — ${corrida.titulo}`,
-                                  initialIndex: rIdx,
-                                });
-                              }}
-                              className="text-[11px] bg-sky-500/20 text-sky-300 hover:bg-sky-500/30 px-2 py-0.5 rounded-md font-semibold flex items-center gap-1 transition-colors"
-                              title={`Visualizar Comprovante ${rIdx + 1}`}
-                            >
-                              <FileCheck2 size={12} /> Comprovante {rIdx + 1}
-                            </button>
-                          ))}
-
-                        {isQuitada ? (
-                          <span className="bg-[#34C759]/20 text-[#34C759] text-xs px-2.5 py-0.5 rounded-full font-bold flex items-center gap-1">
-                            <Check size={12} /> {corrida.quitadaPorCompensacao ? 'Quitado (Compensado)' : 'Pago'}
-                          </span>
-                        ) : corrida.amigoFoiPagador ? (
-                          /* Você deve neste racha -> só pode pagar enviando comprovante */
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setPayWithReceiptTarget({
-                                isOpen: true,
-                                mode: 'single',
-                                corridaId: corrida.id,
-                                participantFriendId: 'self',
-                                amount: corrida.voceDeve,
-                                description: `${corrida.app} - ${corrida.titulo}`,
-                              });
-                            }}
-                            className="text-xs bg-amber-500/20 text-amber-300 hover:bg-amber-500/30 px-2.5 py-1 rounded-lg font-bold flex items-center gap-1 transition-colors"
-                            title="Enviar comprovante de pagamento"
-                          >
-                            <Upload size={12} /> Pagar c/ Comprovante
-                          </button>
-                        ) : (
-                          /* O amigo deve para você -> você é o lesado e pode confirmar que ele pagou */
-                          <>
-                            <span className="text-xs px-2.5 py-0.5 rounded-full font-bold bg-red-500/20 text-red-400">
-                              • Pendente
-                            </span>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleQuitarCorridaUnicaCredor(
-                                  corrida.id,
-                                  corrida.pendente > 0 ? corrida.pendente : corrida.parteNumero,
-                                  corrida.participantFriendId
-                                );
-                              }}
-                              className="text-xs bg-[#2DD4BF]/20 text-[#2DD4BF] hover:bg-[#2DD4BF]/30 px-2 py-0.5 rounded-md font-semibold transition-colors"
-                              title="Confirmar que o amigo pagou esta conta"
-                            >
-                              Quitar
-                            </button>
-                          </>
-                        )}
-
-                        {/* Apenas o credor (!corrida.amigoFoiPagador) pode desfazer o pagamento */}
-                        {temPagamento && !corrida.amigoFoiPagador && (
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleUndoPayment(corrida.id, corrida.participantFriendId);
-                            }}
-                            className="text-gray-400 hover:text-white bg-white/5 hover:bg-white/10 p-1.5 rounded-md transition-colors"
-                            title="Desfazer pagamento desta corrida"
-                          >
-                            <Undo2 size={14} />
-                          </button>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="flex items-center text-white font-semibold mb-3 min-w-0">
-                      <Banknote size={16} className="text-[#2DD4BF] mr-2 shrink-0" />
-                      <span className="truncate">
-                        {corrida.app} — {corrida.titulo}
-                      </span>
-                    </div>
-
-                    <div className="flex flex-wrap sm:flex-nowrap justify-between items-end gap-1 text-sm pt-2 border-t border-white/5">
-                      <span className="text-gray-500 text-xs truncate">
-                        Custo Total: R$ {corrida.precoTotal}
-                      </span>
-                      <div className="text-right shrink-0">
-                        <div className="text-xs text-gray-400">
-                          {corrida.amigoFoiPagador ? 'Sua parte' : 'Parte dele'} ({corrida.partePct}%): R$ {corrida.parteAmigo}
-                        </div>
-                        {corrida.compensado > 0.005 && (
-                          <div className="text-[11px] text-[#2DD4BF] font-medium mt-0.5">
-                            R$ {corrida.compensadoFormatado} compensado{corrida.isQuitada ? 's' : ''}
-                          </div>
-                        )}
-                        {!isQuitada && (
-                          <div
-                            className={`font-bold text-xs mt-0.5 ${
-                              corrida.amigoFoiPagador ? 'text-red-400' : 'text-amber-400'
-                            }`}
-                          >
-                            {corrida.amigoFoiPagador
-                              ? `Você deve: R$ ${corrida.voceDeveFormatado}`
-                              : `Pendente: R$ ${corrida.pendenteFormatado}`}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
+                  <RideCard
+                    key={corridaItem.id}
+                    data={corridaCompleta.data}
+                    tag={corridaCompleta.tag}
+                    titulo={corridaCompleta.titulo}
+                    valorTotal={moneyConverter(corridaCompleta.valorTotal)}
+                    userStatus={userStatus}
+                    participantes={corridaParticipantes}
+                    onClick={() => setCorridaSelecionada(corridaCompleta)}
+                  />
                 );
               })}
             </div>
@@ -1007,6 +843,26 @@ export function FriendDetailsModal({
         description={`RachApp ${nome}`}
         whatsappPhone={telefone}
         whatsappCustomMessage={montarMensagemCobranca()}
+      />
+
+      {/* Modal Detalhes do Racha */}
+      <RideDetailsModal
+        isOpen={!!corridaSelecionada}
+        ride={corridaSelecionada || undefined}
+        participantes={todosAmigos.filter((a) =>
+          corridaSelecionada?.participantesIds?.includes(a.id)
+        )}
+        onClose={() => setCorridaSelecionada(null)}
+        onDelete={async (id) => {
+          await dbService.corridas.delete(id);
+          setCorridaSelecionada(null);
+          await carregarCorridas();
+          if (update) update();
+        }}
+        onUpdated={async () => {
+          await carregarCorridas();
+          if (update) update();
+        }}
       />
     </div>,
     document.body
