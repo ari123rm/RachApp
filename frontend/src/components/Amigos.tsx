@@ -348,6 +348,9 @@ export function Amigos({
 
   const usuariosComContaFiltrados = useMemo(() => {
     return usuariosComConta.filter((u) => {
+      // Exibe apenas contatos que estão na agenda do usuário
+      if (u.is_in_contacts === false) return false;
+
       const uPhone = stripCountryCode(u.phone || '');
       const jaEhAmigo = amigos.some((f) => {
         const fPhone = stripCountryCode(f.telefone || f.phone || '');

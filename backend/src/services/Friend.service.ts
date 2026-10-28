@@ -719,21 +719,31 @@ export class FriendService {
       }),
     ]);
 
-    const contactsList = Array.isArray(rawContacts) ? rawContacts : [];
+    const contactsList = (Array.isArray(rawContacts) ? rawContacts : []).filter(
+      (c) => c && c.phone
+    );
+
+    // Se o usuário não tiver contatos informados ou sincronizados, não há contatos com conta a exibir
+    if (contactsList.length === 0) {
+      return [];
+    }
 
     const results = allUsers
-      .filter((u) => {
-        if (!u.phone) return false;
-        // Filtra usuários que já estão na lista de amigos do usuário
-        const alreadyFriend = myFriends.some(
-          (f) => f.phone && phonesMatch(f.phone, u.phone)
-        );
-        return !alreadyFriend;
-      })
       .map((u) => {
+        if (!u.phone) return null;
+
+        // O usuário cadastrado DEVE estar na lista de contatos do usuário
         const matchedContact = contactsList.find(
           (c) => c.phone && phonesMatch(c.phone, u.phone)
         );
+        if (!matchedContact) return null;
+
+        // Se já é amigo adicionado na lista de amigos, não deve aparecer aqui
+        const alreadyFriend = myFriends.some(
+          (f) => f.phone && phonesMatch(f.phone, u.phone)
+        );
+        if (alreadyFriend) return null;
+
         const existingReq = allRequests.find(
           (r) =>
             (r.sender_id === userId && r.receiver_id === u.id) ||
@@ -749,17 +759,17 @@ export class FriendService {
           avatar_url: u.avatar_url || null,
           has_account: true,
           is_registered: true,
-          is_in_contacts: Boolean(matchedContact),
+          is_in_contacts: true,
           request_status: existingReq?.status || null,
           color: 'bg-teal-500',
         };
-      });
+      })
+      .filter((item): item is NonNullable<typeof item> => item !== null);
 
     results.sort((a, b) => {
-      if (a.is_in_contacts !== b.is_in_contacts) {
-        return a.is_in_contacts ? -1 : 1;
-      }
-      return (a.name || '').localeCompare(b.name || '', 'pt-BR');
+      const nameA = a.contact_name || a.name || '';
+      const nameB = b.contact_name || b.name || '';
+      return nameA.localeCompare(nameB, 'pt-BR');
     });
 
     return results;
