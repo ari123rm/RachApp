@@ -44,7 +44,7 @@ export function UpdateModal({ isOpen, onClose, updateInfo }: UpdateModalProps) {
     setIsDownloading(true);
     setDownloadSuccess(false);
     setOtaProgress(0);
-    setStatusMessage('Baixando pacote de atualização em segundo plano...');
+    setStatusMessage('Baixando pacote de atualização OTA em segundo plano...');
     try {
       const staged = await downloadAndStageOtaUpdate(updateInfo, (pct) => {
         setOtaProgress(pct);
@@ -55,16 +55,14 @@ export function UpdateModal({ isOpen, onClose, updateInfo }: UpdateModalProps) {
         setTimeout(() => {
           applyOtaUpdateNow(staged);
         }, 1200);
-      } else if (updateInfo.apkDownloadUrl) {
-        await triggerApkDownload(updateInfo.apkDownloadUrl);
-        setDownloadSuccess(true);
+      } else {
         setStatusMessage(
-          'Download do APK iniciado! Acompanhe na barra de notificações do seu celular.'
+          'Não foi possível concluir o pacote OTA. Verifique sua conexão e tente novamente, ou baixe o APK abaixo.'
         );
-        setTimeout(() => setIsDownloading(false), 2000);
+        setIsDownloading(false);
       }
     } catch {
-      alert('Erro ao baixar atualização.');
+      setStatusMessage('Erro ao baixar a atualização OTA. Tente novamente.');
       setIsDownloading(false);
     }
   };

@@ -14,6 +14,7 @@ export interface AppReleaseInfo {
   publishedAt: string;
   apkDownloadUrl: string;
   otaZipUrl: string;
+  otaChecksum?: string;
   htmlUrl: string;
   isNewer: boolean;
   currentVersion: string;
@@ -24,6 +25,8 @@ export interface VersionManifestJson {
   tagName?: string;
   url?: string;
   updateZipUrl?: string;
+  checksum?: string;
+  sha256?: string;
   apkUrl?: string;
   notes?: string;
   publishedAt?: string;
@@ -58,6 +61,14 @@ const NETWORK_TIMEOUT_MS = 8000;
 
 let appReadyNotified = false;
 let activeOtaCheckPromise: Promise<AppReleaseInfo | null> | null = null;
+let activeOtaDownloadPromise: Promise<ReadyOtaBundle | null> | null = null;
+let activeOtaDownloadVersion: string | null = null;
+const otaProgressListeners = new Set<(percent: number) => void>();
+
+function normalizeSha256Hex(raw?: string | null): string {
+  if (!raw) return '';
+  return String(raw).trim().replace(/^sha256:/i, '').toLowerCase();
+}
 
 /**
  * Helper de fetch com AbortController para nunca bloquear ou travar caso a internet caia no meio da checagem.
@@ -292,10 +303,13 @@ export async function checkAppUpdate(force = false): Promise<AppReleaseInfo | nu
       if (cached) {
         try {
           const parsed = JSON.parse(cached) as AppReleaseInfo;
-          const currentVersion = await getCurrentAppVersion();
-          parsed.currentVersion = currentVersion;
-          parsed.isNewer = isVersionNewer(currentVersion, parsed.version || parsed.tagName);
-          return parsed;
+          // Se o cache já possui otaChecksum (ou não tem otaZipUrl), podemos reaproveitá-lo
+          if (!parsed.otaZipUrl || parsed.otaChecksum) {
+            const currentVersion = await getCurrentAppVersion();
+            parsed.currentVersion = currentVersion;
+            parsed.isNewer = isVersionNewer(currentVersion, parsed.version || parsed.tagName);
+            return parsed;
+          }
         } catch {}
       }
     }
@@ -338,14 +352,18 @@ export async function checkAppUpdate(force = false): Promise<AppReleaseInfo | nu
       );
 
       let otaZipUrl = zipAsset?.browser_download_url || '';
+      let otaChecksum = normalizeSha256Hex(zipAsset?.digest);
       let apkDownloadUrl = apkAsset?.browser_download_url || releaseData.html_url || '';
       let finalVersion = normalizedVersion;
 
-      // Se houver version.json anexado e ainda precisarmos confirmar a URL do update.zip
-      if (!otaZipUrl && versionJsonAsset?.browser_download_url) {
+      // Se houver version.json anexado e ainda precisarmos confirmar a URL ou o checksum do update.zip
+      if ((!otaZipUrl || !otaChecksum) && versionJsonAsset?.browser_download_url) {
         const manifest = await tryFetchVersionManifest(versionJsonAsset.browser_download_url);
         if (manifest) {
-          otaZipUrl = manifest.updateZipUrl || manifest.url || '';
+          if (!otaZipUrl) otaZipUrl = manifest.updateZipUrl || manifest.url || '';
+          if (!otaChecksum) {
+            otaChecksum = normalizeSha256Hex(manifest.checksum || manifest.sha256);
+          }
           if (manifest.apkUrl) apkDownloadUrl = manifest.apkUrl;
           if (manifest.version) finalVersion = manifest.version.replace(/^v/i, '');
         }
@@ -361,6 +379,7 @@ export async function checkAppUpdate(force = false): Promise<AppReleaseInfo | nu
         publishedAt: releaseData.published_at || '',
         apkDownloadUrl,
         otaZipUrl,
+        otaChecksum: otaChecksum || undefined,
         htmlUrl: releaseData.html_url || `https://github.com/${GITHUB_REPO}/releases/latest`,
         isNewer,
         currentVersion,
@@ -382,6 +401,7 @@ export async function checkAppUpdate(force = false): Promise<AppReleaseInfo | nu
         manifest.updateZipUrl ||
         manifest.url ||
         `https://github.com/${GITHUB_REPO}/releases/download/${tagName}/update.zip`;
+      const otaChecksum = normalizeSha256Hex(manifest.checksum || manifest.sha256);
       const apkDownloadUrl =
         manifest.apkUrl ||
         `https://github.com/${GITHUB_REPO}/releases/download/${tagName}/app-release.apk`;
@@ -395,6 +415,7 @@ export async function checkAppUpdate(force = false): Promise<AppReleaseInfo | nu
         publishedAt: manifest.publishedAt || '',
         apkDownloadUrl,
         otaZipUrl,
+        otaChecksum: otaChecksum || undefined,
         htmlUrl: `https://github.com/${GITHUB_REPO}/releases/tag/${tagName}`,
         isNewer,
         currentVersion,
@@ -415,8 +436,42 @@ export async function checkAppUpdate(force = false): Promise<AppReleaseInfo | nu
 }
 
 /**
+ * Resolve o checksum SHA-256 (64 hex chars) exigido pelo `@capgo/capacitor-updater@8.x`
+ * consultando a API do GitHub Releases (`asset.digest`) ou `version.json` caso não esteja em cache.
+ */
+async function resolveOtaChecksum(releaseInfo: AppReleaseInfo): Promise<string> {
+  const existing = normalizeSha256Hex(releaseInfo.otaChecksum);
+  if (existing) return existing;
+
+  try {
+    const response = await fetchWithTimeout(GITHUB_RELEASES_URL, {
+      headers: { Accept: 'application/vnd.github.v3+json' },
+      cache: 'no-store',
+    });
+    if (response.ok) {
+      const releaseData = await response.json();
+      const assets: any[] = Array.isArray(releaseData?.assets) ? releaseData.assets : [];
+      const zipAsset =
+        assets.find((a) => String(a.name || '').toLowerCase() === 'update.zip') ||
+        assets.find((a) => String(a.name || '').toLowerCase().endsWith('.zip'));
+      const fromDigest = normalizeSha256Hex(zipAsset?.digest);
+      if (fromDigest) return fromDigest;
+    }
+  } catch {}
+
+  try {
+    const manifest = await tryFetchVersionManifest(GITHUB_VERSION_JSON_URL);
+    const fromManifest = normalizeSha256Hex(manifest?.checksum || manifest?.sha256);
+    if (fromManifest) return fromManifest;
+  } catch {}
+
+  return '';
+}
+
+/**
  * 3 & 4. Download Manual em Background e Aplicação Segura (Blue-Green)
- * - Faz o download e extração do `update.zip` via `@capgo/capacitor-updater`.
+ * - Faz o download e extração do `update.zip` via `@capgo/capacitor-updater` informando o `checksum` SHA-256 obrigatório.
+ * - Deduplica downloads concorrentes (ex: download em background no boot + clique manual no botão).
  * - Registra o bundle via `CapacitorUpdater.next({ id: bundle.id })` para apontar o próximo boot com segurança.
  * - Se o download falhar ou o `.zip` estiver corrompido, limpa o bundle inválido e mantém o build nativo embutido no APK.
  */
@@ -428,93 +483,139 @@ export async function downloadAndStageOtaUpdate(
     return null;
   }
 
-  // Confirma novamente se há rede antes de iniciar o download do zip
-  const connected = await isNetworkConnected();
-  if (!connected) {
-    return null;
+  if (onProgress) {
+    otaProgressListeners.add(onProgress);
   }
 
-  let progressListenerHandle: { remove: () => Promise<void> } | null = null;
-  let downloadedBundle: BundleInfo | null = null;
-
   try {
-    // Verifica se este bundle já foi baixado anteriormente com sucesso
-    try {
-      const existingList = await CapacitorUpdater.list();
-      const alreadyDownloaded = existingList?.bundles?.find(
-        (b) =>
-          b.version === releaseInfo.version &&
-          (b.status === 'success' || b.status === 'pending') &&
-          b.id !== 'builtin'
-      );
-      if (alreadyDownloaded) {
-        await CapacitorUpdater.next({ id: alreadyDownloaded.id });
-        onProgress?.(100);
+    // Se já existe um download OTA da mesma versão em andamento (ex.: iniciado no boot),
+    // reaproveita a mesma Promise e compartilha os eventos de progresso.
+    if (activeOtaDownloadPromise && activeOtaDownloadVersion === releaseInfo.version) {
+      return await activeOtaDownloadPromise;
+    }
+
+    const downloadTask = (async (): Promise<ReadyOtaBundle | null> => {
+      // Confirma novamente se há rede antes de iniciar o download do zip
+      const connected = await isNetworkConnected();
+      if (!connected) {
+        return null;
+      }
+
+      let progressListenerHandle: { remove: () => Promise<void> } | null = null;
+      let downloadedBundle: BundleInfo | null = null;
+
+      const emitProgress = (pct: number) => {
+        const clamped = Math.min(100, Math.max(0, Math.round(pct)));
+        otaProgressListeners.forEach((listener) => {
+          try {
+            listener(clamped);
+          } catch {}
+        });
+      };
+
+      try {
+        // Verifica se este bundle já foi baixado anteriormente com sucesso
+        try {
+          const existingList = await CapacitorUpdater.list();
+          const alreadyDownloaded = existingList?.bundles?.find(
+            (b) =>
+              b.version === releaseInfo.version &&
+              (b.status === 'success' || b.status === 'pending') &&
+              b.id !== 'builtin'
+          );
+          if (alreadyDownloaded) {
+            await CapacitorUpdater.next({ id: alreadyDownloaded.id });
+            emitProgress(100);
+            return {
+              id: alreadyDownloaded.id,
+              version: releaseInfo.version,
+              tagName: releaseInfo.tagName,
+            };
+          }
+        } catch {
+          // Prossegue com o download normal se list() falhar
+        }
+
+        try {
+          progressListenerHandle = await CapacitorUpdater.addListener('download', (event) => {
+            if (typeof event?.percent === 'number') {
+              emitProgress(event.percent);
+            }
+          });
+        } catch {}
+
+        // @capgo/capacitor-updater v8+ exige obrigatoriamente `checksum` (SHA-256 hex) em downloads diretos
+        const checksum = await resolveOtaChecksum(releaseInfo);
+        if (!checksum) {
+          throw new Error(
+            'Checksum SHA-256 do update.zip não encontrado na release. Download abortado por segurança.'
+          );
+        }
+
+        console.log(
+          `[OTA] Baixando bundle v${releaseInfo.version} (sha256=${checksum.slice(0, 12)}...) de: ${releaseInfo.otaZipUrl}`
+        );
+
+        downloadedBundle = await CapacitorUpdater.download({
+          url: releaseInfo.otaZipUrl,
+          version: releaseInfo.version,
+          checksum,
+        });
+
+        if (!downloadedBundle || !downloadedBundle.id || downloadedBundle.status === 'error') {
+          throw new Error('Bundle OTA baixado retornou status inválido ou corrompido.');
+        }
+
+        // Blue-Green: Registra o novo bundle como o próximo a ser carregado pelo WebView
+        await CapacitorUpdater.next({ id: downloadedBundle.id });
+        emitProgress(100);
+
+        console.log(
+          `[OTA] Bundle v${releaseInfo.version} (id=${downloadedBundle.id}) extraído e preparado com sucesso!`
+        );
+
         return {
-          id: alreadyDownloaded.id,
+          id: downloadedBundle.id,
           version: releaseInfo.version,
           tagName: releaseInfo.tagName,
         };
+      } catch (err) {
+        console.error(
+          '[OTA] Falha ao baixar ou validar update.zip. Mantendo build atual / fallback nativo:',
+          err
+        );
+
+        // Se um bundle corrompido/parcial chegou a ser criado, remove-o para não afetar o app
+        if (downloadedBundle?.id && downloadedBundle.id !== 'builtin') {
+          try {
+            await CapacitorUpdater.delete({ id: downloadedBundle.id });
+          } catch {}
+        }
+
+        return null;
+      } finally {
+        if (progressListenerHandle) {
+          try {
+            await progressListenerHandle.remove();
+          } catch {}
+        }
       }
-    } catch {
-      // Prossegue com o download normal se list() falhar
+    })();
+
+    activeOtaDownloadVersion = releaseInfo.version;
+    activeOtaDownloadPromise = downloadTask;
+
+    try {
+      return await downloadTask;
+    } finally {
+      if (activeOtaDownloadPromise === downloadTask) {
+        activeOtaDownloadPromise = null;
+        activeOtaDownloadVersion = null;
+      }
     }
-
-    if (onProgress) {
-      try {
-        progressListenerHandle = await CapacitorUpdater.addListener('download', (event) => {
-          if (typeof event?.percent === 'number') {
-            onProgress(Math.min(100, Math.max(0, Math.round(event.percent))));
-          }
-        });
-      } catch {}
-    }
-
-    console.log(
-      `[OTA] Baixando bundle v${releaseInfo.version} em background de: ${releaseInfo.otaZipUrl}`
-    );
-
-    downloadedBundle = await CapacitorUpdater.download({
-      url: releaseInfo.otaZipUrl,
-      version: releaseInfo.version,
-    });
-
-    if (!downloadedBundle || !downloadedBundle.id || downloadedBundle.status === 'error') {
-      throw new Error('Bundle OTA baixado retornou status inválido ou corrompido.');
-    }
-
-    // Blue-Green: Registra o novo bundle como o próximo a ser carregado pelo WebView
-    await CapacitorUpdater.next({ id: downloadedBundle.id });
-    onProgress?.(100);
-
-    console.log(
-      `[OTA] Bundle v${releaseInfo.version} (id=${downloadedBundle.id}) extraído e preparado com sucesso!`
-    );
-
-    return {
-      id: downloadedBundle.id,
-      version: releaseInfo.version,
-      tagName: releaseInfo.tagName,
-    };
-  } catch (err) {
-    console.error(
-      '[OTA] Falha ao baixar ou validar update.zip. Mantendo build atual / fallback nativo:',
-      err
-    );
-
-    // Se um bundle corrompido/parcial chegou a ser criado, remove-o para não afetar o app
-    if (downloadedBundle?.id && downloadedBundle.id !== 'builtin') {
-      try {
-        await CapacitorUpdater.delete({ id: downloadedBundle.id });
-      } catch {}
-    }
-
-    return null;
   } finally {
-    if (progressListenerHandle) {
-      try {
-        await progressListenerHandle.remove();
-      } catch {}
+    if (onProgress) {
+      otaProgressListeners.delete(onProgress);
     }
   }
 }

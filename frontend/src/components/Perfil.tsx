@@ -548,6 +548,10 @@ export function Perfil({
                         }, 3000);
                         return;
                       }
+                      setDownloadMsg(
+                        'Não foi possível concluir o download OTA. Verifique sua conexão e tente novamente, ou toque em "Ver Detalhes" para baixar o APK.'
+                      );
+                      return;
                     }
 
                     if (targetInfo.apkDownloadUrl) {

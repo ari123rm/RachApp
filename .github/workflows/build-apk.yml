@@ -15,10 +15,37 @@ permissions:
   contents: write
 
 jobs:
-  build-apk:
-    name: Gerar APK e Pacote OTA (React + Capacitor)
+  prepare-version:
+    name: 1. Definir Versão da Release
     runs-on: ubuntu-latest
+    outputs:
+      version_name: ${{ steps.version.outputs.version_name }}
+      tag_name: ${{ steps.version.outputs.tag_name }}
+      version_code: ${{ steps.version.outputs.version_code }}
 
+    steps:
+      - name: Calcular TAG_NAME, VERSION_NAME e VERSION_CODE
+        id: version
+        run: |
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            RAW_TAG="${GITHUB_REF_NAME}"
+            VERSION_NAME="${RAW_TAG#v}"
+            TAG_NAME="v${VERSION_NAME}"
+          else
+            VERSION_NAME="0.1.${{ github.run_number }}"
+            TAG_NAME="v0.1.${{ github.run_number }}"
+          fi
+          VERSION_CODE=$((100 + ${{ github.run_number }}))
+
+          echo "version_name=${VERSION_NAME}" >> $GITHUB_OUTPUT
+          echo "tag_name=${TAG_NAME}" >> $GITHUB_OUTPUT
+          echo "version_code=${VERSION_CODE}" >> $GITHUB_OUTPUT
+          echo "✅ Release configurada: TAG_NAME=${TAG_NAME} | VERSION_NAME=${VERSION_NAME} | VERSION_CODE=${VERSION_CODE}"
+
+  build-web-ota:
+    name: 2. Compilar Frontend Web & Pacote OTA
+    needs: [prepare-version]
+    runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: frontend
@@ -34,39 +61,13 @@ jobs:
           cache: 'npm'
           cache-dependency-path: frontend/package-lock.json
 
-      - name: Configurar Java JDK 21 (exigido pelo Capacitor 8 / AGP 8)
-        uses: actions/setup-java@v5
-        with:
-          distribution: 'temurin'
-          java-version: '21'
-
-      - name: Definir Versão da Release (Tag ou Run Number)
-        run: |
-          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
-            RAW_TAG="${GITHUB_REF_NAME}"
-            VERSION_NAME="${RAW_TAG#v}"
-            TAG_NAME="v${VERSION_NAME}"
-          else
-            VERSION_NAME="0.1.${{ github.run_number }}"
-            TAG_NAME="v0.1.${{ github.run_number }}"
-          fi
-          VERSION_CODE=$((100 + ${{ github.run_number }}))
-
-          echo "VERSION_NAME=${VERSION_NAME}" >> $GITHUB_ENV
-          echo "TAG_NAME=${TAG_NAME}" >> $GITHUB_ENV
-          echo "VERSION_CODE=${VERSION_CODE}" >> $GITHUB_ENV
-          echo "✅ Release configurada: TAG_NAME=${TAG_NAME} | VERSION_NAME=${VERSION_NAME} | VERSION_CODE=${VERSION_CODE}"
-
-      - name: Aceitar Licenças do Android SDK
-        run: |
-          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
-
       - name: Instalar dependências do Frontend
         run: npm install --legacy-peer-deps
 
-      - name: Injetar VITE_API_URL e Compilar Frontend Web (Vite + SQLite WASM)
+      - name: Injetar variáveis e compilar Frontend Web (Vite + SQLite WASM)
         env:
           RAW_API_URL: ${{ secrets.VITE_API_URL || vars.VITE_API_URL }}
+          VERSION_NAME: ${{ needs.prepare-version.outputs.version_name }}
         run: |
           if [ -n "$RAW_API_URL" ]; then
             echo "VITE_API_URL=$RAW_API_URL" > .env.production
@@ -80,13 +81,16 @@ jobs:
           echo "✅ VITE_APP_VERSION=${VERSION_NAME} injetada no build"
           npm run build
 
-      - name: Compactar pasta dist em update.zip e gerar version.json (OTA Self-Hosted)
+      - name: Gerar pacote update.zip e manifesto version.json (OTA Self-Hosted)
+        env:
+          VERSION_NAME: ${{ needs.prepare-version.outputs.version_name }}
+          TAG_NAME: ${{ needs.prepare-version.outputs.tag_name }}
         run: |
           mkdir -p ../apk-output
 
-          # Compacta o conteúdo da pasta dist diretamente na raiz do update.zip (exigido pelo @capgo/capacitor-updater)
           (cd dist && zip -r -q ../../apk-output/update.zip .)
-          echo "✅ Pacote OTA update.zip gerado com sucesso"
+          OTA_CHECKSUM=$(sha256sum ../apk-output/update.zip | awk '{print $1}')
+          echo "✅ Pacote OTA update.zip gerado com sucesso (SHA-256: ${OTA_CHECKSUM})"
 
           REPO="${{ github.repository }}"
           UPDATE_ZIP_URL="https://github.com/${REPO}/releases/download/${TAG_NAME}/update.zip"
@@ -99,6 +103,7 @@ jobs:
             "tagName": "${TAG_NAME}",
             "url": "${UPDATE_ZIP_URL}",
             "updateZipUrl": "${UPDATE_ZIP_URL}",
+            "checksum": "${OTA_CHECKSUM}",
             "apkUrl": "${APK_URL}",
             "publishedAt": "${PUBLISHED_AT}"
           }
@@ -106,6 +111,62 @@ jobs:
 
           echo "✅ Manifesto version.json gerado:"
           cat ../apk-output/version.json
+
+      - name: Salvar build Web (dist) para o job Android
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-dist-${{ github.run_id }}
+          path: frontend/dist/
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Salvar pacote OTA (update.zip + version.json)
+        uses: actions/upload-artifact@v4
+        with:
+          name: ota-bundle-${{ github.run_id }}
+          path: |
+            apk-output/update.zip
+            apk-output/version.json
+          if-no-files-found: error
+          retention-days: 5
+
+  build-android-apk:
+    name: 3. Compilar e Assinar APK Android (Capacitor + Gradle)
+    needs: [prepare-version, build-web-ota]
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - name: Checkout do Repositório
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Configurar Java JDK 21 (Capacitor 8 / AGP 8)
+        uses: actions/setup-java@v5
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Aceitar Licenças do Android SDK
+        run: |
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
+
+      - name: Instalar dependências do Frontend
+        run: npm install --legacy-peer-deps
+
+      - name: Baixar build Web compilado (dist)
+        uses: actions/download-artifact@v4
+        with:
+          name: web-dist-${{ github.run_id }}
+          path: frontend/dist
 
       - name: Inicializar e Sincronizar Plataforma Android (Capacitor)
         run: |
@@ -116,7 +177,6 @@ jobs:
           fi
           npx cap sync android
 
-          # Aplica sobrescritas nativas customizadas (Share Target Intent & MainActivity Bridge)
           if [ -f "capacitor-overrides/android/AndroidManifest.xml" ]; then
             cp -f capacitor-overrides/android/AndroidManifest.xml android/app/src/main/AndroidManifest.xml
             echo "✅ AndroidManifest.xml customizado aplicado"
@@ -132,7 +192,6 @@ jobs:
             echo "✅ Recursos nativos (res/xml) customizados aplicados"
           fi
 
-          # Aplica google-services.json para o Firebase Push Notifications
           if [ -f "capacitor-overrides/android/google-services.json" ]; then
             cp -f capacitor-overrides/android/google-services.json android/app/google-services.json
             echo "✅ google-services.json aplicado com sucesso"
@@ -141,7 +200,7 @@ jobs:
             echo "✅ google-services.json aplicado com sucesso"
           fi
 
-      - name: Aplicar ícone (src/assets/icon.png) e Splash Screen no APK
+      - name: Aplicar ícone e Splash Screen no projeto Android
         run: |
           mkdir -p assets
           cp src/assets/icon.png assets/icon.png
@@ -151,14 +210,12 @@ jobs:
           cp src/assets/splash.png assets/splash.png
           cp src/assets/splash.png assets/splash-dark.png
 
-          # Gera todos os tamanhos de ícone e splash para Android via @capacitor/assets
           npx --yes @capacitor/assets generate --android \
             --iconBackgroundColor '#05080f' \
             --iconBackgroundColorDark '#05080f' \
             --splashBackgroundColor '#05080f' \
             --splashBackgroundColorDark '#05080f' || true
 
-          # Garante substituição direta apenas nos diretórios de densidade PNG (sem tocar no mipmap-anydpi-v26 que contém XML)
           for density in mipmap-mdpi mipmap-hdpi mipmap-xhdpi mipmap-xxhdpi mipmap-xxxhdpi; do
             dir="android/app/src/main/res/$density"
             if [ -d "$dir" ]; then
@@ -169,7 +226,7 @@ jobs:
           done
           rm -f android/app/src/main/res/mipmap-anydpi-v26/*.png 2>/dev/null || true
 
-      - name: Habilitar tráfego HTTP/HTTPS e Intents do WhatsApp no AndroidManifest
+      - name: Configurar network_security_config e Intents do WhatsApp
         run: |
           mkdir -p android/app/src/main/res/xml
           cat << 'EOF' > android/app/src/main/res/xml/network_security_config.xml
@@ -204,7 +261,10 @@ jobs:
             sed -i 's/<\/manifest>/<queries><package android:name="com.whatsapp" \/><package android:name="com.whatsapp.w4b" \/><intent><action android:name="android.intent.action.VIEW" \/><data android:scheme="whatsapp" \/><\/intent><intent><action android:name="android.intent.action.VIEW" \/><data android:scheme="https" \/><\/intent><\/queries><\/manifest>/g' "$MANIFEST"
           fi
 
-      - name: Atualizar versionCode e versionName do Android automaticamente
+      - name: Definir versionCode e versionName no build.gradle
+        env:
+          VERSION_NAME: ${{ needs.prepare-version.outputs.version_name }}
+          VERSION_CODE: ${{ needs.prepare-version.outputs.version_code }}
         run: |
           sed -i "s/versionCode [0-9]\+/versionCode ${VERSION_CODE}/g" android/app/build.gradle
           sed -i "s/versionName \"[^\"]*\"/versionName \"${VERSION_NAME}\"/g" android/app/build.gradle
@@ -216,7 +276,7 @@ jobs:
           cd android
           ./gradlew assembleRelease --no-daemon
 
-      - name: Assinar APK com Keystore Fixa (permite atualizar sem desinstalar)
+      - name: Alinhar e Assinar APK com Keystore Fixa
         run: |
           mkdir -p ../apk-output
 
@@ -232,10 +292,40 @@ jobs:
             --out ../apk-output/app-release.apk \
             app-release-aligned.apk
 
-          # Mantém cópia com o nome antigo para retrocompatibilidade
           cp -f ../apk-output/app-release.apk ../apk-output/RachApp-release.apk
 
-      - name: Publicar APKs e Pacote OTA nos Artifacts do GitHub Actions
+      - name: Salvar APKs assinados para publicação
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-apk-${{ github.run_id }}
+          path: |
+            apk-output/app-release.apk
+            apk-output/RachApp-release.apk
+          if-no-files-found: error
+          retention-days: 5
+
+  publish-release:
+    name: 4. Publicar Artefatos e Release no GitHub
+    needs: [prepare-version, build-web-ota, build-android-apk]
+    runs-on: ubuntu-latest
+    env:
+      TAG_NAME: ${{ needs.prepare-version.outputs.tag_name }}
+      VERSION_NAME: ${{ needs.prepare-version.outputs.version_name }}
+
+    steps:
+      - name: Baixar pacote OTA (update.zip + version.json)
+        uses: actions/download-artifact@v4
+        with:
+          name: ota-bundle-${{ github.run_id }}
+          path: apk-output
+
+      - name: Baixar APKs assinados (app-release.apk + RachApp-release.apk)
+        uses: actions/download-artifact@v4
+        with:
+          name: android-apk-${{ github.run_id }}
+          path: apk-output
+
+      - name: Publicar pacote completo nos Artifacts do GitHub Actions
         uses: actions/upload-artifact@v4
         with:
           name: RachApp-Release-${{ env.TAG_NAME }}-${{ github.sha }}
@@ -247,7 +337,7 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
-      - name: Publicar Release Automática (APK + update.zip OTA + version.json)
+      - name: Publicar Release Automática no GitHub
         uses: softprops/action-gh-release@v2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}

@@ -15,28 +15,74 @@ on:
   workflow_dispatch:
 
 jobs:
-  deploy-vps:
-    name: Subir Backend, Frontend Web e Banco no Runner Self-Hosted
-    runs-on: self-hosted
+  validate-backend:
+    name: 1. Validar e Compilar Backend (TypeScript + Prisma)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
 
     steps:
       - name: Checkout do Repositório
         uses: actions/checkout@v4
 
-      - name: Gerar .env e subir containers Docker na VPS
+      - name: Configurar Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Instalar dependências do Backend
+        run: npm install
+
+      - name: Gerar Prisma Client
+        run: npx prisma generate
+
+      - name: Compilar TypeScript do Backend
+        run: npm run build
+
+  validate-frontend:
+    name: 2. Validar e Compilar Frontend Web (Vite + TS)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - name: Checkout do Repositório
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Instalar dependências do Frontend
+        run: npm install --legacy-peer-deps
+
+      - name: Compilar Frontend Web
         env:
-          RAW_FIREBASE_SECRET: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          VITE_API_URL: ${{ secrets.VITE_API_URL || vars.VITE_API_URL || '' }}
+        run: npm run build
+
+  deploy-database:
+    name: 3. Subir e Verificar Banco PostgreSQL na VPS
+    needs: [validate-backend, validate-frontend]
+    runs-on: self-hosted
+
+    steps:
+      - name: Checkout do Repositório
+        uses: actions/checkout@v4
+        with:
+          clean: false
+
+      - name: Configurar variáveis de ambiente (.env) e subir PostgreSQL
         run: |
           set -e
 
-          # 1. Se o secret do Firebase foi configurado, grava diretamente no arquivo JSON do backend
-          if [ -n "$RAW_FIREBASE_SECRET" ]; then
-            echo "$RAW_FIREBASE_SECRET" > backend/firebase-service-account.json
-            chmod 600 backend/firebase-service-account.json
-            echo "✅ firebase-service-account.json gerado com sucesso no backend"
-          fi
-
-          # 2. Gera o .env raiz limpo (apenas linhas simples KEY=VALUE, sem quebras do JSON)
           cat <<EOF > .env
           POSTGRES_USER=${{ secrets.POSTGRES_USER || 'postgres' }}
           POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD || 'postgres' }}
@@ -50,12 +96,112 @@ jobs:
           EOF
 
           if docker compose version &> /dev/null; then
-            docker compose up -d --build --remove-orphans
+            docker compose up -d postgres
           else
-            docker-compose up -d --build --remove-orphans
+            docker-compose up -d postgres
+          fi
+
+          echo "⏳ Aguardando banco PostgreSQL ficar saudável..."
+          for i in $(seq 1 15); do
+            if docker exec rachapp-db pg_isready -U "${{ secrets.POSTGRES_USER || 'postgres' }}" -d "${{ secrets.POSTGRES_DB || 'rachapp' }}" &> /dev/null; then
+              echo "✅ PostgreSQL pronto e aceitando conexões!"
+              exit 0
+            fi
+            sleep 2
+          done
+
+          echo "⚠️ Timeout aguardando pg_isready, verificando status do container:"
+          docker ps --filter "name=rachapp-db"
+
+  deploy-backend:
+    name: 4. Build e Deploy da API Backend na VPS
+    needs: [deploy-database]
+    runs-on: self-hosted
+
+    steps:
+      - name: Checkout do Repositório
+        uses: actions/checkout@v4
+        with:
+          clean: false
+
+      - name: Configurar Firebase e subir container do Backend
+        env:
+          RAW_FIREBASE_SECRET: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          set -e
+
+          if [ -n "$RAW_FIREBASE_SECRET" ]; then
+            echo "$RAW_FIREBASE_SECRET" > backend/firebase-service-account.json
+            chmod 600 backend/firebase-service-account.json
+            echo "✅ firebase-service-account.json configurado no backend"
+          fi
+
+          cat <<EOF > .env
+          POSTGRES_USER=${{ secrets.POSTGRES_USER || 'postgres' }}
+          POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD || 'postgres' }}
+          POSTGRES_DB=${{ secrets.POSTGRES_DB || 'rachapp' }}
+          DB_PORT=${{ secrets.DB_PORT || '5432' }}
+          PORT=${{ secrets.PORT || '5000' }}
+          FRONTEND_PORT=${{ secrets.FRONTEND_PORT || '5173' }}
+          VITE_API_URL=${{ secrets.VITE_API_URL || vars.VITE_API_URL || '' }}
+          JWT_SECRET=${{ secrets.JWT_SECRET || 'rachapp_secret_key_prod' }}
+          ALLOWED_ORIGINS=*
+          EOF
+
+          if docker compose version &> /dev/null; then
+            docker compose up -d --build --no-deps backend
+          else
+            docker-compose up -d --build --no-deps backend
+          fi
+
+          echo "⏳ Verificando healthcheck da API Backend..."
+          BACKEND_PORT="${{ secrets.PORT || '5000' }}"
+          for i in $(seq 1 20); do
+            if curl -fsS "http://localhost:${BACKEND_PORT}/health" &> /dev/null || curl -fsS "http://localhost/health" &> /dev/null; then
+              echo "✅ Backend online e respondendo ao /health!"
+              exit 0
+            fi
+            sleep 2
+          done
+
+          echo "⚠️ Logs recentes do rachapp-backend:"
+          docker logs --tail 30 rachapp-backend || true
+          exit 1
+
+  deploy-frontend:
+    name: 5. Build e Deploy do Frontend Web na VPS
+    needs: [deploy-backend]
+    runs-on: self-hosted
+
+    steps:
+      - name: Checkout do Repositório
+        uses: actions/checkout@v4
+        with:
+          clean: false
+
+      - name: Subir container do Frontend Web e limpar imagens antigas
+        run: |
+          set -e
+
+          cat <<EOF > .env
+          POSTGRES_USER=${{ secrets.POSTGRES_USER || 'postgres' }}
+          POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD || 'postgres' }}
+          POSTGRES_DB=${{ secrets.POSTGRES_DB || 'rachapp' }}
+          DB_PORT=${{ secrets.DB_PORT || '5432' }}
+          PORT=${{ secrets.PORT || '5000' }}
+          FRONTEND_PORT=${{ secrets.FRONTEND_PORT || '5173' }}
+          VITE_API_URL=${{ secrets.VITE_API_URL || vars.VITE_API_URL || '' }}
+          JWT_SECRET=${{ secrets.JWT_SECRET || 'rachapp_secret_key_prod' }}
+          ALLOWED_ORIGINS=*
+          EOF
+
+          if docker compose version &> /dev/null; then
+            docker compose up -d --build --remove-orphans frontend
+          else
+            docker-compose up -d --build --remove-orphans frontend
           fi
 
           docker image prune -f
 
-          echo "✅ Containers em execução na VPS:"
+          echo "✅ Todos os containers em execução na VPS:"
           docker ps --filter "name=rachapp"
