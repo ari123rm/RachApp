@@ -1,5 +1,5 @@
 // src/components/AddGroupModal.tsx
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import {
   X,
@@ -17,7 +17,8 @@ import {
 import { dbService } from '../services/database';
 import { AddFriendModal } from './AddFriendModal';
 import { formatPhoneBR } from '../utils/phoneFormatter';
-import { useModalBackHandler, compressAvatarImage } from '../utils/modalBackHandler';
+import { useModalBackHandler } from '../utils/modalBackHandler';
+import { AvatarEditModal } from './AvatarEditModal';
 import { getAvatarColor } from '../utils/avatarColor';
 import type { Amigo, Grupo } from '../types';
 
@@ -37,9 +38,8 @@ export function AddGroupModal({ isOpen, onClose, onSuccess, groupToEdit }: AddGr
   const [amigos, setAmigos] = useState<Amigo[]>([]);
   const [selecionados, setSelecionados] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [isProcessingPhoto, setIsProcessingPhoto] = useState(false);
+  const [isAvatarModalOpen, setIsAvatarModalOpen] = useState(false);
   const [isAddFriendOpen, setIsAddFriendOpen] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   useModalBackHandler(isOpen, onClose);
 
@@ -92,21 +92,6 @@ export function AddGroupModal({ isOpen, onClose, onSuccess, groupToEdit }: AddGr
     }
   };
 
-  const handleGroupPhotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    e.target.value = '';
-    if (!file) return;
-
-    setIsProcessingPhoto(true);
-    try {
-      const compressed = await compressAvatarImage(file, 320, 0.82);
-      setAvatarUrl(compressed);
-    } catch {
-      alert('Não foi possível processar esta imagem.');
-    } finally {
-      setIsProcessingPhoto(false);
-    }
-  };
 
   const handleSalvar = async () => {
     if (!nome.trim()) {
@@ -171,10 +156,10 @@ export function AddGroupModal({ isOpen, onClose, onSuccess, groupToEdit }: AddGr
           <div className="relative">
             <div
               onClick={() => {
-                if (canEditIcon) fileInputRef.current?.click();
+                if (canEditIcon) setIsAvatarModalOpen(true);
               }}
-              className={`w-20 h-20 rounded-full overflow-hidden bg-[#2c2c2e] border-2 border-[#2DD4BF]/40 flex items-center justify-center relative ${
-                canEditIcon ? 'cursor-pointer' : ''
+              className={`w-20 h-20 rounded-2xl overflow-hidden bg-[#2c2c2e] border-2 border-[#2DD4BF]/40 flex items-center justify-center relative transition-colors ${
+                canEditIcon ? 'cursor-pointer hover:border-[#2DD4BF]' : ''
               }`}
             >
               {avatarUrl ? (
@@ -186,43 +171,29 @@ export function AddGroupModal({ isOpen, onClose, onSuccess, groupToEdit }: AddGr
               ) : (
                 <Users size={30} className="text-[#2DD4BF]" />
               )}
-
-              {isProcessingPhoto && (
-                <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
-                  <LoaderCircle size={22} className="animate-spin text-[#2DD4BF]" />
-                </div>
-              )}
             </div>
 
             {canEditIcon && (
               <button
                 type="button"
-                onClick={() => fileInputRef.current?.click()}
+                onClick={() => setIsAvatarModalOpen(true)}
                 title="Alterar ícone do grupo"
-                className="absolute -bottom-0.5 -right-0.5 w-7 h-7 rounded-full bg-[#2DD4BF] hover:bg-[#25b5a3] text-[#05080f] shadow-md flex items-center justify-center border-2 border-[#1c1c1e]"
+                className="absolute -bottom-0.5 -right-0.5 w-7 h-7 rounded-full bg-[#2DD4BF] hover:bg-[#25b5a3] text-[#05080f] shadow-md flex items-center justify-center border-2 border-[#1c1c1e] transition-transform active:scale-90"
               >
                 <Pencil size={12} className="stroke-[2.5px]" />
               </button>
             )}
-
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              onChange={handleGroupPhotoChange}
-              className="hidden"
-            />
           </div>
 
           {canEditIcon ? (
             <div className="flex items-center gap-2 mt-2">
               <button
                 type="button"
-                onClick={() => fileInputRef.current?.click()}
-                className="text-[11px] text-[#2DD4BF] font-bold flex items-center gap-1 hover:underline"
+                onClick={() => setIsAvatarModalOpen(true)}
+                className="text-[11px] text-[#2DD4BF] font-bold flex items-center gap-1 hover:underline active:scale-95 transition-transform"
               >
                 <Camera size={12} />
-                {avatarUrl ? 'Trocar ícone' : 'Adicionar ícone'}
+                {avatarUrl ? 'Editar ícone' : 'Adicionar ícone'}
               </button>
               {avatarUrl && (
                 <>
@@ -230,7 +201,7 @@ export function AddGroupModal({ isOpen, onClose, onSuccess, groupToEdit }: AddGr
                   <button
                     type="button"
                     onClick={() => setAvatarUrl(null)}
-                    className="text-[11px] text-red-400 font-bold flex items-center gap-1 hover:underline"
+                    className="text-[11px] text-red-400 font-bold flex items-center gap-1 hover:underline active:scale-95 transition-transform"
                   >
                     <Trash2 size={12} />
                     Deixar padrão
@@ -450,6 +421,23 @@ export function AddGroupModal({ isOpen, onClose, onSuccess, groupToEdit }: AddGr
               prev.includes(novoAmigo.id) ? prev : [...prev, novoAmigo.id]
             );
           }
+        }}
+      />
+
+      {/* Modal de Recortar e Editar Ícone do Grupo */}
+      <AvatarEditModal
+        isOpen={isAvatarModalOpen}
+        onClose={() => setIsAvatarModalOpen(false)}
+        currentAvatarUrl={avatarUrl}
+        title="Ícone do Grupo"
+        maskShape="square"
+        onSave={(croppedUrl) => {
+          setAvatarUrl(croppedUrl);
+          setIsAvatarModalOpen(false);
+        }}
+        onDelete={() => {
+          setAvatarUrl(null);
+          setIsAvatarModalOpen(false);
         }}
       />
     </div>,

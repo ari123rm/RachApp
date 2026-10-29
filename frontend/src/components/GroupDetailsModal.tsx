@@ -23,6 +23,7 @@ import moneyConverter from '../utils/moneyConverter';
 import { AddRideModal } from './AddRideModal';
 import { AddGroupModal } from './AddGroupModal';
 import { AddFriendModal } from './AddFriendModal';
+import { AvatarEditModal } from './AvatarEditModal';
 import { PixModal } from './PixModal';
 import { PayWithReceiptModal } from './ReceiptModals';
 import { RideDetailsModal } from './RideDetailsModal';
@@ -58,6 +59,7 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
 
   const [isAddRideOpen, setIsAddRideOpen] = useState(false);
   const [isEditGroupOpen, setIsEditGroupOpen] = useState(false);
+  const [isEditAvatarOpen, setIsEditAvatarOpen] = useState(false);
   const [isCreateFriendOpen, setIsCreateFriendOpen] = useState(false);
   const [corridaSelecionada, setCorridaSelecionada] = useState<Corrida | null>(null);
   const [filtroStatusGrupo, setFiltroStatusGrupo] = useState<'tudo' | 'a_pagar' | 'a_receber' | 'quitados'>('tudo');
@@ -401,6 +403,30 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
     });
   }, [expensesWithStatus, filtroStatusGrupo]);
 
+  const handleSaveGroupAvatar = async (croppedUrl: string) => {
+    if (!grupo) return;
+    try {
+      await dbService.grupos.update(grupo.id, { avatar_url: croppedUrl });
+      setGrupo((prev) => (prev ? { ...prev, avatar_url: croppedUrl } : prev));
+      carregarDetalhes();
+      if (onChanged) onChanged();
+    } catch {
+      alert('Erro ao atualizar ícone do grupo.');
+    }
+  };
+
+  const handleDeleteGroupAvatar = async () => {
+    if (!grupo) return;
+    try {
+      await dbService.grupos.update(grupo.id, { avatar_url: null });
+      setGrupo((prev) => (prev ? { ...prev, avatar_url: null } : prev));
+      carregarDetalhes();
+      if (onChanged) onChanged();
+    } catch {
+      alert('Erro ao remover ícone do grupo.');
+    }
+  };
+
   if (!isOpen) return null;
 
   return createPortal(
@@ -451,7 +477,14 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
                 <div className="flex items-center gap-3">
                   {/* Ícone do Grupo */}
                   <div className="relative shrink-0">
-                    <div className="w-12 h-12 rounded-2xl overflow-hidden bg-[#2DD4BF]/15 border border-[#2DD4BF]/30 flex items-center justify-center text-[#2DD4BF]">
+                    <div
+                      onClick={() => {
+                        if (isGroupCreator) setIsEditAvatarOpen(true);
+                      }}
+                      className={`w-12 h-12 rounded-2xl overflow-hidden bg-[#2DD4BF]/15 border border-[#2DD4BF]/30 flex items-center justify-center text-[#2DD4BF] transition-colors ${
+                        isGroupCreator ? 'cursor-pointer hover:border-[#2DD4BF]' : ''
+                      }`}
+                    >
                       {grupo.avatar_url ? (
                         <img
                           src={grupo.avatar_url}
@@ -465,9 +498,9 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
                     {isGroupCreator && (
                       <button
                         type="button"
-                        onClick={() => setIsEditGroupOpen(true)}
+                        onClick={() => setIsEditAvatarOpen(true)}
                         title="Editar ícone do grupo"
-                        className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-[#2DD4BF] text-[#05080f] flex items-center justify-center shadow border border-[#141923]"
+                        className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-[#2DD4BF] hover:bg-[#25b5a3] text-[#05080f] flex items-center justify-center shadow border border-[#141923] active:scale-90 transition-transform"
                       >
                         <Pencil size={10} className="stroke-[2.5px]" />
                       </button>
@@ -977,6 +1010,17 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
           await carregarDetalhes();
           if (onChanged) onChanged();
         }}
+      />
+
+      {/* Modal de Recorte e Edição do Ícone do Grupo */}
+      <AvatarEditModal
+        isOpen={isEditAvatarOpen}
+        onClose={() => setIsEditAvatarOpen(false)}
+        currentAvatarUrl={grupo?.avatar_url}
+        title="Ícone do Grupo"
+        maskShape="square"
+        onSave={handleSaveGroupAvatar}
+        onDelete={grupo?.avatar_url ? handleDeleteGroupAvatar : undefined}
       />
 
       {/* Modal Pix do Grupo */}

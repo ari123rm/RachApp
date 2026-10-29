@@ -1,5 +1,5 @@
 // src/components/Perfil.tsx
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import {
   User,
   Sparkles,
@@ -16,7 +16,6 @@ import {
   ChevronRight,
   Check,
   Pencil,
-  Camera,
   X,
 } from 'lucide-react';
 import { Capacitor } from '@capacitor/core';
@@ -24,7 +23,7 @@ import { dbService } from '../services/database';
 import { PixModal } from './PixModal';
 import { ChangePasswordScreen } from './ChangePasswordScreen';
 import { formatPhoneBR, isValidPhoneBR } from '../utils/phoneFormatter';
-import { compressAvatarImage } from '../utils/modalBackHandler';
+import { AvatarEditModal } from './AvatarEditModal';
 import type { SyncStatus } from '../types';
 import {
   getCurrentAppVersion,
@@ -66,9 +65,8 @@ export function Perfil({
 
   const [savedDados, setSavedDados] = useState({ nome: '', telefone: '', pix: '' });
   const [isEditingDados, setIsEditingDados] = useState(false);
-  const [showPhotoActions, setShowPhotoActions] = useState(false);
+  const [isAvatarModalOpen, setIsAvatarModalOpen] = useState(false);
   const [isSavingPhoto, setIsSavingPhoto] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const [isLoading, setIsLoading] = useState(true);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
@@ -106,36 +104,21 @@ export function Perfil({
     return () => unsub();
   }, [dataVersion]);
 
-  const handlePhotoPencilClick = () => {
-    if (!avatarUrl) {
-      fileInputRef.current?.click();
-    } else {
-      setShowPhotoActions((prev) => !prev);
-    }
-  };
-
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    e.target.value = '';
-    if (!file) return;
-
+  const handleSaveAvatar = async (croppedDataUrl: string) => {
     setIsSavingPhoto(true);
-    setShowPhotoActions(false);
     try {
-      const compressedDataUrl = await compressAvatarImage(file, 320, 0.82);
-      setAvatarUrl(compressedDataUrl);
-      await dbService.auth.updateProfile({ avatar_url: compressedDataUrl });
+      setAvatarUrl(croppedDataUrl);
+      await dbService.auth.updateProfile({ avatar_url: croppedDataUrl });
       onProfileChange?.();
     } catch {
-      alert('Não foi possível processar esta imagem. Tente outra foto.');
+      alert('Erro ao salvar foto de perfil.');
     } finally {
       setIsSavingPhoto(false);
     }
   };
 
-  const handleRemoverFoto = async () => {
+  const handleDeleteAvatar = async () => {
     setIsSavingPhoto(true);
-    setShowPhotoActions(false);
     try {
       setAvatarUrl(null);
       await dbService.auth.updateProfile({ avatar_url: null });
@@ -210,8 +193,8 @@ export function Perfil({
       <div className="flex flex-col items-center pt-4 pb-2">
         <div className="relative">
           <div
-            onClick={handlePhotoPencilClick}
-            className="w-28 h-28 rounded-full overflow-hidden bg-[#1c1c1e] border-2 border-[#2DD4BF]/40 shadow-xl shadow-black/40 flex items-center justify-center cursor-pointer relative group"
+            onClick={() => setIsAvatarModalOpen(true)}
+            className="w-28 h-28 rounded-full overflow-hidden bg-[#1c1c1e] border-2 border-[#2DD4BF]/40 hover:border-[#2DD4BF] shadow-xl shadow-black/40 flex items-center justify-center cursor-pointer relative group transition-colors"
           >
             {avatarUrl ? (
               <img
@@ -235,55 +218,13 @@ export function Perfil({
           {/* Lapizinho ao lado da foto */}
           <button
             type="button"
-            onClick={handlePhotoPencilClick}
+            onClick={() => setIsAvatarModalOpen(true)}
             title="Editar foto de perfil"
             className="absolute bottom-0 right-0 w-9 h-9 rounded-full bg-[#2DD4BF] hover:bg-[#25b5a3] text-[#05080f] shadow-lg flex items-center justify-center border-2 border-[#05080f] transition-transform active:scale-90"
           >
             <Pencil size={15} className="stroke-[2.5px]" />
           </button>
-
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*"
-            onChange={handleFileChange}
-            className="hidden"
-          />
         </div>
-
-        {/* Menu rápido para trocar ou remover foto quando já possui foto */}
-        {showPhotoActions && (
-          <div className="mt-3 flex items-center gap-2 bg-[#1c1c1e] border border-white/10 p-1.5 rounded-2xl shadow-lg animate-fade-in">
-            <button
-              type="button"
-              onClick={() => {
-                setShowPhotoActions(false);
-                fileInputRef.current?.click();
-              }}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#2DD4BF]/15 text-[#2DD4BF] hover:bg-[#2DD4BF]/25 text-xs font-bold transition-colors"
-            >
-              <Camera size={14} />
-              Trocar foto
-            </button>
-            {avatarUrl && (
-              <button
-                type="button"
-                onClick={handleRemoverFoto}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-red-500/15 text-red-400 hover:bg-red-500/25 text-xs font-bold transition-colors"
-              >
-                <Trash2 size={14} />
-                Remover foto
-              </button>
-            )}
-            <button
-              type="button"
-              onClick={() => setShowPhotoActions(false)}
-              className="p-1.5 text-gray-400 hover:text-white rounded-lg"
-            >
-              <X size={14} />
-            </button>
-          </div>
-        )}
 
         <h1 className="text-2xl font-bold text-white mt-3 text-center break-words max-w-xs">
           {nome || 'Seu Perfil'}
@@ -649,6 +590,16 @@ export function Perfil({
         isOpen={isPasswordScreenOpen}
         onClose={() => setIsPasswordScreenOpen(false)}
         userIdentifier={email || telefone}
+      />
+
+      <AvatarEditModal
+        isOpen={isAvatarModalOpen}
+        onClose={() => setIsAvatarModalOpen(false)}
+        currentAvatarUrl={avatarUrl}
+        title="Foto de Perfil"
+        maskShape="circle"
+        onSave={handleSaveAvatar}
+        onDelete={avatarUrl ? handleDeleteAvatar : undefined}
       />
     </div>
   );
