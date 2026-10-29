@@ -4,7 +4,6 @@ import {
   LoaderCircle,
   TrendingUp,
   TrendingDown,
-  RefreshCw,
   BadgeCheck,
   Sparkles,
   Download,
@@ -19,7 +18,6 @@ import { FriendDetailsModal } from './FriendDetailsModal';
 import { GroupDetailsModal } from './GroupDetailsModal';
 import moneyConverter from '../utils/moneyConverter';
 import { getAvatarColor, getGroupAvatarColor } from '../utils/avatarColor';
-import type { SyncStatus } from '../types';
 
 function formatarMesAno(ym: string, ymAtual?: string): string {
   if (ym === 'all') return 'Todos os meses';
@@ -41,6 +39,7 @@ export function Home({
   onOpenUpdateModal,
   onOpenNotifications,
   onNavigateToRachas,
+  onNavigateToProfile,
 }: {
   onDataChange?: () => void;
   dataVersion?: number;
@@ -48,6 +47,7 @@ export function Home({
   onOpenUpdateModal?: () => void;
   onOpenNotifications?: () => void;
   onNavigateToRachas?: (filtro: 'tudo' | 'a_pagar' | 'a_receber' | 'quitados') => void;
+  onNavigateToProfile?: () => void;
 }) {
   const dataAtual = new Date();
   const ymAtual = `${dataAtual.getFullYear()}-${String(dataAtual.getMonth() + 1).padStart(2, '0')}`;
@@ -71,11 +71,6 @@ export function Home({
   const [grupoSelecionadoId, setGrupoSelecionadoId] = useState<string | null>(null);
   const [nomeUsuario, setNomeUsuario] = useState('Usuário');
   const [avatarUsuario, setAvatarUsuario] = useState<string | null>(null);
-  const [syncStatus, setSyncStatus] = useState<SyncStatus>({
-    state: 'synced',
-    pendingCount: 0,
-    lastSyncedAt: null,
-  });
 
   const carregarDashboard = async (periodo = periodoRef.current, showSpinner = false) => {
     if (showSpinner) setIsLoading(true);
@@ -115,7 +110,6 @@ export function Home({
 
   useEffect(() => {
     const unsub = dbService.sync.subscribe((st) => {
-      setSyncStatus(st);
       if (st.state === 'synced') {
         carregarDashboard(periodoRef.current, false);
       }
@@ -141,11 +135,6 @@ export function Home({
     }
   };
 
-  const handleManualSync = async () => {
-    await dbService.sync.now();
-    await carregarDashboard(periodoRef.current, false);
-    if (onDataChange) onDataChange();
-  };
 
   if (isLoading) {
     return (
@@ -169,37 +158,13 @@ export function Home({
           </p>
         </div>
 
-        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-          <button
-            onClick={handleManualSync}
-            title="Clique para atualizar seus dados"
-            className={`px-2 sm:px-2.5 py-1 rounded-full text-[10px] font-bold flex items-center gap-1 border transition-colors shrink-0 ${
-              syncStatus.state === 'syncing'
-                ? 'bg-blue-500/15 text-blue-400 border-blue-500/30'
-                : syncStatus.state === 'offline'
-                ? 'bg-amber-500/15 text-amber-400 border-amber-500/30'
-                : 'bg-[#2DD4BF]/15 text-[#2DD4BF] border-[#2DD4BF]/30'
-            }`}
-          >
-            <RefreshCw size={11} className={syncStatus.state === 'syncing' ? 'animate-spin' : ''} />
-            <span className="hidden xs:inline">
-              {syncStatus.state === 'syncing'
-                ? 'Atualizando...'
-                : syncStatus.pendingCount > 0
-                ? `Pendente (${syncStatus.pendingCount})`
-                : 'Sincronizado'}
-            </span>
-            <span className="xs:hidden">
-              {syncStatus.state === 'syncing' ? '...' : syncStatus.pendingCount > 0 ? `${syncStatus.pendingCount}` : 'OK'}
-            </span>
-          </button>
-
+        <div className="flex items-center gap-2 shrink-0">
           {/* Botão de Notificações */}
           {onOpenNotifications && (
             <button
               onClick={onOpenNotifications}
               title="Notificações"
-              className="relative w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-[#18202c] border border-gray-800 text-gray-300 hover:text-white flex items-center justify-center transition-colors shadow-sm shrink-0"
+              className="relative w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-[#18202c] border border-gray-800 text-gray-300 hover:text-white flex items-center justify-center transition-colors shadow-sm shrink-0 active:scale-95"
             >
               <Bell size={16} />
               {unreadNotifCount > 0 && (
@@ -210,7 +175,13 @@ export function Home({
             </button>
           )}
 
-          <div className="w-8 h-8 sm:w-10 sm:h-10 bg-[#2DD4BF] text-[#05080f] rounded-full overflow-hidden flex items-center justify-center font-bold shadow-md border border-[#2DD4BF]/30 shrink-0">
+          {/* Avatar que leva para a aba do Perfil */}
+          <button
+            type="button"
+            onClick={onNavigateToProfile}
+            title="Ir para o meu perfil"
+            className="w-8 h-8 sm:w-10 sm:h-10 bg-[#2DD4BF] text-[#05080f] rounded-full overflow-hidden flex items-center justify-center font-bold shadow-md border border-[#2DD4BF]/30 shrink-0 cursor-pointer hover:ring-2 hover:ring-[#2DD4BF] transition-all active:scale-95"
+          >
             {avatarUsuario ? (
               <img
                 src={avatarUsuario}
@@ -220,7 +191,7 @@ export function Home({
             ) : (
               <span className="text-xs sm:text-sm uppercase font-black">{(nomeUsuario || 'U')[0]}</span>
             )}
-          </div>
+          </button>
         </div>
       </header>
 

@@ -365,7 +365,7 @@ export function Perfil({
       </section>
 
       {/* Status de Sincronização na Nuvem */}
-      <section className="bg-[#1c1c1e] rounded-3xl p-5 border border-white/5 space-y-3">
+      <section className="bg-[#1c1c1e] rounded-3xl p-5 border border-white/5 space-y-2">
         <div className="flex justify-between items-center">
           <h2 className="text-white font-semibold flex items-center gap-2">
             <CloudCheck size={20} className="text-[#2DD4BF]" />
@@ -388,15 +388,8 @@ export function Perfil({
           </span>
         </div>
         <p className="text-xs text-gray-400">
-          Seus rachas, amigos e grupos ficam salvos no aparelho e sincronizados automaticamente com sua conta.
+          Seus rachas, amigos e grupos ficam salvos no aparelho e sincronizados automaticamente. Para atualizar manualmente, basta puxar a tela para baixo no topo.
         </p>
-        <button
-          onClick={() => dbService.sync.now()}
-          className="w-full bg-[#2c2c2e] hover:bg-gray-700 text-white font-semibold py-2.5 rounded-xl text-sm flex items-center justify-center gap-2 transition-colors"
-        >
-          <RefreshCw size={16} className={syncStatus.state === 'syncing' ? 'animate-spin' : ''} />
-          Atualizar Agora
-        </button>
       </section>
 
       {/* Segurança - Abre tela separada de alteração/redefinição de senha */}

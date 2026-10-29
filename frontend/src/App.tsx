@@ -113,6 +113,11 @@ function App() {
   const containerRef = useRef<HTMLElement | null>(null);
   const trackRef = useRef<HTMLDivElement | null>(null);
   const tabScrollRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const [pullDistance, setPullDistance] = useState(0);
+  const [isPullRefreshing, setIsPullRefreshing] = useState(false);
+  const pullDistanceRef = useRef(0);
+  pullDistanceRef.current = pullDistance;
+
   const dragRef = useRef<{
     active: boolean;
     startX: number;
@@ -120,9 +125,10 @@ function App() {
     lastX: number;
     lastTime: number;
     velocityX: number;
-    direction: 'undecided' | 'horizontal' | 'vertical';
+    direction: 'undecided' | 'horizontal' | 'vertical' | 'pull-down';
     containerWidth: number;
     startTabIndex: number;
+    canPullRefresh: boolean;
   } | null>(null);
 
   const refreshData = () => setDataVersion((prev) => prev + 1);
@@ -328,13 +334,19 @@ function App() {
     setActiveTab(tab);
   };
 
-  // Arraste horizontal em tempo real (acompanhando o dedo a 60/120fps via GPU translate3d)
+  const PULL_THRESHOLD = 52;
+
+  // Arraste horizontal (entre abas) e vertical (pull-to-refresh manual no topo)
   const handleTouchStart = (e: React.TouchEvent) => {
     if (e.touches.length !== 1) return;
+    if (isPullRefreshing) return;
     if (isInsideScrollableHorizontal(e.target)) return;
 
     const touch = e.touches[0];
     const width = containerRef.current?.clientWidth || window.innerWidth;
+    const currentScrollEl = tabScrollRefs.current[activeTab];
+    // Permite pull-to-refresh apenas se o conteúdo estiver no topo absoluto
+    const canPullRefresh = !currentScrollEl || currentScrollEl.scrollTop <= 1;
 
     dragRef.current = {
       active: true,
@@ -346,6 +358,7 @@ function App() {
       direction: 'undecided',
       containerWidth: width,
       startTabIndex: tabIndex,
+      canPullRefresh,
     };
   };
 
@@ -361,14 +374,24 @@ function App() {
       if (Math.abs(dx) < 7 && Math.abs(dy) < 7) return;
 
       if (Math.abs(dy) >= Math.abs(dx)) {
-        drag.direction = 'vertical';
-        drag.active = false;
-        return;
-      }
+        const currentScrollEl = tabScrollRefs.current[activeTab];
+        const isCurrentlyAtTop = !currentScrollEl || currentScrollEl.scrollTop <= 1;
 
-      drag.direction = 'horizontal';
-      if (trackRef.current) {
-        trackRef.current.style.transition = 'none';
+        if (dy > 0 && drag.canPullRefresh && isCurrentlyAtTop) {
+          drag.direction = 'pull-down';
+          if (trackRef.current) {
+            trackRef.current.style.transition = 'none';
+          }
+        } else {
+          drag.direction = 'vertical';
+          drag.active = false;
+          return;
+        }
+      } else {
+        drag.direction = 'horizontal';
+        if (trackRef.current) {
+          trackRef.current.style.transition = 'none';
+        }
       }
     }
 
@@ -388,35 +411,85 @@ function App() {
 
       const baseOffsetPx = -drag.startTabIndex * drag.containerWidth;
       trackRef.current.style.transform = `translate3d(${baseOffsetPx + effectiveDx}px, 0, 0)`;
+    } else if (drag.direction === 'pull-down' && trackRef.current) {
+      if (dy > 0) {
+        const dist = Math.min(85, dy * 0.45);
+        setPullDistance(dist);
+        trackRef.current.style.transform = `translate3d(-${drag.startTabIndex * 100}%, ${dist * 0.45}px, 0)`;
+      } else {
+        setPullDistance(0);
+        trackRef.current.style.transform = `translate3d(-${drag.startTabIndex * 100}%, 0, 0)`;
+      }
     }
   };
 
-  const finishTouchDrag = (e: React.TouchEvent) => {
+  const finishTouchDrag = async (e: React.TouchEvent) => {
     const drag = dragRef.current;
     dragRef.current = null;
-    if (!drag || drag.direction !== 'horizontal') return;
+    if (!drag) return;
 
-    const endX = e.changedTouches[0]?.clientX ?? drag.lastX;
-    const dx = endX - drag.startX;
-    const width = drag.containerWidth || window.innerWidth;
-    const ratio = dx / width;
-    const vx = drag.velocityX;
+    if (drag.direction === 'pull-down') {
+      const currentDist = pullDistanceRef.current;
 
-    let nextIndex = drag.startTabIndex;
+      if (currentDist >= PULL_THRESHOLD) {
+        setIsPullRefreshing(true);
+        setPullDistance(50);
+        if (trackRef.current) {
+          trackRef.current.style.transition = 'transform 240ms cubic-bezier(0.2, 0.9, 0.3, 1)';
+          trackRef.current.style.transform = `translate3d(-${drag.startTabIndex * 100}%, 24px, 0)`;
+        }
 
-    if ((ratio < -0.2 || (vx < -0.32 && dx < -22)) && drag.startTabIndex < TABS.length - 1) {
-      nextIndex = drag.startTabIndex + 1;
-    } else if ((ratio > 0.2 || (vx > 0.32 && dx > 22)) && drag.startTabIndex > 0) {
-      nextIndex = drag.startTabIndex - 1;
+        try {
+          const startTime = performance.now();
+          await dbService.sync.now().catch((err) => {
+            console.warn('Erro ao atualizar dados manualmente:', err);
+          });
+          refreshData();
+          const elapsed = performance.now() - startTime;
+          if (elapsed < 600) {
+            await new Promise((res) => setTimeout(res, 600 - elapsed));
+          }
+        } finally {
+          setIsPullRefreshing(false);
+          setPullDistance(0);
+          if (trackRef.current) {
+            trackRef.current.style.transition = 'transform 260ms cubic-bezier(0.2, 0.9, 0.3, 1)';
+            trackRef.current.style.transform = `translate3d(-${drag.startTabIndex * 100}%, 0, 0)`;
+          }
+        }
+      } else {
+        setPullDistance(0);
+        if (trackRef.current) {
+          trackRef.current.style.transition = 'transform 200ms ease-out';
+          trackRef.current.style.transform = `translate3d(-${drag.startTabIndex * 100}%, 0, 0)`;
+        }
+      }
+      return;
     }
 
-    if (trackRef.current) {
-      trackRef.current.style.transition = 'transform 280ms cubic-bezier(0.22, 1, 0.36, 1)';
-      trackRef.current.style.transform = `translate3d(-${nextIndex * 100}%, 0, 0)`;
-    }
+    if (drag.direction === 'horizontal') {
+      const endX = e.changedTouches[0]?.clientX ?? drag.lastX;
+      const dx = endX - drag.startX;
+      const width = drag.containerWidth || window.innerWidth;
+      const ratio = dx / width;
+      const vx = drag.velocityX;
 
-    if (nextIndex !== drag.startTabIndex) {
-      setActiveTab(TABS[nextIndex]);
+      let nextIndex = drag.startTabIndex;
+
+      if ((ratio < -0.2 || (vx < -0.32 && dx < -22)) && drag.startTabIndex < TABS.length - 1) {
+        nextIndex = drag.startTabIndex + 1;
+      } else if ((ratio > 0.2 || (vx > 0.32 && dx > 22)) && drag.startTabIndex > 0) {
+        nextIndex = drag.startTabIndex - 1;
+      }
+
+      if (trackRef.current) {
+        trackRef.current.style.transition = 'transform 280ms cubic-bezier(0.22, 1, 0.36, 1)';
+        trackRef.current.style.transform = `translate3d(-${nextIndex * 100}%, 0, 0)`;
+      }
+
+      if (nextIndex !== drag.startTabIndex) {
+        setActiveTab(TABS[nextIndex]);
+      }
     }
   };
 
@@ -502,6 +575,51 @@ function App() {
 
   return (
     <div className="h-[100dvh] bg-[#05080f] text-white font-sans relative overflow-hidden flex flex-col">
+      {/* Indicador de Pull-to-Refresh (arrastar para baixo para atualizar manualmente) */}
+      <div
+        className="fixed left-1/2 -translate-x-1/2 z-[60] pointer-events-none transition-all duration-200"
+        style={{
+          top: 'max(0.75rem, env(safe-area-inset-top, 0px))',
+          transform: `translate3d(-50%, ${
+            isPullRefreshing
+              ? '16px'
+              : pullDistance > 0
+              ? `${Math.max(-48, pullDistance - 48)}px`
+              : '-60px'
+          }, 0)`,
+          opacity: isPullRefreshing || pullDistance > 10 ? 1 : 0,
+        }}
+      >
+        <div
+          className={`flex items-center gap-2 px-3.5 py-1.5 rounded-full border shadow-xl backdrop-blur-md transition-colors ${
+            pullDistance >= PULL_THRESHOLD || isPullRefreshing
+              ? 'bg-[#141a23]/95 border-[#2DD4BF] text-[#2DD4BF] shadow-[#2DD4BF]/20'
+              : 'bg-[#141a23]/90 border-white/10 text-gray-300 shadow-black/60'
+          }`}
+        >
+          <div
+            className="transition-transform duration-100 flex items-center justify-center shrink-0"
+            style={{
+              transform: isPullRefreshing
+                ? 'none'
+                : `rotate(${Math.min(360, pullDistance * 4.5)}deg)`,
+            }}
+          >
+            <RefreshCw
+              size={15}
+              className={isPullRefreshing ? 'animate-spin stroke-[2.5px]' : 'stroke-[2.5px]'}
+            />
+          </div>
+          <span className="text-[11px] font-bold">
+            {isPullRefreshing
+              ? 'Atualizando dados...'
+              : pullDistance >= PULL_THRESHOLD
+              ? 'Solte para atualizar'
+              : 'Puxe para atualizar'}
+          </span>
+        </div>
+      </div>
+
       {/* Contêiner de abas principais com acompanhamento do dedo em tempo real */}
       <main
         ref={containerRef}
@@ -534,6 +652,7 @@ function App() {
                 onOpenUpdateModal={() => setIsUpdateModalOpen(true)}
                 onOpenNotifications={() => setIsNotificationModalOpen(true)}
                 onNavigateToRachas={handleNavigateToRachas}
+                onNavigateToProfile={() => handleNavTabSelect('perfil')}
               />
             </div>
           </div>
