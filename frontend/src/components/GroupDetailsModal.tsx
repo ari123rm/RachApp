@@ -135,8 +135,6 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
     }
   }, [isOpen, grupoId]);
 
-  if (!isOpen) return null;
-
   const handleSelectExistingFriend = async (friendId: string) => {
     if (!grupoId) return;
     setIsAddingMemberId(friendId);
