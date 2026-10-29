@@ -115,6 +115,7 @@ function App() {
   const tabScrollRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const [pullDistance, setPullDistance] = useState(0);
   const [isPullRefreshing, setIsPullRefreshing] = useState(false);
+  const [isPullDragging, setIsPullDragging] = useState(false);
   const pullDistanceRef = useRef(0);
   pullDistanceRef.current = pullDistance;
 
@@ -371,17 +372,20 @@ function App() {
     const dy = touch.clientY - drag.startY;
 
     if (drag.direction === 'undecided') {
-      if (Math.abs(dx) < 7 && Math.abs(dy) < 7) return;
+      const absDx = Math.abs(dx);
+      const absDy = Math.abs(dy);
 
-      if (Math.abs(dy) >= Math.abs(dx)) {
+      // Limiar para desambiguação
+      if (absDx < 8 && absDy < 8) return;
+
+      if (absDy > absDx * 1.2) {
         const currentScrollEl = tabScrollRefs.current[activeTab];
         const isCurrentlyAtTop = !currentScrollEl || currentScrollEl.scrollTop <= 1;
 
-        if (dy > 0 && drag.canPullRefresh && isCurrentlyAtTop) {
+        // Só entra em pull-down com intenção clara para baixo no topo da tela
+        if (dy > 16 && drag.canPullRefresh && isCurrentlyAtTop) {
           drag.direction = 'pull-down';
-          if (trackRef.current) {
-            trackRef.current.style.transition = 'none';
-          }
+          setIsPullDragging(true);
         } else {
           drag.direction = 'vertical';
           drag.active = false;
@@ -411,14 +415,15 @@ function App() {
 
       const baseOffsetPx = -drag.startTabIndex * drag.containerWidth;
       trackRef.current.style.transform = `translate3d(${baseOffsetPx + effectiveDx}px, 0, 0)`;
-    } else if (drag.direction === 'pull-down' && trackRef.current) {
-      if (dy > 0) {
-        const dist = Math.min(85, dy * 0.45);
+    } else if (drag.direction === 'pull-down') {
+      // Deadzone de 16px para evitar disparos acidentais ao mexer o dedo lentamente
+      const pullRaw = Math.max(0, dy - 16);
+      if (pullRaw > 0) {
+        // Resistência progressiva com amortecimento elástico
+        const dist = Math.min(68, Math.pow(pullRaw, 0.82) * 1.5);
         setPullDistance(dist);
-        trackRef.current.style.transform = `translate3d(-${drag.startTabIndex * 100}%, ${dist * 0.45}px, 0)`;
       } else {
         setPullDistance(0);
-        trackRef.current.style.transform = `translate3d(-${drag.startTabIndex * 100}%, 0, 0)`;
       }
     }
   };
@@ -426,6 +431,7 @@ function App() {
   const finishTouchDrag = async (e: React.TouchEvent) => {
     const drag = dragRef.current;
     dragRef.current = null;
+    setIsPullDragging(false);
     if (!drag) return;
 
     if (drag.direction === 'pull-down') {
@@ -433,11 +439,7 @@ function App() {
 
       if (currentDist >= PULL_THRESHOLD) {
         setIsPullRefreshing(true);
-        setPullDistance(50);
-        if (trackRef.current) {
-          trackRef.current.style.transition = 'transform 240ms cubic-bezier(0.2, 0.9, 0.3, 1)';
-          trackRef.current.style.transform = `translate3d(-${drag.startTabIndex * 100}%, 24px, 0)`;
-        }
+        setPullDistance(PULL_THRESHOLD);
 
         try {
           const startTime = performance.now();
@@ -446,23 +448,15 @@ function App() {
           });
           refreshData();
           const elapsed = performance.now() - startTime;
-          if (elapsed < 600) {
-            await new Promise((res) => setTimeout(res, 600 - elapsed));
+          if (elapsed < 650) {
+            await new Promise((res) => setTimeout(res, 650 - elapsed));
           }
         } finally {
           setIsPullRefreshing(false);
           setPullDistance(0);
-          if (trackRef.current) {
-            trackRef.current.style.transition = 'transform 260ms cubic-bezier(0.2, 0.9, 0.3, 1)';
-            trackRef.current.style.transform = `translate3d(-${drag.startTabIndex * 100}%, 0, 0)`;
-          }
         }
       } else {
         setPullDistance(0);
-        if (trackRef.current) {
-          trackRef.current.style.transition = 'transform 200ms ease-out';
-          trackRef.current.style.transform = `translate3d(-${drag.startTabIndex * 100}%, 0, 0)`;
-        }
       }
       return;
     }
@@ -575,48 +569,43 @@ function App() {
 
   return (
     <div className="h-[100dvh] bg-[#05080f] text-white font-sans relative overflow-hidden flex flex-col">
-      {/* Indicador de Pull-to-Refresh (arrastar para baixo para atualizar manualmente) */}
+      {/* Indicador de Pull-to-Refresh: ícone circular flutuante centralizado com rotação suave */}
       <div
-        className="fixed left-1/2 -translate-x-1/2 z-[60] pointer-events-none transition-all duration-200"
+        className="fixed top-0 left-0 right-0 flex justify-center z-[60] pointer-events-none"
         style={{
-          top: 'max(0.75rem, env(safe-area-inset-top, 0px))',
-          transform: `translate3d(-50%, ${
-            isPullRefreshing
-              ? '16px'
-              : pullDistance > 0
-              ? `${Math.max(-48, pullDistance - 48)}px`
-              : '-60px'
-          }, 0)`,
-          opacity: isPullRefreshing || pullDistance > 10 ? 1 : 0,
+          paddingTop: 'max(0.75rem, env(safe-area-inset-top, 0px))',
         }}
       >
         <div
-          className={`flex items-center gap-2 px-3.5 py-1.5 rounded-full border shadow-xl backdrop-blur-md transition-colors ${
+          className={`w-10 h-10 rounded-full flex items-center justify-center border shadow-xl backdrop-blur-md transition-colors ${
             pullDistance >= PULL_THRESHOLD || isPullRefreshing
-              ? 'bg-[#141a23]/95 border-[#2DD4BF] text-[#2DD4BF] shadow-[#2DD4BF]/20'
-              : 'bg-[#141a23]/90 border-white/10 text-gray-300 shadow-black/60'
+              ? 'bg-[#141a23]/95 border-[#2DD4BF]/60 text-[#2DD4BF] shadow-[#2DD4BF]/25'
+              : 'bg-[#141a23]/90 border-white/15 text-gray-300 shadow-black/60'
           }`}
+          style={{
+            transform: `translate3d(0, ${
+              isPullRefreshing
+                ? '16px'
+                : pullDistance > 0
+                ? `${Math.max(-56, pullDistance - 56)}px`
+                : '-64px'
+            }, 0)`,
+            opacity: isPullRefreshing || pullDistance > 14 ? 1 : 0,
+            transition: isPullDragging
+              ? 'none'
+              : 'transform 260ms cubic-bezier(0.2, 0.9, 0.3, 1), opacity 200ms ease, border-color 200ms ease, color 200ms ease',
+          }}
         >
-          <div
-            className="transition-transform duration-100 flex items-center justify-center shrink-0"
+          <RefreshCw
+            size={18}
+            className={`stroke-[2.5px] ${isPullRefreshing ? 'animate-spin' : ''}`}
             style={{
               transform: isPullRefreshing
                 ? 'none'
-                : `rotate(${Math.min(360, pullDistance * 4.5)}deg)`,
+                : `rotate(${Math.min(360, (pullDistance / PULL_THRESHOLD) * 360)}deg)`,
+              transition: isPullDragging ? 'none' : 'transform 200ms ease-out',
             }}
-          >
-            <RefreshCw
-              size={15}
-              className={isPullRefreshing ? 'animate-spin stroke-[2.5px]' : 'stroke-[2.5px]'}
-            />
-          </div>
-          <span className="text-[11px] font-bold">
-            {isPullRefreshing
-              ? 'Atualizando dados...'
-              : pullDistance >= PULL_THRESHOLD
-              ? 'Solte para atualizar'
-              : 'Puxe para atualizar'}
-          </span>
+          />
         </div>
       </div>
 
