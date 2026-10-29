@@ -861,6 +861,11 @@ export function FriendDetailsModal({
         }}
         onUpdated={async () => {
           await carregarCorridas();
+          if (corridaSelecionada) {
+            const all = await dbService.corridas.getAll();
+            const fresh = all.find((c) => c.id === corridaSelecionada.id);
+            if (fresh) setCorridaSelecionada(fresh);
+          }
           if (update) update();
         }}
       />

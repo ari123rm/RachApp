@@ -1,6 +1,6 @@
 import { createPortal } from 'react-dom';
 // src/components/RideDetailsModal.tsx
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   ChevronLeft,
   Receipt,
@@ -13,6 +13,9 @@ import {
   Upload,
   FileCheck2,
   BadgeCheck,
+  LoaderCircle,
+  CheckCircle2,
+  X,
 } from 'lucide-react';
 import type { Corrida } from '../types';
 import moneyConverter from '../utils/moneyConverter';
@@ -41,10 +44,13 @@ export function RideDetailsModal({
   onDelete,
   onUpdated,
 }: RideDetailsProps) {
+  const [currentRide, setCurrentRide] = useState<Corrida | null>(ride || null);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isPaySelfOpen, setIsPaySelfOpen] = useState(false);
   const [myAvatarUrl, setMyAvatarUrl] = useState<string | null>(null);
   const [nettingMap, setNettingMap] = useState<Map<string, any>>(new Map());
+  const [updatingFriendId, setUpdatingFriendId] = useState<string | null>(null);
+  const [feedbackMsg, setFeedbackMsg] = useState<{ text: string; type: 'success' | 'info' } | null>(null);
   const [receiptToView, setReceiptToView] = useState<{
     isOpen: boolean;
     url: string | null;
@@ -58,6 +64,55 @@ export function RideDetailsModal({
   });
 
   useModalBackHandler(isOpen, onClose);
+
+  // Mantém currentRide atualizado com o prop ride
+  useEffect(() => {
+    setCurrentRide(ride || null);
+  }, [ride]);
+
+  // Limpa feedback toast após alguns segundos
+  useEffect(() => {
+    if (!feedbackMsg) return;
+    const timer = setTimeout(() => {
+      setFeedbackMsg(null);
+    }, 3200);
+    return () => clearTimeout(timer);
+  }, [feedbackMsg]);
+
+  const atualizarNettingEModal = useCallback(
+    async (targetRide: Corrida) => {
+      try {
+        const [allRides, allFriends] = await Promise.all([
+          dbService.corridas.getAll(),
+          dbService.amigos.getAll(),
+        ]);
+        const fresh = allRides.find((c) => c.id === targetRide.id);
+        if (fresh) {
+          setCurrentRide(fresh);
+        }
+        const r = fresh || targetRide;
+        const map = new Map<string, any>();
+        if (r.paidByFriendId) {
+          const friendPayer = allFriends.find((f) => f.id === r.paidByFriendId);
+          if (friendPayer) {
+            const res = applyBilateralNetting(allRides, friendPayer, allFriends);
+            const info = res.get(r.id);
+            if (info) map.set('self', info);
+          }
+        } else {
+          for (const p of participantes) {
+            const res = applyBilateralNetting(allRides, p, allFriends);
+            const info = res.get(r.id);
+            if (info) map.set(p.id, info);
+          }
+        }
+        setNettingMap(map);
+      } catch (err) {
+        console.warn('Erro ao atualizar netting:', err);
+      }
+    },
+    [participantes]
+  );
 
   useEffect(() => {
     if (isOpen) {
@@ -78,46 +133,28 @@ export function RideDetailsModal({
             console.warn('Erro ao marcar notificações do racha como lidas:', err);
           });
 
-        Promise.all([dbService.corridas.getAll(), dbService.amigos.getAll()])
-          .then(([allRides, allFriends]) => {
-            const map = new Map<string, any>();
-            if (ride.paidByFriendId) {
-              const friendPayer = allFriends.find((f) => f.id === ride.paidByFriendId);
-              if (friendPayer) {
-                const res = applyBilateralNetting(allRides, friendPayer, allFriends);
-                const info = res.get(ride.id);
-                if (info) map.set('self', info);
-              }
-            } else {
-              for (const p of participantes) {
-                const res = applyBilateralNetting(allRides, p, allFriends);
-                const info = res.get(ride.id);
-                if (info) map.set(p.id, info);
-              }
-            }
-            setNettingMap(map);
-          })
-          .catch(() => {});
+        atualizarNettingEModal(ride);
       }
     }
-  }, [isOpen, ride?.id]);
+  }, [isOpen, ride?.id, atualizarNettingEModal]);
 
-  if (!isOpen || !ride) return null;
+  const activeRide = currentRide || ride;
+  if (!isOpen || !activeRide) return null;
 
-  const valorNumerico = Number(ride.valorTotal || 0);
-  const totalPessoas = (ride.participantesIds?.length || participantes.length) + 1;
+  const valorNumerico = Number(activeRide.valorTotal || 0);
+  const totalPessoas = (activeRide.participantesIds?.length || participantes.length) + 1;
   const valorDivididoPadrao = totalPessoas > 0 ? valorNumerico / totalPessoas : valorNumerico;
 
   const obterParteAmigo = (amigoId: string): number => {
-    if (ride.valoresDevidos && ride.valoresDevidos[amigoId] !== undefined) {
-      return Number(ride.valoresDevidos[amigoId]);
+    if (activeRide.valoresDevidos && activeRide.valoresDevidos[amigoId] !== undefined) {
+      return Number(activeRide.valoresDevidos[amigoId]);
     }
     return valorDivididoPadrao;
   };
 
   const minhaParte =
-    ride.selfAmountOwed !== undefined ? Number(ride.selfAmountOwed) : valorDivididoPadrao;
-  const meuValorPago = Number(ride.selfAmountPaid || 0);
+    activeRide.selfAmountOwed !== undefined ? Number(activeRide.selfAmountOwed) : valorDivididoPadrao;
+  const meuValorPago = Number(activeRide.selfAmountPaid || 0);
 
   const formatarDataBR = (iso: string) => {
     if (!iso) return '';
@@ -126,13 +163,13 @@ export function RideDetailsModal({
     return `${parts[2]}/${parts[1]}/${parts[0]}`;
   };
 
-  const voceEhPagador = !ride.paidByFriendId;
+  const voceEhPagador = !activeRide.paidByFriendId;
   const selfNetting = nettingMap.get('self');
   const isSelfQuitado = voceEhPagador || meuValorPago >= minhaParte - 0.01 || !!selfNetting?.isQuitada;
-  const pagadorAmigo = participantes.find((p: any) => p.id === ride.paidByFriendId);
-  const pagadorNome = pagadorAmigo?.nome || pagadorAmigo?.name || ride.paidByName || 'Amigo';
+  const pagadorAmigo = participantes.find((p: any) => p.id === activeRide.paidByFriendId);
+  const pagadorNome = pagadorAmigo?.nome || pagadorAmigo?.name || activeRide.paidByName || 'Amigo';
   const pagadorPix =
-    ride.payerPixKey?.trim() ||
+    activeRide.payerPixKey?.trim() ||
     pagadorAmigo?.registered_pix_key?.trim() ||
     pagadorAmigo?.pix_key?.trim() ||
     pagadorAmigo?.pix?.trim() ||
@@ -144,35 +181,89 @@ export function RideDetailsModal({
     jaPago: boolean,
     valorParte: number
   ) => {
-    if (!voceEhPagador) return;
+    if (!voceEhPagador || updatingFriendId) return;
+
+    const amigoObj = participantes.find((p: any) => p.id === amigoId);
+    const amigoNome = amigoObj?.nome || amigoObj?.name || 'Amigo';
+    const novoValor = jaPago ? 0 : valorParte;
+
+    setUpdatingFriendId(amigoId);
+
+    // 1. Atualização Otimista Imediata para a UI mudar no mesmo milissegundo
+    setCurrentRide((prev) => {
+      const base = prev || activeRide;
+      if (!base) return base;
+      const novosPagamentos = { ...(base.pagamentos || {}), [amigoId]: novoValor };
+      const allPaid = (base.participantesIds || []).every((pid) => {
+        const owed = base.valoresDevidos?.[pid] ?? valorDivididoPadrao;
+        return (novosPagamentos[pid] || 0) >= owed - 0.01;
+      });
+      return {
+        ...base,
+        pagamentos: novosPagamentos,
+        isPaied: allPaid,
+      };
+    });
+
     try {
+      // 2. Persiste a alteração no SQLite local e enfileira sincronização
       await dbService.financeiro.definirPagamentoParticipante(
-        ride.id,
+        activeRide.id,
         amigoId,
-        jaPago ? 0 : valorParte
+        novoValor
       );
+
+      // 3. Recarrega os dados reais do banco e atualiza netting e pendências
+      await atualizarNettingEModal(activeRide);
+
+      // 4. Exibe mensagem de feedback visual ao usuário
+      if (jaPago) {
+        setFeedbackMsg({
+          text: `Pagamento de ${amigoNome} desfeito (marcado como pendente).`,
+          type: 'info',
+        });
+      } else {
+        setFeedbackMsg({
+          text: `Pagamento de ${amigoNome} registrado como quitado!`,
+          type: 'success',
+        });
+      }
+
+      // 5. Notifica telas pai
       if (onUpdated) onUpdated();
     } catch (err) {
       console.error('Erro ao atualizar pagamento:', err);
+      await atualizarNettingEModal(activeRide);
+      alert('Não foi possível atualizar o pagamento. Tente novamente.');
+    } finally {
+      setUpdatingFriendId(null);
     }
   };
 
   // Devedor ("Você", quando um amigo pagou a conta) envia o comprovante para dar baixa na sua parte
   const handleDebtorConfirmSelfPayment = async (amount: number, receiptBase64: string) => {
     const novoTotalPago = Math.min(minhaParte, Number((meuValorPago + amount).toFixed(2)));
-    await dbService.financeiro.definirPagamentoParticipante(
-      ride.id,
-      'self',
-      novoTotalPago > 0 ? novoTotalPago : amount,
-      receiptBase64
-    );
-    if (onUpdated) onUpdated();
+    try {
+      await dbService.financeiro.definirPagamentoParticipante(
+        activeRide.id,
+        'self',
+        novoTotalPago > 0 ? novoTotalPago : amount,
+        receiptBase64
+      );
+      await atualizarNettingEModal(activeRide);
+      setFeedbackMsg({
+        text: 'Seu pagamento com comprovante foi registrado com sucesso!',
+        type: 'success',
+      });
+      if (onUpdated) onUpdated();
+    } catch (err) {
+      console.error('Erro ao registrar comprovante:', err);
+      alert('Erro ao registrar comprovante.');
+    }
   };
 
-  if (!isOpen || !ride) return null;
-
   const nonPayerFriendsCount = participantes.filter(
-    (item: any) => item.id !== ride.paidByFriendId
+    (item: any) => item.id !== activeRide.paidByFriendId
   ).length;
 
   return createPortal(
@@ -198,7 +289,7 @@ export function RideDetailsModal({
 
           <h2 className="text-base font-semibold text-white">Detalhes do Racha</h2>
 
-          {ride.isCreator !== false ? (
+          {activeRide.isCreator !== false ? (
             <div className="flex items-center gap-1">
               <button
                 onClick={() => setIsEditOpen(true)}
@@ -209,11 +300,11 @@ export function RideDetailsModal({
               </button>
               <button
                 onClick={() => {
-                  if (ride.isCreator === false) {
+                  if (activeRide.isCreator === false) {
                     alert('Apenas o criador do racha pode excluí-lo.');
                     return;
                   }
-                  onDelete(ride.id);
+                  onDelete(activeRide.id);
                   onClose();
                 }}
                 className="p-2 text-red-500 hover:bg-red-500/20 hover:text-red-400 rounded-full transition-colors active:scale-95"
@@ -233,13 +324,13 @@ export function RideDetailsModal({
           {/* Card de Resumo (Valor e Título) */}
           <div className="bg-gradient-to-br from-[#1c1c1e] to-[#2c2c2e] p-5 rounded-3xl text-center shadow-lg border border-white/5">
             <p className="text-gray-400 text-xs uppercase font-bold tracking-wider mb-1">
-              {ride.tag || 'UBER'}
+              {activeRide.tag || 'UBER'}
             </p>
-            <h3 className="text-xl font-bold text-white mb-2">{ride.titulo}</h3>
+            <h3 className="text-xl font-bold text-white mb-2">{activeRide.titulo}</h3>
 
-            {ride.groupName && (
+            {activeRide.groupName && (
               <div className="inline-flex items-center gap-1.5 bg-blue-500/20 text-blue-400 text-xs font-semibold px-3 py-1 rounded-full mb-2">
-                <UsersRound size={13} /> {ride.groupName}
+                <UsersRound size={13} /> {activeRide.groupName}
               </div>
             )}
 
@@ -254,16 +345,40 @@ export function RideDetailsModal({
             <div className="flex items-center text-gray-300">
               <Calendar size={17} className="text-gray-500 mr-3" />
               <span className="text-sm">
-                Data: <strong className="text-white ml-1">{formatarDataBR(ride.data)}</strong>
+                Data: <strong className="text-white ml-1">{formatarDataBR(activeRide.data)}</strong>
               </span>
             </div>
             <div className="flex items-center text-gray-300">
               <Receipt size={17} className="text-gray-500 mr-3" />
               <span className="text-sm">
-                Categoria: <strong className="text-white ml-1">{ride.tag || 'Uber'}</strong>
+                Categoria: <strong className="text-white ml-1">{activeRide.tag || 'Uber'}</strong>
               </span>
             </div>
           </div>
+
+          {/* Mensagem de Feedback em Tempo Real de Pagamento */}
+          {feedbackMsg && (
+            <div
+              className={`p-3 rounded-2xl border text-xs font-semibold flex items-center justify-between animate-fade-in shadow-lg transition-all ${
+                feedbackMsg.type === 'success'
+                  ? 'bg-[#2DD4BF]/15 border-[#2DD4BF]/40 text-[#2DD4BF]'
+                  : 'bg-amber-500/15 border-amber-500/40 text-amber-300'
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                <CheckCircle2 size={16} className="shrink-0" />
+                <span>{feedbackMsg.text}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setFeedbackMsg(null)}
+                className="p-1 text-gray-400 hover:text-white rounded-lg transition-colors"
+                title="Fechar aviso"
+              >
+                <X size={14} />
+              </button>
+            </div>
+          )}
 
           {/* Divisão da Conta */}
           <div>
@@ -281,19 +396,20 @@ export function RideDetailsModal({
                 const valorParte = obterParteAmigo(p.id);
                 const pctParte =
                   valorNumerico > 0 ? ((valorParte / valorNumerico) * 100).toFixed(1) : '0';
-                const valorPago = ride.pagamentos?.[p.id] || 0;
-                const isFriendPayer = ride.paidByFriendId === p.id;
+                const valorPago = activeRide.pagamentos?.[p.id] || 0;
+                const isFriendPayer = activeRide.paidByFriendId === p.id;
                 const pNetting = nettingMap.get(p.id);
                 const isQuitado = isFriendPayer || valorPago >= valorParte - 0.01 || !!pNetting?.isQuitada;
                 const receiptDoAmigo = isFriendPayer
                   ? null
-                  : ride.comprovantes?.[p.id] ||
-                    (nonPayerFriendsCount === 1 && ride.comprovantes
-                      ? Object.entries(ride.comprovantes).find(
-                          ([k, v]) => k !== ride.paidByFriendId && Boolean(v)
+                  : activeRide.comprovantes?.[p.id] ||
+                    (nonPayerFriendsCount === 1 && activeRide.comprovantes
+                      ? Object.entries(activeRide.comprovantes).find(
+                          ([k, v]) => k !== activeRide.paidByFriendId && Boolean(v)
                         )?.[1] || null
                       : null);
                 const receiptsDoAmigo = parseReceiptUrls(receiptDoAmigo);
+                const isUpdatingThisFriend = updatingFriendId === p.id;
 
                 return (
                   <div
@@ -380,30 +496,38 @@ export function RideDetailsModal({
 
                         {!isFriendPayer &&
                           (voceEhPagador ? (
-                            isQuitado && receiptDoAmigo ? (
+                            isUpdatingThisFriend ? (
+                              <span className="text-[11px] text-gray-400 flex items-center gap-1 mt-0.5 animate-pulse">
+                                <LoaderCircle size={12} className="animate-spin text-[#2DD4BF]" />
+                                <span>Atualizando...</span>
+                              </span>
+                            ) : isQuitado && receiptDoAmigo ? (
                               <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                                 <span className="text-[11px] font-semibold text-[#34C759] flex items-center gap-1">
                                   <Check size={12} /> Pago (toque p/ ver)
                                 </span>
                                 <button
                                   type="button"
+                                  disabled={!!updatingFriendId}
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     handleCreditorTogglePaid(p.id, isQuitado, valorParte);
                                   }}
-                                  className="text-[10px] text-gray-400 hover:text-red-400 underline"
+                                  className="text-[10px] text-gray-400 hover:text-red-400 underline active:scale-95 transition-transform disabled:opacity-50"
                                 >
                                   Desfazer
                                 </button>
                               </div>
                             ) : (
                               <button
+                                type="button"
+                                disabled={!!updatingFriendId}
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   handleCreditorTogglePaid(p.id, isQuitado, valorParte);
                                 }}
-                                className={`text-[11px] font-semibold mt-0.5 flex items-center gap-1 ${
-                                  isQuitado ? 'text-[#34C759]' : 'text-amber-400 hover:underline'
+                                className={`text-[11px] font-semibold mt-0.5 flex items-center gap-1 active:scale-95 transition-all disabled:opacity-50 ${
+                                  isQuitado ? 'text-[#34C759] hover:underline' : 'text-amber-400 hover:underline'
                                 }`}
                               >
                                 {isQuitado ? (
@@ -446,7 +570,7 @@ export function RideDetailsModal({
 
               {/* Card Você */}
               {(() => {
-                const selfReceiptUrl = voceEhPagador ? null : ride.selfReceiptUrl || null;
+                const selfReceiptUrl = voceEhPagador ? null : activeRide.selfReceiptUrl || null;
                 const selfReceipts = parseReceiptUrls(selfReceiptUrl);
                 return (
                   <div
@@ -589,7 +713,7 @@ export function RideDetailsModal({
             : Number(minhaParte.toFixed(2))
         }
         allowCustomAmount={true}
-        description={`${ride.tag || 'Uber'} - ${ride.titulo}`}
+        description={`${activeRide.tag || 'Uber'} - ${activeRide.titulo}`}
         onConfirm={handleDebtorConfirmSelfPayment}
       />
 
@@ -604,7 +728,7 @@ export function RideDetailsModal({
 
       <AddRideModal
         isOpen={isEditOpen}
-        rideToEdit={ride}
+        rideToEdit={activeRide}
         onClose={() => setIsEditOpen(false)}
         onSuccess={() => {
           setIsEditOpen(false);

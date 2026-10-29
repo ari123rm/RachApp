@@ -849,7 +849,12 @@ function App() {
           setSelectedRideForModal(null);
           refreshData();
         }}
-        onUpdated={() => {
+        onUpdated={async () => {
+          if (selectedRideForModal) {
+            const all = await dbService.corridas.getAll();
+            const fresh = all.find((c) => c.id === selectedRideForModal.id);
+            if (fresh) setSelectedRideForModal(fresh);
+          }
           refreshData();
         }}
       />
