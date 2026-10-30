@@ -132,6 +132,7 @@ function App() {
     startTabIndex: number;
     canPullRefresh: boolean;
   } | null>(null);
+  const isTouchSwipingRef = useRef(false);
 
   const refreshData = () => setDataVersion((prev) => prev + 1);
 
@@ -259,15 +260,12 @@ function App() {
     };
   }, [isAuthenticated]);
 
-  // Ao trocar de aba, desfoca qualquer elemento ativo (ex: inputs em outras abas) e sincroniza
+  // Ao trocar de aba, desfoca qualquer elemento ativo (ex: inputs em outras abas)
   useEffect(() => {
     if (document.activeElement instanceof HTMLElement) {
       document.activeElement.blur();
     }
-    if (isAuthenticated) {
-      dbService.sync.now().catch(() => {});
-    }
-  }, [activeTab, isAuthenticated]);
+  }, [activeTab]);
 
   // Listener do botão voltar (Android / Capacitor)
   useEffect(() => {
@@ -316,9 +314,31 @@ function App() {
   // Sincroniza posição da trilha quando activeTab muda (inclusive ao clicar na BottomNav)
   useEffect(() => {
     if (!trackRef.current) return;
-    trackRef.current.style.transition = 'transform 280ms cubic-bezier(0.22, 1, 0.36, 1)';
+    if (isTouchSwipingRef.current) {
+      // Já foi transladado suavemente pelo finishTouchDrag, evita reiniciar o timer de transição
+      isTouchSwipingRef.current = false;
+      return;
+    }
+    trackRef.current.style.transition = 'transform 260ms cubic-bezier(0.22, 1, 0.36, 1)';
     trackRef.current.style.transform = `translate3d(-${tabIndex * 100}%, 0, 0)`;
   }, [tabIndex]);
+
+  // Limpa o estilo de transição ao concluir para que a trilha volte a ser estática e não bloqueie cliques subsequentes
+  useEffect(() => {
+    const track = trackRef.current;
+    if (!track) return;
+
+    const handleTransitionEnd = (e: TransitionEvent) => {
+      if (e.target === track && e.propertyName === 'transform') {
+        track.style.transition = 'none';
+      }
+    };
+
+    track.addEventListener('transitionend', handleTransitionEnd);
+    return () => {
+      track.removeEventListener('transitionend', handleTransitionEnd);
+    };
+  }, []);
 
   const handleFabClick = () => {
     if (activeTab === 'amigos') {
@@ -486,6 +506,10 @@ function App() {
     }
 
     if (drag.direction === 'horizontal') {
+      if (e.cancelable) {
+        e.preventDefault();
+      }
+
       const endX = e.changedTouches[0]?.clientX ?? drag.lastX;
       const dx = endX - drag.startX;
       const width = drag.containerWidth || window.innerWidth;
@@ -501,11 +525,12 @@ function App() {
       }
 
       if (trackRef.current) {
-        trackRef.current.style.transition = 'transform 280ms cubic-bezier(0.22, 1, 0.36, 1)';
+        trackRef.current.style.transition = 'transform 260ms cubic-bezier(0.22, 1, 0.36, 1)';
         trackRef.current.style.transform = `translate3d(-${nextIndex * 100}%, 0, 0)`;
       }
 
       if (nextIndex !== drag.startTabIndex) {
+        isTouchSwipingRef.current = true;
         setActiveTab(TABS[nextIndex]);
       }
     }
@@ -651,7 +676,11 @@ function App() {
           }}
         >
           {/* TAB 0: HOME */}
-          <div className="w-full min-w-full h-full shrink-0 overflow-hidden">
+          <div
+            className={`w-full min-w-full h-full shrink-0 overflow-hidden ${
+              activeTab === 'home' ? 'pointer-events-auto' : 'pointer-events-none'
+            }`}
+          >
             <div
               ref={(el) => {
                 tabScrollRefs.current.home = el;
@@ -671,7 +700,11 @@ function App() {
           </div>
 
           {/* TAB 1: VIAGENS / RACHAS */}
-          <div className="w-full min-w-full h-full shrink-0 overflow-hidden">
+          <div
+            className={`w-full min-w-full h-full shrink-0 overflow-hidden ${
+              activeTab === 'viagens' ? 'pointer-events-auto' : 'pointer-events-none'
+            }`}
+          >
             <div
               ref={(el) => {
                 tabScrollRefs.current.viagens = el;
@@ -688,7 +721,11 @@ function App() {
           </div>
 
           {/* TAB 2: CONTATOS (com Amigos e Grupos internos) */}
-          <div className="w-full min-w-full h-full shrink-0 overflow-hidden">
+          <div
+            className={`w-full min-w-full h-full shrink-0 overflow-hidden ${
+              activeTab === 'amigos' ? 'pointer-events-auto' : 'pointer-events-none'
+            }`}
+          >
             <div
               ref={(el) => {
                 tabScrollRefs.current.amigos = el;
@@ -705,7 +742,11 @@ function App() {
           </div>
 
           {/* TAB 3: PERFIL */}
-          <div className="w-full min-w-full h-full shrink-0 overflow-hidden">
+          <div
+            className={`w-full min-w-full h-full shrink-0 overflow-hidden ${
+              activeTab === 'perfil' ? 'pointer-events-auto' : 'pointer-events-none'
+            }`}
+          >
             <div
               ref={(el) => {
                 tabScrollRefs.current.perfil = el;

@@ -138,7 +138,12 @@ export function Amigos({
 
   useEffect(() => {
     carregarDados(true);
+    let isInitialSync = true;
     const unsub = dbService.sync.subscribe((st) => {
+      if (isInitialSync) {
+        isInitialSync = false;
+        return;
+      }
       if (st.state === 'synced') {
         carregarDados(false);
       }
