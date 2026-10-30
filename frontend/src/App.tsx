@@ -35,10 +35,11 @@ function isInsideScrollableHorizontal(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
   let el: HTMLElement | null = target;
   while (el && el !== document.body) {
-    if (el.classList.contains('overflow-x-auto')) {
-      if (el.scrollWidth > el.clientWidth + 4) {
-        return true;
-      }
+    if (
+      el.classList.contains('overflow-x-auto') ||
+      el.getAttribute('data-horizontal-scroll') === 'true'
+    ) {
+      return true;
     }
     el = el.parentElement;
   }
@@ -222,10 +223,16 @@ function App() {
       })
       .catch(() => {});
 
+    let lastFocusSync = 0;
     const handleVisibility = () => {
       if (!document.hidden) {
         initSocket();
-        dbService.sync.now().catch(() => {});
+        const now = Date.now();
+        // Evita sincronizações repetitivas ao focar que possam recriar a DOM no meio de um clique
+        if (now - lastFocusSync > 15000) {
+          lastFocusSync = now;
+          dbService.sync.now().catch(() => {});
+        }
       }
     };
     document.addEventListener('visibilitychange', handleVisibility);
@@ -252,8 +259,11 @@ function App() {
     };
   }, [isAuthenticated]);
 
-  // Ao trocar de aba, dispara sincronização em background para garantir dados frescos
+  // Ao trocar de aba, desfoca qualquer elemento ativo (ex: inputs em outras abas) e sincroniza
   useEffect(() => {
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
     if (isAuthenticated) {
       dbService.sync.now().catch(() => {});
     }
@@ -375,15 +385,15 @@ function App() {
       const absDx = Math.abs(dx);
       const absDy = Math.abs(dy);
 
-      // Limiar para desambiguação
-      if (absDx < 8 && absDy < 8) return;
+      // Limiar inicial para evitar que micro-movimentos do toque interfiram no clique
+      if (absDx < 10 && absDy < 10) return;
 
       if (absDy > absDx * 1.2) {
         const currentScrollEl = tabScrollRefs.current[activeTab];
         const isCurrentlyAtTop = !currentScrollEl || currentScrollEl.scrollTop <= 1;
 
         // Só entra em pull-down com intenção clara para baixo no topo da tela
-        if (dy > 16 && drag.canPullRefresh && isCurrentlyAtTop) {
+        if (dy > 18 && drag.canPullRefresh && isCurrentlyAtTop) {
           drag.direction = 'pull-down';
           setIsPullDragging(true);
         } else {
@@ -391,11 +401,25 @@ function App() {
           drag.active = false;
           return;
         }
-      } else {
+      } else if (absDx >= 18 && absDx > absDy * 1.3) {
+        // Só entra em arraste horizontal de abas se houver intenção clara (mínimo 18px e horizontal)
+        // Se estiver na Home (aba 0) e arrastando para a direita, ou na última aba arrastando para a esquerda, ignora
+        const isTryingOverscroll =
+          (drag.startTabIndex === 0 && dx > 0) ||
+          (drag.startTabIndex === TABS.length - 1 && dx < 0);
+
+        if (isTryingOverscroll) {
+          drag.active = false;
+          return;
+        }
+
         drag.direction = 'horizontal';
         if (trackRef.current) {
           trackRef.current.style.transition = 'none';
         }
+      } else {
+        // Movimento ambíguo ou sutil: não sequestra o toque nem mexe na DOM
+        return;
       }
     }
 

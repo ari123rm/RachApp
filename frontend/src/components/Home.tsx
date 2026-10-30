@@ -109,12 +109,22 @@ export function Home({
   }, [periodoSelecionado]);
 
   useEffect(() => {
+    let isSubscribed = true;
+    let isInitialSyncEvent = true;
     const unsub = dbService.sync.subscribe((st) => {
-      if (st.state === 'synced') {
+      // Ignora o disparo síncrono inicial da inscrição para evitar duplo carregamento no mount
+      if (isInitialSyncEvent) {
+        isInitialSyncEvent = false;
+        return;
+      }
+      if (isSubscribed && st.state === 'synced') {
         carregarDashboard(periodoRef.current, false);
       }
     });
-    return () => unsub();
+    return () => {
+      isSubscribed = false;
+      unsub();
+    };
   }, []);
 
   useEffect(() => {
@@ -272,8 +282,16 @@ export function Home({
           {/* Cards A Receber e A Pagar */}
           <div className="grid grid-cols-2 gap-2.5 sm:gap-3">
             <div
+              role="button"
+              tabIndex={0}
               onClick={() => onNavigateToRachas?.('a_receber')}
-              className={`bg-white/10 backdrop-blur-md rounded-2xl p-3 sm:p-3.5 flex flex-col justify-between border border-white/10 min-w-0 transition-all ${
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  onNavigateToRachas?.('a_receber');
+                }
+              }}
+              className={`bg-white/10 backdrop-blur-md rounded-2xl p-3 sm:p-3.5 flex flex-col justify-between border border-white/10 min-w-0 transition-all select-none ${
                 onNavigateToRachas
                   ? 'cursor-pointer hover:bg-white/15 active:scale-[0.98]'
                   : ''
@@ -294,8 +312,16 @@ export function Home({
             </div>
 
             <div
+              role="button"
+              tabIndex={0}
               onClick={() => onNavigateToRachas?.('a_pagar')}
-              className={`bg-white/10 backdrop-blur-md rounded-2xl p-3 sm:p-3.5 flex flex-col justify-between border border-white/10 min-w-0 transition-all ${
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  onNavigateToRachas?.('a_pagar');
+                }
+              }}
+              className={`bg-white/10 backdrop-blur-md rounded-2xl p-3 sm:p-3.5 flex flex-col justify-between border border-white/10 min-w-0 transition-all select-none ${
                 onNavigateToRachas
                   ? 'cursor-pointer hover:bg-white/15 active:scale-[0.98]'
                   : ''
@@ -338,7 +364,10 @@ export function Home({
             </p>
           </div>
         ) : (
-          <div className="flex gap-3 sm:gap-4 overflow-x-auto pt-2 pb-3 px-1 scrollbar-hide -mt-1 overscroll-x-contain touch-pan-x">
+          <div
+            data-horizontal-scroll="true"
+            className="flex gap-3 sm:gap-4 overflow-x-auto pt-2 pb-3 px-1 scrollbar-hide -mt-1 overscroll-x-contain touch-pan-x"
+          >
             {dashboard.amigosDevedores.map((amigo) => {
               const nome = amigo.nome || amigo.name || 'Amigo';
               const cor = amigo.cor || amigo.color || 'bg-sky-500';
@@ -351,6 +380,8 @@ export function Home({
               return (
                 <div
                   key={amigo.id}
+                  role="button"
+                  tabIndex={0}
                   onClick={() =>
                     setAmigoSelecionado({
                       ...amigo,
@@ -363,7 +394,22 @@ export function Home({
                       saldoLiquido,
                     })
                   }
-                  className="flex flex-col items-center gap-1.5 min-w-[76px] max-w-[85px] sm:min-w-[85px] cursor-pointer active:scale-95 transition-transform shrink-0"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      setAmigoSelecionado({
+                        ...amigo,
+                        nome,
+                        cor,
+                        divida: isVoceDeve ? 0 : valorExibido,
+                        dividaNumerica: isVoceDeve ? 0 : valorExibido,
+                        voceDeve: isVoceDeve ? valorExibido : 0,
+                        voceDeveNumerico: isVoceDeve ? valorExibido : 0,
+                        saldoLiquido,
+                      });
+                    }
+                  }}
+                  className="flex flex-col items-center gap-1.5 min-w-[76px] max-w-[85px] sm:min-w-[85px] cursor-pointer active:scale-95 transition-transform shrink-0 select-none"
                 >
                   <div className="relative">
                     <div
@@ -434,7 +480,10 @@ export function Home({
             </p>
           </div>
         ) : (
-          <div className="flex gap-3 sm:gap-4 overflow-x-auto pt-2 pb-3 px-1 scrollbar-hide -mt-1 overscroll-x-contain touch-pan-x">
+          <div
+            data-horizontal-scroll="true"
+            className="flex gap-3 sm:gap-4 overflow-x-auto pt-2 pb-3 px-1 scrollbar-hide -mt-1 overscroll-x-contain touch-pan-x"
+          >
             {dashboard.gruposPendentes.map((grupo) => {
               const nome = grupo.nome || grupo.name || 'Grupo';
               const cor = getGroupAvatarColor(grupo.cor || grupo.color || nome || grupo.id);
@@ -450,8 +499,16 @@ export function Home({
               return (
                 <div
                   key={grupo.id}
+                  role="button"
+                  tabIndex={0}
                   onClick={() => setGrupoSelecionadoId(grupo.id)}
-                  className="flex flex-col items-center gap-1.5 min-w-[76px] max-w-[85px] sm:min-w-[85px] cursor-pointer active:scale-95 transition-transform shrink-0"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      setGrupoSelecionadoId(grupo.id);
+                    }
+                  }}
+                  className="flex flex-col items-center gap-1.5 min-w-[76px] max-w-[85px] sm:min-w-[85px] cursor-pointer active:scale-95 transition-transform shrink-0 select-none"
                 >
                   <div className="relative">
                     <div
