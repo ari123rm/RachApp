@@ -98,6 +98,7 @@ function createSchema(db: Database) {
       color TEXT NOT NULL,
       is_favorite INTEGER DEFAULT 0,
       has_account INTEGER DEFAULT 0,
+      is_contact_only INTEGER DEFAULT 0,
       synced INTEGER DEFAULT 0,
       updated_at TEXT
     );
@@ -214,6 +215,12 @@ function createSchema(db: Database) {
 
   try {
     db.run('ALTER TABLE friends ADD COLUMN avatar_url TEXT');
+  } catch {
+    // Coluna já existe
+  }
+
+  try {
+    db.run('ALTER TABLE friends ADD COLUMN is_contact_only INTEGER DEFAULT 0');
   } catch {
     // Coluna já existe
   }

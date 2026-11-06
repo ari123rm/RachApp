@@ -33,6 +33,9 @@ export interface Amigo {
   pendingExpensesCount?: number;
   has_account?: boolean;
   is_registered?: boolean;
+  is_friend?: boolean;
+  is_contact_only?: boolean;
+  from_shared_racha?: boolean;
 }
 
 export interface Corrida {

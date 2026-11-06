@@ -1,6 +1,6 @@
 // src/services/Expense.service.ts
 import { prisma } from '../config/db';
-import { normalizePhoneBackend, phonesMatch } from './Auth.service';
+import { normalizePhoneBackend, phonesMatch, areContactsSame } from './Auth.service';
 import { FriendService } from './Friend.service';
 import { NotificationService } from './Notification.service';
 import { notifySync } from './socket.service';
@@ -110,15 +110,22 @@ export class ExpenseService {
       transformedPaidByFriendId = null;
     } else if (exp.paidByFriend) {
       // Um terceiro amigo pagou (sem duplicar no banco de dados)
-      const localMatch = exp.paidByFriend.phone
-        ? myFriends.find((mf) => mf.phone && phonesMatch(mf.phone, exp.paidByFriend.phone))
-        : null;
+      const localMatch = myFriends.find((mf) =>
+        areContactsSame(
+          { name: mf.name, phone: mf.phone },
+          { name: exp.paidByFriend.name, phone: exp.paidByFriend.phone }
+        )
+      );
       const thirdLocal = localMatch || {
         id: exp.paidByFriend.id,
         name: exp.paidByFriend.name,
         phone: exp.paidByFriend.phone,
         pix_key: exp.paidByFriend.pix_key,
+        avatar_url: exp.paidByFriend.avatar_url || null,
         color: exp.paidByFriend.color || 'bg-sky-500',
+        is_friend: false,
+        is_contact_only: true,
+        from_shared_racha: true,
       };
       transformedPaidByFriend = thirdLocal;
       transformedPaidByFriendId = thirdLocal.id;
@@ -146,21 +153,25 @@ export class ExpenseService {
     for (const p of exp.participants || []) {
       if (reverseSet.has(p.friend_id)) continue;
       if (p.friend) {
-        const localMatch = p.friend.phone
-          ? myFriends.find((mf) => mf.phone && phonesMatch(mf.phone, p.friend.phone))
-          : myFriends.find(
-              (mf) => !mf.phone && mf.name.trim().toLowerCase() === p.friend.name.trim().toLowerCase()
-            );
+        const localMatch = myFriends.find((mf) =>
+          areContactsSame(
+            { name: mf.name, phone: mf.phone },
+            { name: p.friend.name, phone: p.friend.phone }
+          )
+        );
+        // Não cria no banco de amigos locais se o usuário não o adicionou como amigo
         const participantFriend =
-          localMatch ||
-          (await ensureLocalFriendForOwner({
+          localMatch || {
             id: p.friend.id,
             name: p.friend.name,
             phone: p.friend.phone,
             pix_key: p.friend.pix_key,
             avatar_url: p.friend.avatar_url || null,
             color: p.friend.color || 'bg-sky-500',
-          }));
+            is_friend: false,
+            is_contact_only: true,
+            from_shared_racha: true,
+          };
         if (participantFriend.id !== ownerLocalFriend.id) {
           const isThisParticipantPayer = Boolean(
             exp.paid_by_friend_id && exp.paid_by_friend_id === p.friend_id

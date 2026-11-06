@@ -1,12 +1,25 @@
 // src/components/AddRideModal.tsx
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { X, LoaderCircle, UsersRound, Wallet, Percent, DollarSign, Equal, BadgeCheck } from 'lucide-react';
+import {
+  X,
+  LoaderCircle,
+  UsersRound,
+  Wallet,
+  Percent,
+  DollarSign,
+  Equal,
+  BadgeCheck,
+  Search,
+  Star,
+  Check,
+} from 'lucide-react';
 import { dbService } from '../services/database';
 import type { Amigo, Corrida, Grupo } from '../types';
 import moneyConverter from '../utils/moneyConverter';
 import { useModalBackHandler } from '../utils/modalBackHandler';
 import { getAvatarColor } from '../utils/avatarColor';
+import { formatPhoneBR } from '../utils/phoneFormatter';
 
 interface AddRideModalProps {
   isOpen: boolean;
@@ -41,6 +54,10 @@ export function AddRideModal({
   const [groupId, setGroupId] = useState<string>('');
   const [paidByFriendId, setPaidByFriendId] = useState<string>('');
 
+  // Busca e filtros do seletor de amigos
+  const [buscaAmigos, setBuscaAmigos] = useState('');
+  const [filtroAmigos, setFiltroAmigos] = useState<'todos' | 'amigos' | 'favoritos' | 'rachas'>('todos');
+
   // Custom Split State
   const [splitMode, setSplitMode] = useState<SplitMode>('equal');
   const [friendPercents, setFriendPercents] = useState<Record<string, string>>({});
@@ -57,6 +74,47 @@ export function AddRideModal({
 
   const isEditing = !!rideToEdit;
   const valorNumerico = valor ? parseFloat(valor.replace(/\./g, '').replace(',', '.')) : 0;
+
+  const totalAmigosCadastrados = useMemo(() => {
+    return amigosReais.filter((a) => !a.is_contact_only && !a.from_shared_racha).length;
+  }, [amigosReais]);
+
+  const totalFavoritos = useMemo(() => {
+    return amigosReais.filter((a) => (a.favorito || a.is_favorite) && !a.is_contact_only).length;
+  }, [amigosReais]);
+
+  const totalRachaContatos = useMemo(() => {
+    return amigosReais.filter((a) => a.is_contact_only || a.from_shared_racha).length;
+  }, [amigosReais]);
+
+  const amigosFiltrados = useMemo(() => {
+    return amigosReais.filter((amigo) => {
+      // 1. Filtro por aba de categoria
+      if (filtroAmigos === 'favoritos' && !amigo.favorito && !amigo.is_favorite) {
+        return false;
+      }
+      if (filtroAmigos === 'amigos' && (amigo.is_contact_only || amigo.from_shared_racha)) {
+        return false;
+      }
+      if (filtroAmigos === 'rachas' && !amigo.is_contact_only && !amigo.from_shared_racha) {
+        return false;
+      }
+
+      // 2. Filtro textual por nome ou telefone
+      if (buscaAmigos.trim()) {
+        const termo = buscaAmigos.trim().toLowerCase();
+        const termoDigits = termo.replace(/\D/g, '');
+        const nomeAmigo = (amigo.nome || amigo.name || '').toLowerCase();
+        const telAmigo = (amigo.telefone || amigo.phone || '').replace(/\D/g, '');
+
+        const matchNome = nomeAmigo.includes(termo);
+        const matchTel = termoDigits.length >= 2 && telAmigo.includes(termoDigits);
+        if (!matchNome && !matchTel) return false;
+      }
+
+      return true;
+    });
+  }, [amigosReais, buscaAmigos, filtroAmigos]);
 
   const inicializarDivisaoIgual = (ids: string[], total: number) => {
     const qtd = ids.length + 1;
@@ -79,9 +137,11 @@ export function AddRideModal({
     if (isOpen) {
       const carregarDados = async () => {
         setIsLoadingAmigos(true);
+        setBuscaAmigos('');
+        setFiltroAmigos('todos');
         try {
           const [dadosAmigos, dadosGrupos] = await Promise.all([
-            dbService.amigos.getAll(),
+            dbService.amigos.getAllForRideSelector(),
             dbService.grupos.getAll(),
           ]);
           setAmigosReais(dadosAmigos);
@@ -573,61 +633,255 @@ export function AddRideModal({
             <label className="text-gray-400 text-xs uppercase font-bold">
               Participantes ({selecionados.length} amigos + Você)
             </label>
-            {amigosReais.length > 0 && (
+            {amigosReais.length > 0 && selecionados.length > 0 && (
               <button
                 type="button"
                 onClick={() => {
-                  if (selecionados.length === amigosReais.length) {
-                    setSelecionados([]);
-                  } else {
-                    const todosIds = amigosReais.map((a) => a.id);
-                    setSelecionados(todosIds);
-                    inicializarDivisaoIgual(todosIds, valorNumerico);
-                  }
+                  setSelecionados([]);
+                  inicializarDivisaoIgual([], valorNumerico);
+                  setPaidByFriendId('');
                 }}
-                className="text-[11px] text-[#2DD4BF] font-semibold hover:underline"
+                className="text-[11px] text-gray-400 hover:text-red-400 font-semibold transition-colors"
               >
-                {selecionados.length === amigosReais.length ? 'Limpar' : 'Selecionar todos'}
+                Limpar seleção ({selecionados.length})
               </button>
             )}
           </div>
 
+          {/* Chips dos Amigos Selecionados */}
+          {selecionados.length > 0 && (
+            <div className="mb-3">
+              <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto p-1.5 bg-[#1e1e20] rounded-xl border border-white/5">
+                {selecionados.map((id) => {
+                  const amigo = amigosReais.find((a) => a.id === id);
+                  const nomeAmigo = amigo?.nome || amigo?.name || 'Amigo';
+                  const corAmigo = amigo?.cor || amigo?.color || 'bg-sky-500';
+                  return (
+                    <span
+                      key={id}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#2DD4BF]/15 border border-[#2DD4BF]/40 text-white text-xs font-medium"
+                    >
+                      <span
+                        style={{ backgroundColor: getAvatarColor(corAmigo) }}
+                        className="w-4 h-4 rounded-full flex items-center justify-center text-[9px] text-white font-bold"
+                      >
+                        {nomeAmigo[0]?.toUpperCase()}
+                      </span>
+                      <span className="max-w-[110px] truncate">{nomeAmigo}</span>
+                      <button
+                        type="button"
+                        onClick={() => toggleAmigo(id)}
+                        className="text-gray-400 hover:text-white p-0.5 rounded-full hover:bg-white/10"
+                        title="Remover"
+                      >
+                        <X size={12} />
+                      </button>
+                    </span>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Campo de Busca */}
+          <div className="relative mb-2">
+            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input
+              type="text"
+              value={buscaAmigos}
+              onChange={(e) => setBuscaAmigos(e.target.value)}
+              placeholder="Buscar por nome ou telefone..."
+              className="w-full bg-[#2c2c2e] text-white text-sm pl-9 pr-8 py-2 rounded-xl border border-white/5 focus:border-[#2DD4BF] outline-none placeholder:text-gray-500 transition-all"
+            />
+            {buscaAmigos && (
+              <button
+                type="button"
+                onClick={() => setBuscaAmigos('')}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white p-1"
+                title="Limpar busca"
+              >
+                <X size={14} />
+              </button>
+            )}
+          </div>
+
+          {/* Abas de Filtro */}
+          <div className="flex gap-1.5 mb-2 overflow-x-auto pb-1 scrollbar-hide text-xs">
+            <button
+              type="button"
+              onClick={() => setFiltroAmigos('todos')}
+              className={`px-2.5 py-1 rounded-lg font-medium whitespace-nowrap transition-colors ${
+                filtroAmigos === 'todos'
+                  ? 'bg-[#2DD4BF] text-[#05080f] font-bold'
+                  : 'bg-[#2c2c2e] text-gray-400 hover:text-white'
+              }`}
+            >
+              Todos ({amigosReais.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setFiltroAmigos('amigos')}
+              className={`px-2.5 py-1 rounded-lg font-medium whitespace-nowrap transition-colors ${
+                filtroAmigos === 'amigos'
+                  ? 'bg-[#2DD4BF] text-[#05080f] font-bold'
+                  : 'bg-[#2c2c2e] text-gray-400 hover:text-white'
+              }`}
+            >
+              Meus Amigos ({totalAmigosCadastrados})
+            </button>
+            {totalFavoritos > 0 && (
+              <button
+                type="button"
+                onClick={() => setFiltroAmigos('favoritos')}
+                className={`flex items-center gap-1 px-2.5 py-1 rounded-lg font-medium whitespace-nowrap transition-colors ${
+                  filtroAmigos === 'favoritos'
+                    ? 'bg-[#2DD4BF] text-[#05080f] font-bold'
+                    : 'bg-[#2c2c2e] text-amber-400 hover:text-amber-300'
+                }`}
+              >
+                <Star size={11} className="fill-current" /> Favoritos ({totalFavoritos})
+              </button>
+            )}
+            {totalRachaContatos > 0 && (
+              <button
+                type="button"
+                onClick={() => setFiltroAmigos('rachas')}
+                className={`px-2.5 py-1 rounded-lg font-medium whitespace-nowrap transition-colors ${
+                  filtroAmigos === 'rachas'
+                    ? 'bg-[#2DD4BF] text-[#05080f] font-bold'
+                    : 'bg-[#2c2c2e] text-purple-300 hover:text-purple-200'
+                }`}
+              >
+                Do Racha ({totalRachaContatos})
+              </button>
+            )}
+          </div>
+
+          {/* Barra de ação rápida */}
+          <div className="flex items-center justify-between text-[11px] text-gray-400 mb-1.5 px-0.5">
+            <span>
+              {amigosFiltrados.length === amigosReais.length
+                ? `${amigosReais.length} contato(s)`
+                : `${amigosFiltrados.length} de ${amigosReais.length} contato(s)`}
+            </span>
+            {amigosFiltrados.length > 0 && (
+              <button
+                type="button"
+                onClick={() => {
+                  const todosFiltradosIds = amigosFiltrados.map((a) => a.id);
+                  const todosJaSelecionados = todosFiltradosIds.every((id) =>
+                    selecionados.includes(id)
+                  );
+                  let next: string[];
+                  if (todosJaSelecionados) {
+                    next = selecionados.filter((id) => !todosFiltradosIds.includes(id));
+                  } else {
+                    next = Array.from(new Set([...selecionados, ...todosFiltradosIds]));
+                  }
+                  setSelecionados(next);
+                  inicializarDivisaoIgual(next, valorNumerico);
+                }}
+                className="text-[#2DD4BF] hover:underline font-semibold"
+              >
+                {amigosFiltrados.every((a) => selecionados.includes(a.id))
+                  ? 'Desmarcar filtrados'
+                  : 'Selecionar filtrados'}
+              </button>
+            )}
+          </div>
+
+          {/* Lista com Rolagem */}
           {isLoadingAmigos ? (
-            <div className="flex justify-center p-4">
+            <div className="flex justify-center p-6">
               <LoaderCircle className="animate-spin text-gray-500" />
             </div>
           ) : (
-            <div className="flex flex-wrap gap-2">
+            <div className="max-h-56 overflow-y-auto space-y-1 pr-1 border border-white/5 bg-[#1a1a1c] p-1.5 rounded-xl">
               {amigosReais.length === 0 ? (
-                <p className="text-xs text-gray-500 italic">
+                <p className="text-xs text-gray-500 italic p-3 text-center">
                   Cadastre amigos na aba "Amigos" primeiro!
                 </p>
+              ) : amigosFiltrados.length === 0 ? (
+                <div className="p-4 text-center text-gray-500 text-xs">
+                  {buscaAmigos ? (
+                    <>
+                      <p>Nenhum contato encontrado para "{buscaAmigos}"</p>
+                      <button
+                        type="button"
+                        onClick={() => setBuscaAmigos('')}
+                        className="mt-1.5 text-[#2DD4BF] hover:underline font-medium text-xs block mx-auto"
+                      >
+                        Limpar busca
+                      </button>
+                    </>
+                  ) : (
+                    <p>Nenhum contato nesta categoria.</p>
+                  )}
+                </div>
               ) : (
-                amigosReais.map((amigo) => {
+                amigosFiltrados.map((amigo) => {
                   const isSelected = selecionados.includes(amigo.id);
                   const nomeAmigo = amigo.nome || amigo.name || 'Amigo';
                   const corAmigo = amigo.cor || amigo.color || 'bg-sky-500';
+                  const isContactOnly = !!(amigo.is_contact_only || amigo.from_shared_racha);
+                  const rawTel = amigo.telefone || amigo.phone || '';
+                  const displayTel = rawTel ? formatPhoneBR(rawTel) : null;
+
                   return (
                     <button
                       key={amigo.id}
                       type="button"
                       onClick={() => toggleAmigo(amigo.id)}
-                      className={`flex items-center gap-2 px-3 py-2 rounded-full border transition-all ${
+                      className={`w-full flex items-center justify-between p-2 rounded-xl transition-all text-left ${
                         isSelected
-                          ? 'border-[#2DD4BF] bg-[#2DD4BF]/15 text-white'
-                          : 'border-gray-700 bg-[#2c2c2e] text-gray-400'
+                          ? 'bg-[#2DD4BF]/15 border border-[#2DD4BF]/50 text-white'
+                          : 'bg-[#242426] hover:bg-[#2c2c2e] border border-transparent text-gray-300'
                       }`}
                     >
-                      <div
-                        style={{ backgroundColor: getAvatarColor(corAmigo) }}
-                        className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] text-white font-bold"
-                      >
-                        {nomeAmigo[0]?.toUpperCase()}
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div
+                          style={{ backgroundColor: getAvatarColor(corAmigo) }}
+                          className="w-8 h-8 rounded-full flex items-center justify-center text-xs text-white font-bold shrink-0 shadow-sm"
+                        >
+                          {nomeAmigo[0]?.toUpperCase()}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="text-sm font-semibold text-white truncate max-w-[150px] sm:max-w-[190px]">
+                              {nomeAmigo}
+                            </span>
+                            {(amigo.has_account || amigo.is_registered) && (
+                              <span title="Conta verificada">
+                                <BadgeCheck
+                                  size={14}
+                                  className="text-[#2DD4BF] fill-[#2DD4BF]/20 shrink-0"
+                                />
+                              </span>
+                            )}
+                            {isContactOnly && (
+                              <span className="text-[10px] bg-purple-500/20 text-purple-300 border border-purple-500/30 px-1.5 py-0.2 rounded-full font-medium">
+                                Do racha
+                              </span>
+                            )}
+                            {(amigo.favorito || amigo.is_favorite) && !isContactOnly && (
+                              <Star size={12} className="text-amber-400 fill-amber-400 shrink-0" />
+                            )}
+                          </div>
+                          <div className="text-[11px] text-gray-400 truncate">
+                            {displayTel || (isContactOnly ? 'Contato compartilhado' : 'Sem telefone')}
+                          </div>
+                        </div>
                       </div>
-                      <span className="text-sm">{nomeAmigo}</span>
-                      {(amigo.has_account || amigo.is_registered) && (
-                        <BadgeCheck size={14} className="text-[#2DD4BF] fill-[#2DD4BF]/20 shrink-0" />
-                      )}
+
+                      <div
+                        className={`w-5 h-5 rounded-md border flex items-center justify-center transition-colors shrink-0 ml-2 ${
+                          isSelected
+                            ? 'bg-[#2DD4BF] border-[#2DD4BF] text-[#05080f]'
+                            : 'border-gray-600 bg-transparent'
+                        }`}
+                      >
+                        {isSelected && <Check size={13} strokeWidth={3} />}
+                      </div>
                     </button>
                   );
                 })

@@ -7,12 +7,23 @@ import { JWT_SECRET } from '../config/env';
 export function normalizePhoneBackend(raw?: string | null): string {
   if (!raw) return '';
   let digits = raw.replace(/\D/g, '');
-  if (digits.length > 11 && digits.startsWith('0')) {
-    digits = digits.slice(1);
-  }
-  if ((digits.length === 12 || digits.length === 13) && digits.startsWith('55')) {
+  if (!digits) return '';
+
+  // Remove DDI +55 (12 ou 13 dígitos)
+  if (digits.startsWith('55') && digits.length >= 12) {
     digits = digits.slice(2);
   }
+
+  // Remove zero inicial do DDD (ex: 011 ou 085)
+  if (digits.startsWith('0')) {
+    digits = digits.replace(/^0+/, '');
+  }
+
+  // Se após retirar o 0 ainda sobrar DDI 55
+  if (digits.startsWith('55') && digits.length >= 12) {
+    digits = digits.slice(2);
+  }
+
   return digits.slice(0, 11);
 }
 
@@ -21,6 +32,8 @@ export function phonesMatch(rawA?: string | null, rawB?: string | null): boolean
   const b = normalizePhoneBackend(rawB);
   if (!a || !b) return false;
   if (a === b) return true;
+
+  // Se ambos tiverem DDD (10 ou 11 dígitos)
   if (a.length >= 10 && b.length >= 10) {
     const dddA = a.slice(0, 2);
     const dddB = b.slice(0, 2);
@@ -30,6 +43,71 @@ export function phonesMatch(rawA?: string | null, rawB?: string | null): boolean
       return true;
     }
   }
+
+  // Se um deles foi digitado sem DDD (8 ou 9 dígitos) ou ambos sem DDD
+  if (a.length >= 8 && b.length >= 8) {
+    const last8A = a.slice(-8);
+    const last8B = b.slice(-8);
+    if (last8A === last8B) {
+      if (a.length >= 10 && b.length >= 10) {
+        return a.slice(0, 2) === b.slice(0, 2);
+      }
+      return true;
+    }
+  }
+
+  return false;
+}
+
+export function normalizeNameForComparison(name?: string | null): string {
+  if (!name) return '';
+  return name
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9\s]/g, '')
+    .replace(/\s+/g, ' ');
+}
+
+export function areContactsSame(
+  contactA: { name?: string | null; phone?: string | null },
+  contactB: { name?: string | null; phone?: string | null }
+): boolean {
+  if (!contactA || !contactB) return false;
+
+  const phoneA = normalizePhoneBackend(contactA.phone);
+  const phoneB = normalizePhoneBackend(contactB.phone);
+
+  // 1. Se ambos têm telefone válido (8+ dígitos), a comparação de telefone é prioritária
+  if (phoneA.length >= 8 && phoneB.length >= 8) {
+    if (phonesMatch(phoneA, phoneB)) return true;
+    if (phoneA.length >= 10 && phoneB.length >= 10) return false;
+  }
+
+  const nameA = normalizeNameForComparison(contactA.name);
+  const nameB = normalizeNameForComparison(contactB.name);
+
+  // 2. Se os nomes forem idênticos (sem acento, minúsculas):
+  if (nameA && nameB && nameA === nameB) {
+    if (!phoneA || !phoneB) return true;
+    return phonesMatch(phoneA, phoneB);
+  }
+
+  // 3. Se um nome contiver o outro ou compartilharem o primeiro nome
+  if (nameA && nameB) {
+    const wordsA = nameA.split(' ');
+    const wordsB = nameB.split(' ');
+    const sameFirstName = wordsA[0] && wordsB[0] && wordsA[0] === wordsB[0];
+
+    if (sameFirstName && phoneA && phoneB && phonesMatch(phoneA, phoneB)) {
+      return true;
+    }
+    if ((nameA.includes(nameB) || nameB.includes(nameA)) && (!phoneA || !phoneB)) {
+      return true;
+    }
+  }
+
   return false;
 }
 

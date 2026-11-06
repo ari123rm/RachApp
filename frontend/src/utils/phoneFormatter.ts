@@ -8,14 +8,17 @@ import { Capacitor } from '@capacitor/core';
 export function stripCountryCode(raw?: string | null): string {
   if (!raw) return '';
   let digits = raw.replace(/\D/g, '');
+  if (!digits) return '';
 
-  // Se começou com 0 (ex: 085...), remove o zero inicial do DDD
-  if (digits.length > 11 && digits.startsWith('0')) {
-    digits = digits.slice(1);
+  if (digits.startsWith('55') && digits.length >= 12) {
+    digits = digits.slice(2);
   }
 
-  // Se o usuário digitou +55 ou 55 na frente do DDD + número (12 ou 13 dígitos)
-  if ((digits.length === 12 || digits.length === 13) && digits.startsWith('55')) {
+  if (digits.startsWith('0')) {
+    digits = digits.replace(/^0+/, '');
+  }
+
+  if (digits.startsWith('55') && digits.length >= 12) {
     digits = digits.slice(2);
   }
 
@@ -39,6 +42,68 @@ export function phonesMatchBR(rawA?: string | null, rawB?: string | null): boole
       return true;
     }
   }
+  if (a.length >= 8 && b.length >= 8) {
+    const last8A = a.slice(-8);
+    const last8B = b.slice(-8);
+    if (last8A === last8B) {
+      if (a.length >= 10 && b.length >= 10) {
+        return a.slice(0, 2) === b.slice(0, 2);
+      }
+      return true;
+    }
+  }
+  return false;
+}
+
+export function normalizeNameForComparison(name?: string | null): string {
+  if (!name) return '';
+  return name
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9\s]/g, '')
+    .replace(/\s+/g, ' ');
+}
+
+export function areContactsSame(
+  contactA?: { name?: string | null; nome?: string | null; phone?: string | null; telefone?: string | null } | null,
+  contactB?: { name?: string | null; nome?: string | null; phone?: string | null; telefone?: string | null } | null
+): boolean {
+  if (!contactA || !contactB) return false;
+
+  const phoneA = stripCountryCode(contactA.phone || contactA.telefone);
+  const phoneB = stripCountryCode(contactB.phone || contactB.telefone);
+
+  // 1. Se ambos têm telefone válido (8+ dígitos), a comparação de telefone é prioritária
+  if (phoneA.length >= 8 && phoneB.length >= 8) {
+    if (phonesMatchBR(phoneA, phoneB)) return true;
+    if (phoneA.length >= 10 && phoneB.length >= 10) return false;
+  }
+
+  const nameA = normalizeNameForComparison(contactA.name || contactA.nome);
+  const nameB = normalizeNameForComparison(contactB.name || contactB.nome);
+
+  // 2. Se os nomes forem idênticos (sem acento, minúsculas):
+  if (nameA && nameB && nameA === nameB) {
+    if (!phoneA || !phoneB) return true;
+    return phonesMatchBR(phoneA, phoneB);
+  }
+
+  // 3. Se um nome contiver o outro ou compartilharem o primeiro nome
+  if (nameA && nameB) {
+    const wordsA = nameA.split(' ');
+    const wordsB = nameB.split(' ');
+    const sameFirstName = wordsA[0] && wordsB[0] && wordsA[0] === wordsB[0];
+
+    if (sameFirstName && phoneA && phoneB && phonesMatchBR(phoneA, phoneB)) {
+      return true;
+    }
+    if ((nameA.includes(nameB) || nameB.includes(nameA)) && (!phoneA || !phoneB)) {
+      return true;
+    }
+  }
+
   return false;
 }
 

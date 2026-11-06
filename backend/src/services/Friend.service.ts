@@ -1,6 +1,6 @@
 // src/services/Friend.service.ts
 import { prisma } from '../config/db';
-import { normalizePhoneBackend, phonesMatch } from './Auth.service';
+import { normalizePhoneBackend, phonesMatch, areContactsSame } from './Auth.service';
 import { notifySync } from './socket.service';
 
 type SyncReverseLinksResult = Awaited<ReturnType<typeof FriendService['_runSyncReverseLinks']>>;
@@ -40,102 +40,122 @@ export class FriendService {
       orderBy: { id: 'asc' },
     });
 
-    // Deduplica amigos locais que tenham o mesmo telefone de forma segura (sem violar constraint composta)
-    const seenPhones = new Map<string, string>();
+    // Deduplica amigos locais que correspondam ao mesmo contato (por telefone ou nome) de forma segura
+    const uniqueFriendsList: typeof myFriends = [];
     const toDeleteIds: string[] = [];
+
     for (const f of myFriends) {
-      const norm = normalizePhoneBackend(f.phone);
-      if (norm) {
-        if (seenPhones.has(norm)) {
-          const keepId = seenPhones.get(norm)!;
-          try {
-            const dupParticipants = await prisma.expenseParticipant.findMany({
-              where: { friend_id: f.id },
+      const existingMatch = uniqueFriendsList.find((uf) =>
+        areContactsSame(
+          { name: uf.name, phone: uf.phone },
+          { name: f.name, phone: f.phone }
+        )
+      );
+
+      if (existingMatch) {
+        // Decide qual manter: prioriza se for favorito, ou tiver telefone/pix/foto
+        const shouldSwap =
+          (!existingMatch.is_favorite && f.is_favorite) ||
+          (!existingMatch.phone && f.phone) ||
+          (!existingMatch.pix_key && f.pix_key) ||
+          (!existingMatch.avatar_url && f.avatar_url);
+
+        const keepId = shouldSwap ? f.id : existingMatch.id;
+        const removeId = shouldSwap ? existingMatch.id : f.id;
+
+        if (shouldSwap) {
+          const idx = uniqueFriendsList.findIndex((uf) => uf.id === existingMatch.id);
+          if (idx >= 0) uniqueFriendsList[idx] = f;
+        }
+
+        try {
+          const dupParticipants = await prisma.expenseParticipant.findMany({
+            where: { friend_id: removeId },
+          });
+          for (const dp of dupParticipants) {
+            const existingKeep = await prisma.expenseParticipant.findUnique({
+              where: {
+                expense_id_friend_id: {
+                  expense_id: dp.expense_id,
+                  friend_id: keepId,
+                },
+              },
             });
-            for (const dp of dupParticipants) {
-              const existingKeep = await prisma.expenseParticipant.findUnique({
+            if (existingKeep) {
+              const mergedPaid = Math.max(
+                Number(existingKeep.amount_paid || 0),
+                Number(dp.amount_paid || 0)
+              );
+              await prisma.expenseParticipant.update({
                 where: {
                   expense_id_friend_id: {
                     expense_id: dp.expense_id,
                     friend_id: keepId,
                   },
                 },
+                data: {
+                  amount_paid: mergedPaid,
+                  receipt_url: existingKeep.receipt_url || dp.receipt_url || null,
+                },
               });
-              if (existingKeep) {
-                const mergedPaid = Math.max(
-                  Number(existingKeep.amount_paid || 0),
-                  Number(dp.amount_paid || 0)
-                );
-                await prisma.expenseParticipant.update({
-                  where: {
-                    expense_id_friend_id: {
-                      expense_id: dp.expense_id,
-                      friend_id: keepId,
-                    },
+              await prisma.expenseParticipant.delete({
+                where: {
+                  expense_id_friend_id: {
+                    expense_id: dp.expense_id,
+                    friend_id: removeId,
                   },
-                  data: {
-                    amount_paid: mergedPaid,
-                    receipt_url: existingKeep.receipt_url || dp.receipt_url || null,
-                  },
-                });
-                await prisma.expenseParticipant.delete({
-                  where: {
-                    expense_id_friend_id: {
-                      expense_id: dp.expense_id,
-                      friend_id: f.id,
-                    },
-                  },
-                });
-              } else {
-                await prisma.expenseParticipant.update({
-                  where: {
-                    expense_id_friend_id: {
-                      expense_id: dp.expense_id,
-                      friend_id: f.id,
-                    },
-                  },
-                  data: { friend_id: keepId },
-                });
-              }
-            }
-
-            await prisma.expense.updateMany({
-              where: { paid_by_friend_id: f.id },
-              data: { paid_by_friend_id: keepId },
-            });
-
-            const dupGroupMembers = await prisma.groupMember.findMany({
-              where: { friend_id: f.id },
-            });
-            for (const dgm of dupGroupMembers) {
-              const existingGroupKeep = await prisma.groupMember.findFirst({
-                where: { group_id: dgm.group_id, friend_id: keepId },
+                },
               });
-              if (existingGroupKeep) {
-                await prisma.groupMember.delete({ where: { id: dgm.id } });
-              } else {
-                await prisma.groupMember.update({
-                  where: { id: dgm.id },
-                  data: { friend_id: keepId },
-                });
-              }
+            } else {
+              await prisma.expenseParticipant.update({
+                where: {
+                  expense_id_friend_id: {
+                    expense_id: dp.expense_id,
+                    friend_id: removeId,
+                  },
+                },
+                data: { friend_id: keepId },
+              });
             }
-
-            toDeleteIds.push(f.id);
-          } catch (err) {
-            console.warn('Aviso ao deduplicar amigo local:', err);
           }
-        } else {
-          seenPhones.set(norm, f.id);
+
+          await prisma.expense.updateMany({
+            where: { paid_by_friend_id: removeId },
+            data: { paid_by_friend_id: keepId },
+          });
+
+          const dupGroupMembers = await prisma.groupMember.findMany({
+            where: { friend_id: removeId },
+          });
+          for (const dgm of dupGroupMembers) {
+            const existingGroupKeep = await prisma.groupMember.findFirst({
+              where: { group_id: dgm.group_id, friend_id: keepId },
+            });
+            if (existingGroupKeep) {
+              await prisma.groupMember.delete({ where: { id: dgm.id } });
+            } else {
+              await prisma.groupMember.update({
+                where: { id: dgm.id },
+                data: { friend_id: keepId },
+              });
+            }
+          }
+
+          toDeleteIds.push(removeId);
+        } catch (err) {
+          console.warn('Aviso ao deduplicar amigo local:', err);
         }
+      } else {
+        uniqueFriendsList.push(f);
       }
     }
+
     if (toDeleteIds.length > 0) {
       try {
         await prisma.friend.deleteMany({
           where: { id: { in: toDeleteIds } },
         });
-        myFriends = myFriends.filter((f) => !toDeleteIds.includes(f.id));
+        myFriends = uniqueFriendsList;
       } catch (err) {
         console.warn('Aviso ao remover amigos duplicados:', err);
       }
@@ -185,20 +205,20 @@ export class FriendService {
         const cleanOwnerAvatar = ownerUser.avatar_url || null;
         const ownerNameLower = (ownerUser.name || 'Amigo').trim().toLowerCase();
 
-        let existing = myFriends.find(
-          (f) =>
-            (normOwnerPhone && f.phone && phonesMatch(f.phone, normOwnerPhone)) ||
-            (f.name.trim().toLowerCase() === ownerNameLower &&
-              (!normOwnerPhone || !f.phone || phonesMatch(f.phone, normOwnerPhone)))
+        let existing = myFriends.find((f) =>
+          areContactsSame(
+            { name: f.name, phone: f.phone },
+            { name: ownerUser.name, phone: ownerUser.phone }
+          )
         );
 
         if (!existing) {
           const freshFriends = await prisma.friend.findMany({ where: { user_id: userId } });
-          existing = freshFriends.find(
-            (f) =>
-              (normOwnerPhone && f.phone && phonesMatch(f.phone, normOwnerPhone)) ||
-              (f.name.trim().toLowerCase() === ownerNameLower &&
-                (!normOwnerPhone || !f.phone || phonesMatch(f.phone, normOwnerPhone)))
+          existing = freshFriends.find((f) =>
+            areContactsSame(
+              { name: f.name, phone: f.phone },
+              { name: ownerUser.name, phone: ownerUser.phone }
+            )
           );
           if (existing && !myFriends.some((mf) => mf.id === existing!.id)) {
             myFriends.push(existing);
@@ -558,12 +578,11 @@ export class FriendService {
         const metaPix = (meta.pix_key || meta.pix || '').trim() || undefined;
         const metaColor = meta.color || meta.cor || 'bg-sky-500';
 
-        const existingByMeta = myFriends.find(
-          (f) =>
-            (metaPhone && f.phone && phonesMatch(f.phone, metaPhone)) ||
-            (metaName &&
-              f.name.trim().toLowerCase() === metaName.toLowerCase() &&
-              (!metaPhone || !f.phone || phonesMatch(f.phone, metaPhone)))
+        const existingByMeta = myFriends.find((f) =>
+          areContactsSame(
+            { name: f.name, phone: f.phone },
+            { name: metaName, phone: metaPhone }
+          )
         );
         if (existingByMeta) {
           resolvedMap.set(rawId, existingByMeta.id);
@@ -595,12 +614,11 @@ export class FriendService {
         }
         const otherPhone = normalizePhoneBackend(otherFriend.phone);
         const otherName = (otherFriend.name || 'Amigo').trim();
-        const existingMatch = myFriends.find(
-          (f) =>
-            (otherPhone && f.phone && phonesMatch(f.phone, otherPhone)) ||
-            (otherName &&
-              f.name.trim().toLowerCase() === otherName.toLowerCase() &&
-              (!otherPhone || !f.phone || phonesMatch(f.phone, otherPhone)))
+        const existingMatch = myFriends.find((f) =>
+          areContactsSame(
+            { name: f.name, phone: f.phone },
+            { name: otherName, phone: otherPhone }
+          )
         );
         if (existingMatch) {
           resolvedMap.set(rawId, existingMatch.id);
@@ -630,12 +648,11 @@ export class FriendService {
       if (targetUser && targetUser.id !== userId) {
         const targetPhone = normalizePhoneBackend(targetUser.phone);
         const targetName = (targetUser.name || 'Amigo').trim();
-        const existingMatch = myFriends.find(
-          (f) =>
-            (targetPhone && f.phone && phonesMatch(f.phone, targetPhone)) ||
-            (targetName &&
-              f.name.trim().toLowerCase() === targetName.toLowerCase() &&
-              (!targetPhone || !f.phone || phonesMatch(f.phone, targetPhone)))
+        const existingMatch = myFriends.find((f) =>
+          areContactsSame(
+            { name: f.name, phone: f.phone },
+            { name: targetName, phone: targetPhone }
+          )
         );
         if (existingMatch) {
           resolvedMap.set(rawId, existingMatch.id);

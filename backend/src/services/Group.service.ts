@@ -2,7 +2,7 @@
 import { prisma } from '../config/db';
 import { ExpenseService } from './Expense.service';
 import { FriendService } from './Friend.service';
-import { normalizePhoneBackend, phonesMatch } from './Auth.service';
+import { normalizePhoneBackend, phonesMatch, areContactsSame } from './Auth.service';
 import { NotificationService } from './Notification.service';
 import { notifySync } from './socket.service';
 
@@ -55,21 +55,25 @@ export class GroupService {
 
       for (const m of group.members || []) {
         if (m.friend_id && !reverseSet.has(m.friend_id) && m.friend) {
-          const localMatch = m.friend.phone
-            ? myFriends.find((mf) => mf.phone && phonesMatch(mf.phone, m.friend.phone))
-            : myFriends.find(
-                (mf) => !mf.phone && mf.name.trim().toLowerCase() === m.friend.name.trim().toLowerCase()
-              );
+          const localMatch = myFriends.find((mf) =>
+            areContactsSame(
+              { name: mf.name, phone: mf.phone },
+              { name: m.friend.name, phone: m.friend.phone }
+            )
+          );
+          // Não cria no banco de amigos locais se o usuário não o adicionou como amigo
           const memberFriend =
-            localMatch ||
-            (await ensureLocalFriendForOwner({
+            localMatch || {
               id: m.friend.id,
               name: m.friend.name,
               phone: m.friend.phone,
               pix_key: m.friend.pix_key,
               avatar_url: m.friend.avatar_url || null,
               color: m.friend.color || 'bg-sky-500',
-            }));
+              is_friend: false,
+              is_contact_only: true,
+              from_shared_racha: true,
+            };
           if (!seenFriendIds.has(memberFriend.id)) {
             seenFriendIds.add(memberFriend.id);
             newMembers.push({

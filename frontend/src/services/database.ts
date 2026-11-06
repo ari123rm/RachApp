@@ -1,7 +1,7 @@
 // src/services/database.ts
 import axios from 'axios';
 import { getSQLiteDB, runSQL, queryAll, queryOne, flushSQLite } from './sqlite';
-import { stripCountryCode } from '../utils/phoneFormatter';
+import { stripCountryCode, areContactsSame } from '../utils/phoneFormatter';
 import { applyBilateralNetting } from '../utils/netting';
 import { mergeReceiptUrls } from '../utils/receiptShare';
 import type { Amigo, Corrida, Grupo, MembroSaldo, SyncStatus, Transferencia, UserProfile, AppNotification } from '../types';
@@ -207,8 +207,8 @@ async function saveRemoteSnapshotToSQLite(data: {
       for (const f of data.friends) {
         if (pendingIds.has(f.id)) continue;
         db.run(
-          `INSERT OR REPLACE INTO friends (id, user_id, name, phone, pix_key, color, avatar_url, is_favorite, has_account, synced, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)`,
+          `INSERT OR REPLACE INTO friends (id, user_id, name, phone, pix_key, color, avatar_url, is_favorite, has_account, is_contact_only, synced, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 1, ?)`,
           [
             f.id,
             f.user_id || data.user?.id || '',
@@ -295,12 +295,69 @@ async function saveRemoteSnapshotToSQLite(data: {
 
         if (Array.isArray(e.participants)) {
           db.run('DELETE FROM expense_participants WHERE expense_id = ?', [e.id]);
+          const remoteFriendIdsSet = new Set((data.friends || []).map((f) => f.id));
           for (const p of e.participants) {
             db.run(
               `INSERT OR REPLACE INTO expense_participants (expense_id, friend_id, amount_owed, amount_paid, receipt_url)
                VALUES (?, ?, ?, ?, ?)`,
               [e.id, p.friend_id, Number(p.amount_owed || 0), Number(p.amount_paid || 0), p.receipt_url || null]
             );
+
+            // Se o participante for de um racha compartilhado (não é amigo pessoal cadastrado)
+            if (p.friend && p.friend.id && (p.friend.is_contact_only || !remoteFriendIdsSet.has(p.friend.id))) {
+              const alreadyHasFriend = (data.friends || []).some((rf) =>
+                areContactsSame(
+                  { name: rf.name || rf.nome, phone: rf.phone || rf.telefone },
+                  { name: p.friend.name || p.friend.nome, phone: p.friend.phone || p.friend.telefone }
+                )
+              );
+              if (!alreadyHasFriend) {
+                db.run(
+                  `INSERT OR REPLACE INTO friends (id, user_id, name, phone, pix_key, color, avatar_url, is_favorite, has_account, is_contact_only, synced, updated_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, 1, 1, ?)`,
+                  [
+                    p.friend.id,
+                    data.user?.id || '',
+                    p.friend.name || p.friend.nome || 'Amigo',
+                    stripCountryCode(p.friend.phone || p.friend.telefone || ''),
+                    p.friend.pix_key || p.friend.pix || '',
+                    p.friend.color || p.friend.cor || 'bg-sky-500',
+                    p.friend.avatar_url || null,
+                    p.friend.has_account || p.friend.is_registered ? 1 : 0,
+                    new Date().toISOString(),
+                  ]
+                );
+              }
+            }
+          }
+        }
+
+        if (e.paidByFriend && e.paidByFriend.id) {
+          const remoteFriendIdsSet = new Set((data.friends || []).map((f) => f.id));
+          if (!remoteFriendIdsSet.has(e.paidByFriend.id)) {
+            const alreadyHasFriend = (data.friends || []).some((rf) =>
+              areContactsSame(
+                { name: rf.name || rf.nome, phone: rf.phone || rf.telefone },
+                { name: e.paidByFriend.name || e.paidByFriend.nome, phone: e.paidByFriend.phone || e.paidByFriend.telefone }
+              )
+            );
+            if (!alreadyHasFriend) {
+              db.run(
+                `INSERT OR REPLACE INTO friends (id, user_id, name, phone, pix_key, color, avatar_url, is_favorite, has_account, is_contact_only, synced, updated_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, 1, 1, ?)`,
+                [
+                  e.paidByFriend.id,
+                  data.user?.id || '',
+                  e.paidByFriend.name || e.paidByFriend.nome || 'Amigo',
+                  stripCountryCode(e.paidByFriend.phone || ''),
+                  e.paidByFriend.pix_key || '',
+                  e.paidByFriend.color || 'bg-sky-500',
+                  e.paidByFriend.avatar_url || null,
+                  e.paidByFriend.has_account || e.paidByFriend.is_registered ? 1 : 0,
+                  new Date().toISOString(),
+                ]
+              );
+            }
           }
         }
       }
@@ -942,10 +999,12 @@ export const dbService = {
   // SERVIÇOS DE AMIGOS
   // ==========================================
   amigos: {
-    getAll: async (monthFilter?: string): Promise<Amigo[]> => {
+    getAll: async (monthFilter?: string, includeContactsOnly: boolean = false): Promise<Amigo[]> => {
       const hasMonth = Boolean(monthFilter && monthFilter !== 'all');
       const rows = await queryAll<any>(
-        `SELECT * FROM friends ORDER BY is_favorite DESC, name ASC`
+        `SELECT * FROM friends
+         WHERE ${includeContactsOnly ? '1=1' : '(is_contact_only IS NULL OR is_contact_only = 0)'}
+         ORDER BY is_favorite DESC, name ASC`
       );
 
       const amigos: Amigo[] = [];
@@ -1041,6 +1100,9 @@ export const dbService = {
           is_favorite: !!r.is_favorite,
           has_account: !!r.has_account,
           is_registered: !!r.has_account,
+          is_friend: !r.is_contact_only,
+          is_contact_only: !!r.is_contact_only,
+          from_shared_racha: !!r.is_contact_only,
           divida: dividaLiquida,
           dividaNumerica: dividaLiquida,
           voceDeve: voceDeveLiquido,
@@ -1050,7 +1112,59 @@ export const dbService = {
         });
       }
 
-      return amigos;
+      // Deduplica amigos na lista para evitar qualquer duplicação na interface
+      const deduplicatedAmigos: Amigo[] = [];
+      for (const a of amigos) {
+        const existingIdx = deduplicatedAmigos.findIndex((da) =>
+          areContactsSame(
+            { name: da.nome || da.name, phone: da.telefone || da.phone },
+            { name: a.nome || a.name, phone: a.telefone || a.phone }
+          )
+        );
+        if (existingIdx >= 0) {
+          const current = deduplicatedAmigos[existingIdx];
+          const shouldReplace =
+            (current.is_contact_only && !a.is_contact_only) ||
+            (!current.favorito && a.favorito) ||
+            (!current.telefone && a.telefone) ||
+            (!current.pix && a.pix);
+          if (shouldReplace) {
+            deduplicatedAmigos[existingIdx] = {
+              ...a,
+              divida: Number((Number(current.dividaNumerica || 0) + Number(a.dividaNumerica || 0)).toFixed(2)),
+              voceDeve: Number((Number(current.voceDeveNumerico || 0) + Number(a.voceDeveNumerico || 0)).toFixed(2)),
+            };
+          }
+        } else {
+          deduplicatedAmigos.push(a);
+        }
+      }
+
+      return deduplicatedAmigos;
+    },
+
+    getAllForRideSelector: async (): Promise<Amigo[]> => {
+      // Retorna tanto amigos cadastrados quanto participantes de rachas compartilhados sem duplicatas
+      const allRows = await dbService.amigos.getAll(undefined, true);
+      const uniqueList: Amigo[] = [];
+      for (const item of allRows) {
+        const matchIdx = uniqueList.findIndex((u) =>
+          areContactsSame(
+            { name: u.nome || u.name, phone: u.telefone || u.phone },
+            { name: item.nome || item.name, phone: item.telefone || item.phone }
+          )
+        );
+        if (matchIdx >= 0) {
+          const existing = uniqueList[matchIdx];
+          // Prioriza sempre o amigo pessoal sobre o contato do racha ("o meu" tem prioridade sobre "o dele")
+          if (existing.is_contact_only && !item.is_contact_only) {
+            uniqueList[matchIdx] = item;
+          }
+        } else {
+          uniqueList.push(item);
+        }
+      }
+      return uniqueList;
     },
 
     create: async (novoAmigo: {
