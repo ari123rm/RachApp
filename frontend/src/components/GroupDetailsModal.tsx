@@ -867,7 +867,7 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
 
               {/* Botões de Filtros Rápidos de Status no Grupo */}
               {expensesWithStatus.length > 0 && (
-                <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto pb-2 scrollbar-hide overscroll-x-contain touch-pan-x mb-2.5">
+                <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto pb-2 scrollbar-hide mb-2.5">
                   {botoesFiltroGrupo.map((btn) => {
                     const isActive = filtroStatusGrupo === btn.id;
                     const Icon = btn.icon;

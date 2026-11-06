@@ -518,7 +518,7 @@ export function Amigos({
 
         {/* Chips de Filtros Rápidos */}
         {subTab === 'amigos' ? (
-          <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto pb-1 scrollbar-hide pt-0.5 overscroll-x-contain touch-pan-x">
+          <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto pb-1 scrollbar-hide pt-0.5">
             <button
               type="button"
               onClick={() => setFiltroAmigos('todos')}
@@ -580,7 +580,7 @@ export function Amigos({
             </button>
           </div>
         ) : (
-          <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto pb-1 scrollbar-hide pt-0.5 overscroll-x-contain touch-pan-x">
+          <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto pb-1 scrollbar-hide pt-0.5">
             <button
               type="button"
               onClick={() => setFiltroGrupos('todos')}

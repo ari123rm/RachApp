@@ -459,7 +459,7 @@ export function Viagens({
       </div>
 
       {/* Botões de Filtros Rápidos de Status (Tudo, A Pagar, A Receber, Quitados) */}
-      <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto pb-1 scrollbar-hide overscroll-x-contain touch-pan-x pt-0.5">
+      <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto pb-1 scrollbar-hide pt-0.5">
         {botoesFiltro.map((btn) => {
           const isActive = filtroStatus === btn.id;
           const Icon = btn.icon;
@@ -497,7 +497,7 @@ export function Viagens({
 
       {/* Chips Rápidos de Filtros Ativos (aparecem quando qualquer filtro está ativo) */}
       {totalFiltrosAtivos > 0 && (
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-hide text-xs overscroll-x-contain touch-pan-x">
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-hide text-xs">
           <span className="text-[11px] text-gray-500 font-medium shrink-0 mr-1">Filtros:</span>
 
           {filtroStatus !== 'tudo' && (

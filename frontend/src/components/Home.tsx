@@ -366,7 +366,7 @@ export function Home({
         ) : (
           <div
             data-horizontal-scroll="true"
-            className="flex gap-3 sm:gap-4 overflow-x-auto pt-2 pb-3 px-1 scrollbar-hide -mt-1 overscroll-x-contain touch-pan-x"
+            className="flex gap-3 sm:gap-4 overflow-x-auto pt-2 pb-3 px-1 scrollbar-hide -mt-1"
           >
             {dashboard.amigosDevedores.map((amigo) => {
               const nome = amigo.nome || amigo.name || 'Amigo';
@@ -482,7 +482,7 @@ export function Home({
         ) : (
           <div
             data-horizontal-scroll="true"
-            className="flex gap-3 sm:gap-4 overflow-x-auto pt-2 pb-3 px-1 scrollbar-hide -mt-1 overscroll-x-contain touch-pan-x"
+            className="flex gap-3 sm:gap-4 overflow-x-auto pt-2 pb-3 px-1 scrollbar-hide -mt-1"
           >
             {dashboard.gruposPendentes.map((grupo) => {
               const nome = grupo.nome || grupo.name || 'Grupo';

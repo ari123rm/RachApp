@@ -31,19 +31,19 @@ import type { AppNotification, Corrida, Amigo } from './types';
 
 const TABS = ['home', 'viagens', 'amigos', 'perfil'] as const;
 
-function isInsideScrollableHorizontal(target: EventTarget | null): boolean {
-  if (!(target instanceof HTMLElement)) return false;
+function getHorizontalScrollParent(target: EventTarget | null): HTMLElement | null {
+  if (!(target instanceof HTMLElement)) return null;
   let el: HTMLElement | null = target;
   while (el && el !== document.body) {
     if (
       el.classList.contains('overflow-x-auto') ||
       el.getAttribute('data-horizontal-scroll') === 'true'
     ) {
-      return true;
+      return el;
     }
     el = el.parentElement;
   }
-  return false;
+  return null;
 }
 
 function App() {
@@ -127,10 +127,12 @@ function App() {
     lastX: number;
     lastTime: number;
     velocityX: number;
-    direction: 'undecided' | 'horizontal' | 'vertical' | 'pull-down';
+    direction: 'undecided' | 'horizontal' | 'vertical' | 'pull-down' | 'slider-scroll';
     containerWidth: number;
     startTabIndex: number;
     canPullRefresh: boolean;
+    scrollContainer?: HTMLElement | null;
+    maxScrollLeft?: number;
   } | null>(null);
   const isTouchSwipingRef = useRef(false);
 
@@ -371,7 +373,16 @@ function App() {
   const handleTouchStart = (e: React.TouchEvent) => {
     if (e.touches.length !== 1) return;
     if (isPullRefreshing) return;
-    if (isInsideScrollableHorizontal(e.target)) return;
+
+    const scrollContainer = getHorizontalScrollParent(e.target);
+    let hasOverflow = false;
+    let maxScrollLeft = 0;
+
+    if (scrollContainer) {
+      maxScrollLeft = Math.max(0, scrollContainer.scrollWidth - scrollContainer.clientWidth);
+      // Considera com overflow se houver mais de 3px de conteúdo rolável
+      hasOverflow = maxScrollLeft > 3;
+    }
 
     const touch = e.touches[0];
     const width = containerRef.current?.clientWidth || window.innerWidth;
@@ -390,6 +401,8 @@ function App() {
       containerWidth: width,
       startTabIndex: tabIndex,
       canPullRefresh,
+      scrollContainer: hasOverflow ? scrollContainer : null,
+      maxScrollLeft,
     };
   };
 
@@ -421,25 +434,85 @@ function App() {
           drag.active = false;
           return;
         }
-      } else if (absDx >= 18 && absDx > absDy * 1.3) {
-        // Só entra em arraste horizontal de abas se houver intenção clara (mínimo 18px e horizontal)
-        // Se estiver na Home (aba 0) e arrastando para a direita, ou na última aba arrastando para a esquerda, ignora
-        const isTryingOverscroll =
-          (drag.startTabIndex === 0 && dx > 0) ||
-          (drag.startTabIndex === TABS.length - 1 && dx < 0);
+      } else if (absDx >= 14 && absDx > absDy * 1.25) {
+        // Se o toque começou dentro de um slider/lista com rolagem horizontal ativa
+        if (drag.scrollContainer && (drag.maxScrollLeft ?? 0) > 3) {
+          const el = drag.scrollContainer;
+          const currentScroll = el.scrollLeft;
+          const isMovingRight = dx > 0;
+          const isMovingLeft = dx < 0;
 
-        if (isTryingOverscroll) {
-          drag.active = false;
-          return;
-        }
+          // Pode rolar para a direita se o conteúdo não estiver no início
+          const canScrollRight = currentScroll > 2;
+          // Pode rolar para a esquerda se o conteúdo não estiver no fim
+          const canScrollLeft = currentScroll < (drag.maxScrollLeft ?? 0) - 2;
 
-        drag.direction = 'horizontal';
-        if (trackRef.current) {
-          trackRef.current.style.transition = 'none';
+          if ((isMovingRight && !canScrollRight) || (isMovingLeft && !canScrollLeft)) {
+            // Slider já está no limite nesta direção! Transfere imediatamente para a troca de aba
+            const isTryingOverscroll =
+              (drag.startTabIndex === 0 && dx > 0) ||
+              (drag.startTabIndex === TABS.length - 1 && dx < 0);
+
+            if (isTryingOverscroll) {
+              drag.active = false;
+              return;
+            }
+
+            drag.direction = 'horizontal';
+            if (trackRef.current) {
+              trackRef.current.style.transition = 'none';
+            }
+          } else {
+            // O slider tem conteúdo para rolar: permite rolagem nativa do slider
+            drag.direction = 'slider-scroll';
+          }
+        } else {
+          // Não é slider com overflow: troca de abas normal
+          const isTryingOverscroll =
+            (drag.startTabIndex === 0 && dx > 0) ||
+            (drag.startTabIndex === TABS.length - 1 && dx < 0);
+
+          if (isTryingOverscroll) {
+            drag.active = false;
+            return;
+          }
+
+          drag.direction = 'horizontal';
+          if (trackRef.current) {
+            trackRef.current.style.transition = 'none';
+          }
         }
       } else {
         // Movimento ambíguo ou sutil: não sequestra o toque nem mexe na DOM
         return;
+      }
+    }
+
+    // Se estiver em slider-scroll, monitora se o slider atingiu a extremidade durante o mesmo arraste
+    if (drag.direction === 'slider-scroll' && drag.scrollContainer) {
+      const el = drag.scrollContainer;
+      const currentScroll = el.scrollLeft;
+      const isMovingRight = dx > 0;
+      const isMovingLeft = dx < 0;
+
+      const canScrollRight = currentScroll > 2;
+      const canScrollLeft = currentScroll < (drag.maxScrollLeft ?? 0) - 2;
+
+      if ((isMovingRight && !canScrollRight) || (isMovingLeft && !canScrollLeft)) {
+        const isTryingOverscroll =
+          (drag.startTabIndex === 0 && dx > 0) ||
+          (drag.startTabIndex === TABS.length - 1 && dx < 0);
+
+        if (!isTryingOverscroll) {
+          // Atingiu o limite do slider: transfere o controle suavemente para a troca de aba
+          drag.direction = 'horizontal';
+          drag.startX = touch.clientX;
+          drag.lastX = touch.clientX;
+          drag.lastTime = performance.now();
+          if (trackRef.current) {
+            trackRef.current.style.transition = 'none';
+          }
+        }
       }
     }
 
@@ -453,9 +526,10 @@ function App() {
       }
 
       // Resistência suave (rubber-band) nas extremidades
-      const isPastStart = drag.startTabIndex === 0 && dx > 0;
-      const isPastEnd = drag.startTabIndex === TABS.length - 1 && dx < 0;
-      const effectiveDx = isPastStart || isPastEnd ? dx * 0.22 : dx;
+      const currentDx = touch.clientX - drag.startX;
+      const isPastStart = drag.startTabIndex === 0 && currentDx > 0;
+      const isPastEnd = drag.startTabIndex === TABS.length - 1 && currentDx < 0;
+      const effectiveDx = isPastStart || isPastEnd ? currentDx * 0.22 : currentDx;
 
       const baseOffsetPx = -drag.startTabIndex * drag.containerWidth;
       trackRef.current.style.transform = `translate3d(${baseOffsetPx + effectiveDx}px, 0, 0)`;
@@ -518,9 +592,9 @@ function App() {
 
       let nextIndex = drag.startTabIndex;
 
-      if ((ratio < -0.2 || (vx < -0.32 && dx < -22)) && drag.startTabIndex < TABS.length - 1) {
+      if ((ratio < -0.18 || (vx < -0.28 && dx < -20)) && drag.startTabIndex < TABS.length - 1) {
         nextIndex = drag.startTabIndex + 1;
-      } else if ((ratio > 0.2 || (vx > 0.32 && dx > 22)) && drag.startTabIndex > 0) {
+      } else if ((ratio > 0.18 || (vx > 0.28 && dx > 20)) && drag.startTabIndex > 0) {
         nextIndex = drag.startTabIndex - 1;
       }
 

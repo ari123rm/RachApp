@@ -459,7 +459,7 @@ export function AddRideModal({
               className="bg-transparent w-full text-white text-base outline-none placeholder:text-gray-600"
             />
           </div>
-          <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-hide touch-pan-x overscroll-x-contain">
+          <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-hide">
             {sugestoesTitulos.map((sugestao) => (
               <button
                 key={sugestao}
@@ -848,7 +848,7 @@ export function AddRideModal({
             <label className="text-gray-400 text-xs uppercase font-bold mb-1.5 flex items-center gap-1.5">
               <Wallet size={13} className="text-[#2DD4BF]" /> Quem pagou esta conta?
             </label>
-            <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide touch-pan-x overscroll-x-contain">
+            <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
               <button
                 type="button"
                 onClick={() => setPaidByFriendId('')}

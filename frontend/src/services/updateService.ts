@@ -244,7 +244,7 @@ export async function getCurrentAppVersion(): Promise<string> {
   }
 
   if (candidates.length === 0) {
-    return '0.1.38';
+    return '0.1.39';
   }
 
   let highest = candidates[0];
