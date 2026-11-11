@@ -470,7 +470,7 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
     }
 
     if (linhasRachasPendentes.length === 0 && directTransfers.length === 0) {
-      return `📋 *Resumo do Grupo: ${grupo.name}* (RachApp)\n\n✅ Todos os rachas do grupo estão quitados!`;
+      return `Fala grupo *${grupo.name}*! Segue o resumo dos nossos rachas pelo RachApp:\n\n✅ Todos os rachas do grupo estão quitados!\n\nValeu!`;
     }
 
     const serializeTransfers = (list: { fromKey: string; toKey: string; amount: number }[]) =>
@@ -504,7 +504,9 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
       .map((r) => `• *${r.name}:* ${r.pix || 'Não informada'}`)
       .join('\n');
 
-    const secoes: string[] = [`📋 *Resumo: ${grupo.name}* (RachApp)`];
+    const secoes: string[] = [
+      `Fala grupo *${grupo.name}*! Segue o resumo dos nossos rachas pelo RachApp:`,
+    ];
 
     if (linhasRachasPendentes.length > 0) {
       secoes.push(`🧾 *Rachas Pendentes:*\n${linhasRachasPendentes.join('\n')}`);
@@ -521,6 +523,8 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
     if (linhasPix) {
       secoes.push(`🔑 *Chaves Pix:*\n${linhasPix}`);
     }
+
+    secoes.push('Valeu!');
 
     return secoes.join('\n\n');
   };
