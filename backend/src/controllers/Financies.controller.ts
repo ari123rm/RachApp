@@ -177,24 +177,16 @@ export class FinanciesController {
       // 1. Sincroniza vínculos reversos uma única vez de forma atômica antes de consultar entidades dependentes
       const reverseContext = await FriendService.syncReverseLinks(userId);
 
-      // 2. Busca dados do usuário, grupos, despesas, solicitações, convites e notificações reutilizando o contexto
-      const [user, groups, expenses, friendRequests, groupInvitations, notifs] = await Promise.all([
+      // 2. Busca dados do usuário, grupos, despesas e notificações em paralelo reutilizando o contexto
+      const [user, groups, expenses, notifs] = await Promise.all([
         AuthService.getMe(userId),
         GroupService.getUserGroups(userId, reverseContext),
         ExpenseService.listExpenses(userId, reverseContext),
-        FriendService.listPendingRequests(userId),
-        GroupService.listPendingInvitations(userId),
         NotificationService.listNotifications(userId, 50),
       ]);
 
-      // 3. Carrega a lista completa de amigos e resumo do dashboard reutilizando as despesas já transformadas
+      // 3. Carrega a lista completa de amigos reutilizando as despesas e o contexto já carregados em memória
       const friends = await FriendService.getAll(userId, reverseContext, expenses);
-      const dashboard = await ExpenseService.getDashboard(
-        userId,
-        reverseContext,
-        expenses,
-        friends
-      );
 
       const token = AuthService.issueToken(userId, user?.name || '');
 
@@ -204,9 +196,6 @@ export class FinanciesController {
         friends,
         groups,
         expenses,
-        dashboard,
-        friendRequests,
-        groupInvitations,
         notifications: notifs.notifications,
         unreadNotificationsCount: notifs.unreadCount,
         syncedAt: new Date().toISOString(),

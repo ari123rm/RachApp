@@ -17,7 +17,8 @@ import {
 import { Capacitor } from '@capacitor/core';
 import { dbService } from '../services/database';
 import { useModalBackHandler } from '../utils/modalBackHandler';
-import { SCALAR_THEMES, useTheme, type ThemeMode } from '../utils/theme';
+import { SCALAR_THEMES, useTheme } from '../utils/theme';
+import { ThemeSelectorModal } from './ThemeSelectorModal';
 import type { SyncStatus } from '../types';
 import {
   getCurrentAppVersion,
@@ -47,7 +48,8 @@ export function SettingsModal({
   onUpdateDetected,
   onOpenPasswordScreen,
 }: SettingsModalProps) {
-  const { theme, setTheme, preset: currentPreset } = useTheme();
+  const { preset: currentPreset } = useTheme();
+  const [isThemeModalOpen, setIsThemeModalOpen] = useState(false);
   const [currentVersion, setCurrentVersion] = useState('');
   const [manualUpdateInfo, setManualUpdateInfo] = useState<AppReleaseInfo | null>(
     updateInfo || null
@@ -61,7 +63,7 @@ export function SettingsModal({
   } | null>(null);
   const [isManualSyncing, setIsManualSyncing] = useState(false);
 
-  useModalBackHandler(isOpen, onClose);
+  useModalBackHandler(isOpen && !isThemeModalOpen, onClose);
 
   useEffect(() => {
     if (updateInfo) {
@@ -156,154 +158,82 @@ export function SettingsModal({
   };
 
   return createPortal(
-    <div className="fixed inset-0 z-[75] bg-[var(--bg-app)] text-[var(--text-primary)] flex flex-col overflow-hidden animate-fade-in">
-      {/* Cabeçalho Fixo da Tela de Configurações */}
-      <header className="bg-[var(--bg-surface)]/95 backdrop-blur-md border-b border-[var(--border-color)] px-4 sm:px-6 pt-[max(2.25rem,calc(env(safe-area-inset-top,0px)+0.75rem))] pb-3.5 shrink-0">
-        <div className="max-w-lg md:max-w-xl lg:max-w-2xl mx-auto flex items-center gap-3">
-          <button
-            type="button"
-            onClick={onClose}
-            className="w-10 h-10 rounded-full bg-[var(--bg-subtle)] border border-[var(--border-color)] text-[var(--text-primary)] hover:border-[var(--primary)] flex items-center justify-center transition-all active:scale-95 shrink-0"
-            title="Voltar para o Perfil"
-          >
-            <ChevronLeft size={20} strokeWidth={2.2} />
-          </button>
-          <div className="min-w-0 flex-1">
-            <h1 className="text-lg sm:text-xl font-display font-bold text-[var(--text-primary)] truncate">
-              Configurações
-            </h1>
-            <p className="text-xs text-[var(--text-secondary)] truncate">
-              Temas Scalar, sincronização, segurança e atualizações
-            </p>
-          </div>
-        </div>
-      </header>
-
-      {/* Conteúdo Rolável */}
-      <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-5 pb-[calc(2.5rem+env(safe-area-inset-bottom,0px))] max-w-lg md:max-w-xl lg:max-w-2xl w-full mx-auto space-y-5 scrollbar-hide">
-        {/* 1. Temas & Aparência (Scalar Themes) */}
-        <section className="ds-card p-4 sm:p-5 space-y-4">
-          <div className="flex items-start justify-between gap-3">
-            <div className="flex items-center gap-3 min-w-0">
-              <div className="w-10 h-10 rounded-full bg-[var(--primary-light)] text-[var(--primary)] flex items-center justify-center shrink-0">
-                <Palette size={19} strokeWidth={2} />
-              </div>
-              <div className="min-w-0">
-                <h2 className="text-base font-display font-semibold text-[var(--text-primary)] truncate">
-                  Temas & Aparência
-                </h2>
-                <p className="text-xs text-[var(--text-secondary)] mt-0.5">
-                  Paletas inspiradas no Scalar UI
-                </p>
-              </div>
+    <>
+      <div className="fixed inset-0 z-[75] bg-[var(--bg-app)] text-[var(--text-primary)] flex flex-col overflow-hidden animate-fade-in">
+        {/* Cabeçalho Fixo da Tela de Configurações */}
+        <header className="bg-[var(--bg-surface)]/95 backdrop-blur-md border-b border-[var(--border-color)] px-4 sm:px-6 pt-[max(2.25rem,calc(env(safe-area-inset-top,0px)+0.75rem))] pb-3.5 shrink-0">
+          <div className="max-w-lg md:max-w-xl lg:max-w-2xl mx-auto flex items-center gap-3">
+            <button
+              type="button"
+              onClick={onClose}
+              className="w-10 h-10 rounded-full bg-[var(--bg-subtle)] border border-[var(--border-color)] text-[var(--text-primary)] hover:border-[var(--primary)] flex items-center justify-center transition-all active:scale-95 shrink-0"
+              title="Voltar para o Perfil"
+            >
+              <ChevronLeft size={20} strokeWidth={2.2} />
+            </button>
+            <div className="min-w-0 flex-1">
+              <h1 className="text-lg sm:text-xl font-display font-bold text-[var(--text-primary)] truncate">
+                Configurações
+              </h1>
+              <p className="text-xs text-[var(--text-secondary)] truncate">
+                Temas, sincronização, segurança e atualizações
+              </p>
             </div>
-            <span className="text-xs px-2.5 py-1 rounded-full font-semibold bg-[var(--primary-light)] text-[var(--primary)] shrink-0">
-              {currentPreset.name}
-            </span>
           </div>
+        </header>
 
-          {/* Alternância Rápida Claro / Escuro */}
-          <div className="grid grid-cols-2 gap-2.5">
+        {/* Conteúdo Rolável */}
+        <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-5 pb-[calc(2.5rem+env(safe-area-inset-bottom,0px))] max-w-lg md:max-w-xl lg:max-w-2xl w-full mx-auto space-y-4 scrollbar-hide">
+          {/* 1. Temas & Aparência (Abre tela dedicada de Temas) */}
+          <section className="ds-card p-4 sm:p-5">
             <button
               type="button"
-              onClick={() => setTheme('light')}
-              className={`h-11 rounded-xl border font-semibold text-xs flex items-center justify-center gap-2 transition-all ${
-                !currentPreset.isDark
-                  ? 'bg-[var(--primary-light)] text-[var(--primary)] border-[var(--primary)]'
-                  : 'bg-[var(--bg-subtle)] text-[var(--text-secondary)] border-[var(--border-color)] hover:text-[var(--text-primary)]'
-              }`}
+              onClick={() => setIsThemeModalOpen(true)}
+              className="w-full flex items-center justify-between gap-3 text-left group"
             >
-              <Sun size={16} strokeWidth={2} />
-              <span>Temas Claros</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setTheme(currentPreset.isDark ? theme : 'dark')}
-              className={`h-11 rounded-xl border font-semibold text-xs flex items-center justify-center gap-2 transition-all ${
-                currentPreset.isDark
-                  ? 'bg-[var(--primary)] text-white border-[var(--primary)]'
-                  : 'bg-[var(--bg-subtle)] text-[var(--text-secondary)] border-[var(--border-color)] hover:text-[var(--text-primary)]'
-              }`}
-            >
-              <Moon size={16} strokeWidth={2} />
-              <span>Temas Escuros</span>
-            </button>
-          </div>
-
-          {/* Grade de Temas Scalar */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 pt-1">
-            {SCALAR_THEMES.map((preset) => {
-              const isSelected = theme === preset.id;
-              return (
-                <button
-                  key={preset.id}
-                  type="button"
-                  onClick={() => setTheme(preset.id as ThemeMode)}
-                  className={`group text-left rounded-xl p-2.5 border transition-all relative overflow-hidden flex flex-col justify-between ${
-                    isSelected
-                      ? 'border-[var(--primary)] ring-2 ring-[var(--primary-focus-ring)] bg-[var(--bg-subtle)]'
-                      : 'border-[var(--border-color)] bg-[var(--bg-surface)] hover:border-[var(--primary)]/50'
-                  }`}
-                >
-                  {/* Mini Preview Visual das Cores do Tema */}
-                  <div
-                    className="w-full h-11 rounded-lg p-2 flex flex-col justify-between border border-black/10 dark:border-white/10 mb-2 relative overflow-hidden"
-                    style={{ backgroundColor: preset.preview.bg }}
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-1">
-                        <span
-                          className="w-2.5 h-2.5 rounded-full"
-                          style={{ backgroundColor: preset.preview.accent }}
-                        />
-                        <span
-                          className="w-8 h-1.5 rounded-full opacity-80"
-                          style={{ backgroundColor: preset.preview.text }}
-                        />
-                      </div>
-                      {isSelected && (
-                        <span
-                          className="w-4 h-4 rounded-full flex items-center justify-center text-white shadow-sm"
-                          style={{ backgroundColor: preset.preview.accent }}
-                        >
-                          <Check size={10} strokeWidth={3} />
-                        </span>
-                      )}
-                    </div>
-                    <div
-                      className="w-full h-3.5 rounded flex items-center px-1.5 gap-1"
-                      style={{ backgroundColor: preset.preview.surface }}
-                    >
-                      <span
-                        className="w-2 h-1 rounded-full"
-                        style={{ backgroundColor: preset.preview.accent }}
-                      />
-                      <span
-                        className="w-6 h-1 rounded-full opacity-50"
-                        style={{ backgroundColor: preset.preview.text }}
-                      />
-                    </div>
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-10 h-10 rounded-full bg-[var(--primary-light)] text-[var(--primary)] flex items-center justify-center shrink-0">
+                  <Palette size={19} strokeWidth={2} />
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-base font-display font-semibold text-[var(--text-primary)] truncate">
+                      Temas & Aparência
+                    </h2>
+                    <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-[var(--bg-subtle)] border border-[var(--border-color)] text-[var(--text-secondary)] shrink-0">
+                      {currentPreset.isDark ? <Moon size={10} /> : <Sun size={10} />}
+                      <span>{currentPreset.name}</span>
+                    </span>
                   </div>
+                  <p className="text-xs text-[var(--text-secondary)] mt-0.5 truncate">
+                    {SCALAR_THEMES.length} temas claros e escuros disponíveis
+                  </p>
+                </div>
+              </div>
 
-                  {/* Nome e Descrição do Tema */}
-                  <div className="min-w-0">
-                    <div className="flex items-center justify-between gap-1">
-                      <p className="text-xs font-display font-bold text-[var(--text-primary)] truncate">
-                        {preset.name}
-                      </p>
-                      <span className="text-[10px] font-medium px-1.5 py-0.2 rounded bg-[var(--bg-muted)] text-[var(--text-secondary)] shrink-0">
-                        {preset.isDark ? 'Dark' : 'Light'}
-                      </span>
-                    </div>
-                    <p className="text-[11px] text-[var(--text-secondary)] truncate mt-0.5">
-                      {preset.subtitle}
-                    </p>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-        </section>
+              <div className="flex items-center gap-2.5 shrink-0">
+                <div className="flex items-center -space-x-1.5">
+                  <span
+                    className="w-5 h-5 rounded-full border-2 border-[var(--bg-surface)] shadow-xs"
+                    style={{ backgroundColor: currentPreset.preview.bg }}
+                  />
+                  <span
+                    className="w-5 h-5 rounded-full border-2 border-[var(--bg-surface)] shadow-xs"
+                    style={{ backgroundColor: currentPreset.preview.surface }}
+                  />
+                  <span
+                    className="w-5 h-5 rounded-full border-2 border-[var(--bg-surface)] shadow-xs"
+                    style={{ backgroundColor: currentPreset.preview.accent }}
+                  />
+                </div>
+                <ChevronRight
+                  size={20}
+                  strokeWidth={2}
+                  className="text-[var(--text-secondary)] group-hover:text-[var(--text-primary)] transition-colors"
+                />
+              </div>
+            </button>
+          </section>
 
         {/* 2. Sincronização na Nuvem */}
         <section className="ds-card p-4 sm:p-5 space-y-3.5">
@@ -510,7 +440,13 @@ export function SettingsModal({
           )}
         </section>
       </div>
-    </div>,
+      </div>
+
+      <ThemeSelectorModal
+        isOpen={isThemeModalOpen}
+        onClose={() => setIsThemeModalOpen(false)}
+      />
+    </>,
     document.body
   );
 }

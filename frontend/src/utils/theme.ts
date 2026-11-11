@@ -3,6 +3,13 @@ import { useState, useEffect } from 'react';
 
 export type ThemeMode =
   | 'light'
+  | 'scalar-light'
+  | 'github-light'
+  | 'notion-light'
+  | 'catppuccin-latte'
+  | 'rose-pine-dawn'
+  | 'solarized-light'
+  | 'mint-breeze'
   | 'dark'
   | 'deep-space'
   | 'purple'
@@ -42,10 +49,13 @@ export interface ThemePreset {
 }
 
 export const SCALAR_THEMES: ThemePreset[] = [
+  // ==========================================
+  // TEMAS CLAROS (LIGHT THEMES)
+  // ==========================================
   {
     id: 'light',
     name: 'Default Light',
-    subtitle: 'Clean Slate & Teal',
+    subtitle: 'RachApp Slate & Teal',
     isDark: false,
     preview: {
       bg: '#F8FAFC',
@@ -68,6 +78,192 @@ export const SCALAR_THEMES: ThemePreset[] = [
       primaryFocusRing: 'rgba(15, 118, 110, 0.2)',
     },
   },
+  {
+    id: 'scalar-light',
+    name: 'Scalar Light',
+    subtitle: 'Scalar Daylight & Indigo',
+    isDark: false,
+    preview: {
+      bg: '#F6F6F9',
+      surface: '#FFFFFF',
+      accent: '#4F46E5',
+      text: '#18181B',
+    },
+    tokens: {
+      bgApp: '#F6F6F9',
+      bgSurface: '#FFFFFF',
+      bgSubtle: '#EFEFF5',
+      bgMuted: '#E4E4ED',
+      textPrimary: '#18181B',
+      textSecondary: '#52525B',
+      textMuted: '#A1A1AA',
+      borderColor: '#E4E4E7',
+      primary: '#4F46E5',
+      primaryLight: '#EEF2FF',
+      primaryDark: '#3730A3',
+      primaryFocusRing: 'rgba(79, 70, 229, 0.2)',
+    },
+  },
+  {
+    id: 'github-light',
+    name: 'GitHub Light',
+    subtitle: 'Primer Alabaster & Blue',
+    isDark: false,
+    preview: {
+      bg: '#F6F8FA',
+      surface: '#FFFFFF',
+      accent: '#0969DA',
+      text: '#1F2328',
+    },
+    tokens: {
+      bgApp: '#F6F8FA',
+      bgSurface: '#FFFFFF',
+      bgSubtle: '#EAEEF2',
+      bgMuted: '#D0D7DE',
+      textPrimary: '#1F2328',
+      textSecondary: '#59636E',
+      textMuted: '#8C959F',
+      borderColor: '#D8DEE4',
+      primary: '#0969DA',
+      primaryLight: '#DDF4FF',
+      primaryDark: '#0550AE',
+      primaryFocusRing: 'rgba(9, 105, 218, 0.2)',
+    },
+  },
+  {
+    id: 'notion-light',
+    name: 'Notion Warm',
+    subtitle: 'Warm Paper & Terracotta',
+    isDark: false,
+    preview: {
+      bg: '#F7F6F3',
+      surface: '#FFFFFF',
+      accent: '#D9730D',
+      text: '#37352F',
+    },
+    tokens: {
+      bgApp: '#F7F6F3',
+      bgSurface: '#FFFFFF',
+      bgSubtle: '#EFECE6',
+      bgMuted: '#E3E0D8',
+      textPrimary: '#2F2D28',
+      textSecondary: '#6B675E',
+      textMuted: '#9B978E',
+      borderColor: '#E6E4DD',
+      primary: '#D9730D',
+      primaryLight: '#FEF3C7',
+      primaryDark: '#B45309',
+      primaryFocusRing: 'rgba(217, 115, 13, 0.2)',
+    },
+  },
+  {
+    id: 'catppuccin-latte',
+    name: 'Catppuccin Latte',
+    subtitle: 'Creamy Latte & Mauve',
+    isDark: false,
+    preview: {
+      bg: '#EFF1F5',
+      surface: '#FFFFFF',
+      accent: '#8839EF',
+      text: '#4C4F69',
+    },
+    tokens: {
+      bgApp: '#EFF1F5',
+      bgSurface: '#FFFFFF',
+      bgSubtle: '#E6E9EF',
+      bgMuted: '#CCD0DA',
+      textPrimary: '#4C4F69',
+      textSecondary: '#6C6F85',
+      textMuted: '#8C8FA1',
+      borderColor: '#DCE0E8',
+      primary: '#7C3AED',
+      primaryLight: '#F3E8FF',
+      primaryDark: '#5B21B6',
+      primaryFocusRing: 'rgba(124, 58, 237, 0.2)',
+    },
+  },
+  {
+    id: 'rose-pine-dawn',
+    name: 'Rosé Pine Dawn',
+    subtitle: 'Soft Floral & Rose',
+    isDark: false,
+    preview: {
+      bg: '#FAF4ED',
+      surface: '#FFFAF3',
+      accent: '#B4637A',
+      text: '#575279',
+    },
+    tokens: {
+      bgApp: '#FAF4ED',
+      bgSurface: '#FFFAF3',
+      bgSubtle: '#F2E9E1',
+      bgMuted: '#DFDAD9',
+      textPrimary: '#575279',
+      textSecondary: '#797593',
+      textMuted: '#9893A5',
+      borderColor: '#E8DFD5',
+      primary: '#BE185D',
+      primaryLight: '#FCE7F3',
+      primaryDark: '#9D174D',
+      primaryFocusRing: 'rgba(190, 24, 93, 0.18)',
+    },
+  },
+  {
+    id: 'solarized-light',
+    name: 'Solarized Light',
+    subtitle: 'Warm Parchment & Cyan',
+    isDark: false,
+    preview: {
+      bg: '#FDF6E3',
+      surface: '#FFFBF0',
+      accent: '#2AA198',
+      text: '#073642',
+    },
+    tokens: {
+      bgApp: '#FDF6E3',
+      bgSurface: '#FFFBF0',
+      bgSubtle: '#EEE8D5',
+      bgMuted: '#E1DBCB',
+      textPrimary: '#073642',
+      textSecondary: '#586E75',
+      textMuted: '#839496',
+      borderColor: '#E5DFCC',
+      primary: '#0D9488',
+      primaryLight: '#CCFBF1',
+      primaryDark: '#115E59',
+      primaryFocusRing: 'rgba(13, 148, 136, 0.22)',
+    },
+  },
+  {
+    id: 'mint-breeze',
+    name: 'Mint Breeze',
+    subtitle: 'Fresh Sage & Emerald',
+    isDark: false,
+    preview: {
+      bg: '#F2FAF6',
+      surface: '#FFFFFF',
+      accent: '#059669',
+      text: '#064E3B',
+    },
+    tokens: {
+      bgApp: '#F2FAF6',
+      bgSurface: '#FFFFFF',
+      bgSubtle: '#E6F5EE',
+      bgMuted: '#D1FAE5',
+      textPrimary: '#064E3B',
+      textSecondary: '#3F6A58',
+      textMuted: '#6B9080',
+      borderColor: '#D8EDE3',
+      primary: '#059669',
+      primaryLight: '#D1FAE5',
+      primaryDark: '#047857',
+      primaryFocusRing: 'rgba(5, 150, 105, 0.2)',
+    },
+  },
+
+  // ==========================================
+  // TEMAS ESCUROS (DARK THEMES)
+  // ==========================================
   {
     id: 'dark',
     name: 'Default Dark',

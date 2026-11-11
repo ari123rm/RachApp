@@ -50,27 +50,75 @@ async function loadBinaryFromIndexedDB(): Promise<Uint8Array | null> {
   }
 }
 
-export async function flushSQLite(): Promise<void> {
+let flushTimeoutId: ReturnType<typeof setTimeout> | null = null;
+let isFlushingNow = false;
+let pendingFlushAfterCurrent = false;
+
+async function flushSQLiteImmediate(): Promise<void> {
   if (!dbInstance) return;
+  if (isFlushingNow) {
+    pendingFlushAfterCurrent = true;
+    return;
+  }
+  isFlushingNow = true;
   try {
-    const binary = dbInstance.export();
-    const idb = await openIndexedDB();
-    await new Promise<void>((resolve, reject) => {
-      const tx = idb.transaction(IDB_STORE, 'readwrite');
-      const store = tx.objectStore(IDB_STORE);
-      store.put(binary, IDB_KEY);
-      tx.oncomplete = () => {
-        idb.close();
-        resolve();
-      };
-      tx.onerror = () => {
-        idb.close();
-        reject(tx.error);
-      };
-    });
+    do {
+      pendingFlushAfterCurrent = false;
+      const binary = dbInstance.export();
+      const idb = await openIndexedDB();
+      await new Promise<void>((resolve, reject) => {
+        const tx = idb.transaction(IDB_STORE, 'readwrite');
+        const store = tx.objectStore(IDB_STORE);
+        store.put(binary, IDB_KEY);
+        tx.oncomplete = () => {
+          idb.close();
+          resolve();
+        };
+        tx.onerror = () => {
+          idb.close();
+          reject(tx.error);
+        };
+      });
+    } while (pendingFlushAfterCurrent);
   } catch (err) {
     console.warn('Erro ao persistir banco SQLite:', err);
+  } finally {
+    isFlushingNow = false;
   }
+}
+
+if (typeof window !== 'undefined') {
+  const flushOnHide = () => {
+    if (flushTimeoutId) {
+      clearTimeout(flushTimeoutId);
+      flushTimeoutId = null;
+      flushSQLiteImmediate().catch(() => {});
+    }
+  };
+  window.addEventListener('pagehide', flushOnHide);
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) flushOnHide();
+  });
+}
+
+export async function flushSQLite(immediate = false): Promise<void> {
+  if (!dbInstance) return;
+  if (immediate) {
+    if (flushTimeoutId) {
+      clearTimeout(flushTimeoutId);
+      flushTimeoutId = null;
+    }
+    await flushSQLiteImmediate();
+    return;
+  }
+
+  if (flushTimeoutId) {
+    clearTimeout(flushTimeoutId);
+  }
+  flushTimeoutId = setTimeout(() => {
+    flushTimeoutId = null;
+    flushSQLiteImmediate().catch(() => {});
+  }, 120);
 }
 
 function createSchema(db: Database) {

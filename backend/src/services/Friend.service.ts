@@ -141,15 +141,32 @@ export class FriendService {
       }
     }
 
-    const allUsers = await prisma.user.findMany({
-      select: { id: true, name: true, phone: true, pix_key: true, avatar_url: true },
-    });
+    const friendPhoneSuffixes = Array.from(
+      new Set(
+        myFriends
+          .map((f) => normalizePhoneBackend(f.phone).slice(-8))
+          .filter((s) => s.length >= 8)
+      )
+    );
+
+    const matchedUsers =
+      friendPhoneSuffixes.length > 0
+        ? await prisma.user.findMany({
+            where: {
+              id: { not: userId },
+              OR: friendPhoneSuffixes.map((suffix) => ({
+                phone: { endsWith: suffix },
+              })),
+            },
+            select: { id: true, name: true, phone: true, pix_key: true, avatar_url: true },
+          })
+        : [];
 
     // Enriquece e atualiza amigos locais com a chave Pix e foto do usuário cadastrado (priorizando o que ele cadastrou para si)
     for (let i = 0; i < myFriends.length; i++) {
       const mf = myFriends[i];
       if (mf.phone) {
-        const regUser = allUsers.find((u) => u.id !== userId && phonesMatch(u.phone, mf.phone));
+        const regUser = matchedUsers.find((u) => u.id !== userId && phonesMatch(u.phone, mf.phone));
         if (regUser) {
           const regPix = regUser?.pix_key?.trim();
           const regAvatar = regUser?.avatar_url || null;
@@ -185,25 +202,26 @@ export class FriendService {
         const cleanOwnerAvatar = ownerUser.avatar_url || null;
         const ownerNameLower = (ownerUser.name || 'Amigo').trim().toLowerCase();
 
+        if (
+          ownerUser.id &&
+          ownerUser.id !== userId &&
+          !matchedUsers.some((u) => u.id === ownerUser.id)
+        ) {
+          matchedUsers.push({
+            id: ownerUser.id,
+            name: ownerUser.name,
+            phone: ownerUser.phone || null,
+            pix_key: cleanOwnerPix,
+            avatar_url: cleanOwnerAvatar,
+          });
+        }
+
         let existing = myFriends.find(
           (f) =>
             (normOwnerPhone && f.phone && phonesMatch(f.phone, normOwnerPhone)) ||
             (f.name.trim().toLowerCase() === ownerNameLower &&
               (!normOwnerPhone || !f.phone || phonesMatch(f.phone, normOwnerPhone)))
         );
-
-        if (!existing) {
-          const freshFriends = await prisma.friend.findMany({ where: { user_id: userId } });
-          existing = freshFriends.find(
-            (f) =>
-              (normOwnerPhone && f.phone && phonesMatch(f.phone, normOwnerPhone)) ||
-              (f.name.trim().toLowerCase() === ownerNameLower &&
-                (!normOwnerPhone || !f.phone || phonesMatch(f.phone, normOwnerPhone)))
-          );
-          if (existing && !myFriends.some((mf) => mf.id === existing!.id)) {
-            myFriends.push(existing);
-          }
-        }
 
         if (existing) {
           const needsPhone = !existing.phone && normOwnerPhone;
@@ -252,6 +270,7 @@ export class FriendService {
       return {
         currentUser,
         myFriends,
+        matchedUsers,
         reverseFriends: [],
         reverseFriendIds: [] as string[],
         ensureLocalFriendForOwner,
@@ -275,10 +294,11 @@ export class FriendService {
       }
     }
 
+    const myPhoneSuffix = normalizePhoneBackend(currentUser.phone).slice(-8);
     const otherFriendsWithPhone = await prisma.friend.findMany({
       where: {
         user_id: { not: userId },
-        phone: { not: null },
+        phone: myPhoneSuffix.length >= 8 ? { endsWith: myPhoneSuffix } : { not: null },
       },
       include: {
         user: {
@@ -370,6 +390,7 @@ export class FriendService {
     return {
       currentUser,
       myFriends,
+      matchedUsers,
       reverseFriends,
       reverseFriendIds,
       ensureLocalFriendForOwner,
@@ -871,16 +892,11 @@ export class FriendService {
   ) {
     const reverseContext = existingReverseContext || (await this.syncReverseLinks(userId));
 
-    const friends = await prisma.friend.findMany({
-      where: { user_id: userId },
-      include: {
-        expenses: {
-          include: {
-            expense: true,
-          },
-        },
-      },
-      orderBy: [{ is_favorite: 'desc' }, { name: 'asc' }],
+    const friends = [...reverseContext.myFriends].sort((a, b) => {
+      if (Boolean(a.is_favorite) !== Boolean(b.is_favorite)) {
+        return a.is_favorite ? -1 : 1;
+      }
+      return (a.name || '').localeCompare(b.name || '', 'pt-BR');
     });
 
     // Busca também despesas em que o amigo foi o pagador (ou criador reverso) para calcular saldo completo
@@ -890,10 +906,7 @@ export class FriendService {
       allUserExpenses = await ExpenseService.listExpenses(userId, reverseContext);
     }
 
-    // Mapeia todos os usuários para priorizar a chave Pix e foto que o amigo cadastrou para si
-    const allUsers = await prisma.user.findMany({
-      select: { id: true, name: true, phone: true, pix_key: true, avatar_url: true },
-    });
+    const matchedUsers = reverseContext.matchedUsers || [];
 
     return friends.map((friend: any) => {
       let divida = 0; // Quanto o amigo deve para Você
@@ -928,7 +941,7 @@ export class FriendService {
       let hasAccount = false;
       let registeredUserId: string | null = null;
       if (friend.phone) {
-        const regUser = allUsers.find(
+        const regUser = matchedUsers.find(
           (u) => u.id !== userId && phonesMatch(u.phone, friend.phone)
         );
         if (regUser) {

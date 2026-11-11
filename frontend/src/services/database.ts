@@ -118,6 +118,146 @@ function toIsoDateOnly(dateInput?: string | Date | null): string {
   return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
 }
 
+const recentlyRealtimeUpsertedIds = new Map<string, number>();
+
+function isRecentlyRealtimeUpserted(id: string): boolean {
+  const ts = recentlyRealtimeUpsertedIds.get(id);
+  if (!ts) return false;
+  if (Date.now() - ts > 15000) {
+    recentlyRealtimeUpsertedIds.delete(id);
+    return false;
+  }
+  return true;
+}
+
+export async function applyRealtimeExpenseUpsert(payload: {
+  expense?: any;
+  friends?: any[];
+}): Promise<void> {
+  if (!payload?.expense?.id) return;
+  try {
+    const db = await getSQLiteDB();
+    const session = await queryOne<any>('SELECT user_id FROM auth_session WHERE id = 1');
+    const currentUserId = session?.user_id || '';
+    const nowMs = Date.now();
+    const nowIso = new Date(nowMs).toISOString();
+
+    db.run('BEGIN TRANSACTION');
+    try {
+      if (Array.isArray(payload.friends)) {
+        for (const f of payload.friends) {
+          if (!f?.id) continue;
+          recentlyRealtimeUpsertedIds.set(f.id, nowMs);
+          db.run(
+            `INSERT OR REPLACE INTO friends (id, user_id, name, phone, pix_key, color, avatar_url, is_favorite, has_account, synced, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)`,
+            [
+              f.id,
+              f.user_id || currentUserId,
+              f.name || f.nome || 'Amigo',
+              stripCountryCode(f.phone || f.telefone || ''),
+              f.pix_key || f.pix || '',
+              f.color || f.cor || 'bg-sky-500',
+              f.avatar_url || null,
+              f.is_favorite || f.favorito ? 1 : 0,
+              f.has_account || f.is_registered ? 1 : 0,
+              nowIso,
+            ]
+          );
+        }
+      }
+
+      const e = payload.expense;
+      recentlyRealtimeUpsertedIds.set(e.id, nowMs);
+      db.run(
+        `INSERT OR REPLACE INTO expenses (
+          id, user_id, created_by_user_id, group_id, paid_by_friend_id, title, tag, total_amount, self_amount_owed, self_amount_paid, self_receipt_url, expense_date, synced
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
+        [
+          e.id,
+          e.user_id || currentUserId,
+          e.created_by_user_id || e.original_owner_id || (e.is_creator ? currentUserId : '') || '',
+          e.group_id || null,
+          e.paid_by_friend_id || null,
+          e.title || '',
+          e.tag || 'Uber',
+          Number(e.total_amount || 0),
+          Number(e.self_amount_owed || 0),
+          Number(e.self_amount_paid || 0),
+          e.self_receipt_url || null,
+          toIsoDateOnly(e.expense_date),
+        ]
+      );
+
+      if (Array.isArray(e.participants)) {
+        db.run('DELETE FROM expense_participants WHERE expense_id = ?', [e.id]);
+        for (const p of e.participants) {
+          db.run(
+            `INSERT OR REPLACE INTO expense_participants (expense_id, friend_id, amount_owed, amount_paid, receipt_url)
+             VALUES (?, ?, ?, ?, ?)`,
+            [
+              e.id,
+              p.friend_id,
+              Number(p.amount_owed || 0),
+              Number(p.amount_paid || 0),
+              p.receipt_url || null,
+            ]
+          );
+        }
+      }
+
+      db.run('COMMIT');
+    } catch (txErr) {
+      db.run('ROLLBACK');
+      throw txErr;
+    }
+
+    lastSyncedAt = nowIso;
+    await notifySyncListeners('synced');
+    flushSQLite().catch(() => {});
+  } catch (err) {
+    console.warn('Aviso ao aplicar racha em tempo real:', err);
+  }
+}
+
+export async function applyRealtimeExpenseDelete(expenseId: string): Promise<void> {
+  if (!expenseId) return;
+  try {
+    recentlyRealtimeUpsertedIds.delete(expenseId);
+    await runSQL('DELETE FROM expense_participants WHERE expense_id = ?', [expenseId], false);
+    await runSQL('DELETE FROM expenses WHERE id = ?', [expenseId], true);
+    lastSyncedAt = new Date().toISOString();
+    await notifySyncListeners('synced');
+  } catch (err) {
+    console.warn('Aviso ao remover racha em tempo real:', err);
+  }
+}
+
+export async function applyRealtimeNotificationUpsert(notif: AppNotification): Promise<void> {
+  if (!notif?.id) return;
+  try {
+    await runSQL(
+      `INSERT OR REPLACE INTO notifications (id, user_id, type, title, message, data, read, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        notif.id,
+        notif.user_id || '',
+        notif.type || 'EXPENSE_ADDED',
+        notif.title || '',
+        notif.message || '',
+        notif.data ? (typeof notif.data === 'string' ? notif.data : JSON.stringify(notif.data)) : null,
+        notif.read ? 1 : 0,
+        notif.created_at || new Date().toISOString(),
+      ],
+      true
+    );
+    lastSyncedAt = new Date().toISOString();
+    await notifySyncListeners('synced');
+  } catch (err) {
+    console.warn('Aviso ao salvar notificação em tempo real:', err);
+  }
+}
+
 async function saveRemoteSnapshotToSQLite(data: {
   token?: string;
   user?: any;
@@ -183,7 +323,7 @@ async function saveRemoteSnapshotToSQLite(data: {
       }
 
       for (const lf of localFriends) {
-        if (!remoteFriendIds.has(lf.id) && !pendingIds.has(lf.id)) {
+        if (!remoteFriendIds.has(lf.id) && !pendingIds.has(lf.id) && !isRecentlyRealtimeUpserted(lf.id)) {
           const normLocalPh = stripCountryCode(lf.phone || '');
           const replacementId = normLocalPh ? remoteByPhone.get(normLocalPh) : undefined;
           if (replacementId && replacementId !== lf.id) {
@@ -265,7 +405,7 @@ async function saveRemoteSnapshotToSQLite(data: {
     if (Array.isArray(data.expenses)) {
       const remoteExpIds = new Set(data.expenses.map((e) => e.id));
       for (const le of localExps) {
-        if (!remoteExpIds.has(le.id) && !pendingIds.has(le.id)) {
+        if (!remoteExpIds.has(le.id) && !pendingIds.has(le.id) && !isRecentlyRealtimeUpserted(le.id)) {
           db.run('DELETE FROM expenses WHERE id = ?', [le.id]);
           db.run('DELETE FROM expense_participants WHERE expense_id = ?', [le.id]);
         }
@@ -332,6 +472,8 @@ async function saveRemoteSnapshotToSQLite(data: {
     throw err;
   }
 
+  lastSyncedAt = new Date().toISOString();
+  await notifySyncListeners('synced');
   await flushSQLite();
 }
 
@@ -487,12 +629,155 @@ async function recoverOrphanedUnsyncedRows() {
   }
 }
 
+let activePushQueuePromise: Promise<boolean> | null = null;
+
+async function pushPendingQueue(): Promise<boolean> {
+  if (activePushQueuePromise) {
+    return activePushQueuePromise;
+  }
+
+  activePushQueuePromise = (async () => {
+    let pushedAny = false;
+    try {
+      await recoverOrphanedUnsyncedRows();
+
+      while (true) {
+        const queue = await queryAll<{
+          id: number;
+          entity: string;
+          action: string;
+          entity_id: string;
+          payload: string | null;
+        }>(
+          `SELECT * FROM sync_queue
+           ORDER BY
+             CASE entity
+               WHEN 'profile' THEN 1
+               WHEN 'friend' THEN 2
+               WHEN 'group' THEN 3
+               WHEN 'expense' THEN 4
+               WHEN 'payment' THEN 5
+               ELSE 6
+             END ASC,
+             id ASC`
+        );
+
+        if (queue.length === 0) break;
+        pushedAny = true;
+
+        for (const item of queue) {
+          const currentRow = await queryOne<{ payload: string | null; entity_id: string }>(
+            'SELECT payload, entity_id FROM sync_queue WHERE id = ?',
+            [item.id]
+          );
+          const effectiveEntityId = currentRow ? currentRow.entity_id : item.entity_id;
+          const rawPayload = currentRow ? currentRow.payload : item.payload;
+          const payload = rawPayload ? JSON.parse(rawPayload) : {};
+
+          try {
+            if (item.entity === 'profile' && item.action === 'update') {
+              await api.put('/auth/profile', payload);
+            } else if (item.entity === 'friend') {
+              if (item.action === 'create') {
+                const { data: createdFriend } = await api.post('/friends', payload);
+                if (createdFriend?.id && createdFriend.id !== effectiveEntityId) {
+                  await remapLocalFriendId(effectiveEntityId, createdFriend.id);
+                } else {
+                  await runSQL('UPDATE friends SET synced = 1 WHERE id = ?', [effectiveEntityId], false);
+                }
+              } else if (item.action === 'update') {
+                await api.put(`/friends/${effectiveEntityId}`, payload);
+                await runSQL('UPDATE friends SET synced = 1 WHERE id = ?', [effectiveEntityId], false);
+              } else if (item.action === 'favorite') {
+                await api.patch(`/friends/${effectiveEntityId}/favorite`);
+                await runSQL('UPDATE friends SET synced = 1 WHERE id = ?', [effectiveEntityId], false);
+              } else if (item.action === 'delete') {
+                await api.delete(`/friends/${effectiveEntityId}`);
+              }
+            } else if (item.entity === 'group') {
+              if (item.action === 'create') {
+                const friendsMeta = await buildFriendsMeta(payload.friendIds || []);
+                await api.post('/groups', { ...payload, friendsMeta });
+                await runSQL('UPDATE groups_table SET synced = 1 WHERE id = ?', [effectiveEntityId], false);
+              } else if (item.action === 'update') {
+                const friendsMeta = await buildFriendsMeta(payload.friendIds || []);
+                await api.put(`/groups/${effectiveEntityId}`, { ...payload, friendsMeta });
+                await runSQL('UPDATE groups_table SET synced = 1 WHERE id = ?', [effectiveEntityId], false);
+              } else if (item.action === 'delete') {
+                await api.delete(`/groups/${effectiveEntityId}`);
+              } else if (item.action === 'add_member') {
+                await api.post(`/groups/${effectiveEntityId}/members`, payload);
+              } else if (item.action === 'remove_member') {
+                await api.delete(`/groups/${effectiveEntityId}/members/${payload.memberId}`);
+              }
+            } else if (item.entity === 'expense') {
+              const refFriendIds = [
+                ...(Array.isArray(payload.participantIds) ? payload.participantIds : []),
+                ...(payload.paidByFriendId ? [payload.paidByFriendId] : []),
+              ];
+              const friendsMeta = await buildFriendsMeta(refFriendIds);
+              if (item.action === 'create') {
+                await api.post('/finances/expenses', { ...payload, friendsMeta });
+                await runSQL('UPDATE expenses SET synced = 1 WHERE id = ?', [effectiveEntityId], false);
+              } else if (item.action === 'update') {
+                await api.put(`/finances/expenses/${effectiveEntityId}`, { ...payload, friendsMeta });
+                await runSQL('UPDATE expenses SET synced = 1 WHERE id = ?', [effectiveEntityId], false);
+              } else if (item.action === 'delete') {
+                await api.delete(`/finances/expenses/${effectiveEntityId}`);
+              }
+            } else if (item.entity === 'payment') {
+              if (item.action === 'register') {
+                await api.post('/finances/payments', payload);
+              } else if (item.action === 'set_participant') {
+                await api.post(`/finances/expenses/${effectiveEntityId}/payment`, payload);
+              }
+            }
+
+            await runSQL('DELETE FROM sync_queue WHERE id = ?', [item.id], false);
+          } catch (itemError: any) {
+            const status = itemError?.response?.status;
+            if (status === 404 && item.action === 'delete') {
+              await runSQL('DELETE FROM sync_queue WHERE id = ?', [item.id], false);
+            } else if (
+              !itemError?.response ||
+              status === 401 ||
+              status === 403 ||
+              status === 408 ||
+              status === 429 ||
+              (status && status >= 500)
+            ) {
+              throw itemError;
+            } else {
+              console.warn(
+                `Aviso ao sincronizar item ${item.entity}:${item.action}`,
+                itemError?.response?.data || itemError.message
+              );
+              await runSQL('DELETE FROM sync_queue WHERE id = ?', [item.id], false);
+            }
+          }
+        }
+      }
+
+      if (pushedAny) {
+        await flushSQLite();
+      }
+      return pushedAny;
+    } finally {
+      activePushQueuePromise = null;
+    }
+  })();
+
+  return activePushQueuePromise;
+}
+
 export async function syncWithBackend(pullAfterPush = true): Promise<boolean> {
   if (isSyncing && activeSyncPromise) {
     pendingResync = true;
     if (pullAfterPush) {
       pendingPullAfterPush = true;
     }
+    // Empurra imediatamente itens pendentes na fila sem esperar o pull atual terminar
+    pushPendingQueue().catch(() => {});
     return activeSyncPromise;
   }
 
@@ -516,126 +801,10 @@ export async function syncWithBackend(pullAfterPush = true): Promise<boolean> {
         }
         pendingPullAfterPush = false;
 
-        await recoverOrphanedUnsyncedRows();
-
-        while (true) {
-          const queue = await queryAll<{
-            id: number;
-            entity: string;
-            action: string;
-            entity_id: string;
-            payload: string | null;
-          }>(
-            `SELECT * FROM sync_queue
-             ORDER BY
-               CASE entity
-                 WHEN 'profile' THEN 1
-                 WHEN 'friend' THEN 2
-                 WHEN 'group' THEN 3
-                 WHEN 'expense' THEN 4
-                 WHEN 'payment' THEN 5
-                 ELSE 6
-               END ASC,
-               id ASC`
-          );
-
-          if (queue.length === 0) break;
+        const pushedAny = await pushPendingQueue();
+        if (pushedAny) {
           shouldPull = true;
-
-          for (const item of queue) {
-            const currentRow = await queryOne<{ payload: string | null; entity_id: string }>(
-              'SELECT payload, entity_id FROM sync_queue WHERE id = ?',
-              [item.id]
-            );
-            const effectiveEntityId = currentRow ? currentRow.entity_id : item.entity_id;
-            const rawPayload = currentRow ? currentRow.payload : item.payload;
-            const payload = rawPayload ? JSON.parse(rawPayload) : {};
-
-            try {
-              if (item.entity === 'profile' && item.action === 'update') {
-                await api.put('/auth/profile', payload);
-              } else if (item.entity === 'friend') {
-                if (item.action === 'create') {
-                  const { data: createdFriend } = await api.post('/friends', payload);
-                  if (createdFriend?.id && createdFriend.id !== effectiveEntityId) {
-                    await remapLocalFriendId(effectiveEntityId, createdFriend.id);
-                  } else {
-                    await runSQL('UPDATE friends SET synced = 1 WHERE id = ?', [effectiveEntityId], false);
-                  }
-                } else if (item.action === 'update') {
-                  await api.put(`/friends/${effectiveEntityId}`, payload);
-                  await runSQL('UPDATE friends SET synced = 1 WHERE id = ?', [effectiveEntityId], false);
-                } else if (item.action === 'favorite') {
-                  await api.patch(`/friends/${effectiveEntityId}/favorite`);
-                  await runSQL('UPDATE friends SET synced = 1 WHERE id = ?', [effectiveEntityId], false);
-                } else if (item.action === 'delete') {
-                  await api.delete(`/friends/${effectiveEntityId}`);
-                }
-              } else if (item.entity === 'group') {
-                if (item.action === 'create') {
-                  const friendsMeta = await buildFriendsMeta(payload.friendIds || []);
-                  await api.post('/groups', { ...payload, friendsMeta });
-                  await runSQL('UPDATE groups_table SET synced = 1 WHERE id = ?', [effectiveEntityId], false);
-                } else if (item.action === 'update') {
-                  const friendsMeta = await buildFriendsMeta(payload.friendIds || []);
-                  await api.put(`/groups/${effectiveEntityId}`, { ...payload, friendsMeta });
-                  await runSQL('UPDATE groups_table SET synced = 1 WHERE id = ?', [effectiveEntityId], false);
-                } else if (item.action === 'delete') {
-                  await api.delete(`/groups/${effectiveEntityId}`);
-                } else if (item.action === 'add_member') {
-                  await api.post(`/groups/${effectiveEntityId}/members`, payload);
-                } else if (item.action === 'remove_member') {
-                  await api.delete(`/groups/${effectiveEntityId}/members/${payload.memberId}`);
-                }
-              } else if (item.entity === 'expense') {
-                const refFriendIds = [
-                  ...(Array.isArray(payload.participantIds) ? payload.participantIds : []),
-                  ...(payload.paidByFriendId ? [payload.paidByFriendId] : []),
-                ];
-                const friendsMeta = await buildFriendsMeta(refFriendIds);
-                if (item.action === 'create') {
-                  await api.post('/finances/expenses', { ...payload, friendsMeta });
-                  await runSQL('UPDATE expenses SET synced = 1 WHERE id = ?', [effectiveEntityId], false);
-                } else if (item.action === 'update') {
-                  await api.put(`/finances/expenses/${effectiveEntityId}`, { ...payload, friendsMeta });
-                  await runSQL('UPDATE expenses SET synced = 1 WHERE id = ?', [effectiveEntityId], false);
-                } else if (item.action === 'delete') {
-                  await api.delete(`/finances/expenses/${effectiveEntityId}`);
-                }
-              } else if (item.entity === 'payment') {
-                if (item.action === 'register') {
-                  await api.post('/finances/payments', payload);
-                } else if (item.action === 'set_participant') {
-                  await api.post(`/finances/expenses/${effectiveEntityId}/payment`, payload);
-                }
-              }
-
-              await runSQL('DELETE FROM sync_queue WHERE id = ?', [item.id], false);
-            } catch (itemError: any) {
-              const status = itemError?.response?.status;
-              if (status === 404 && item.action === 'delete') {
-                await runSQL('DELETE FROM sync_queue WHERE id = ?', [item.id], false);
-              } else if (
-                !itemError?.response ||
-                status === 401 ||
-                status === 403 ||
-                status === 408 ||
-                status === 429 ||
-                (status && status >= 500)
-              ) {
-                throw itemError;
-              } else {
-                console.warn(
-                  `Aviso ao sincronizar item ${item.entity}:${item.action}`,
-                  itemError?.response?.data || itemError.message
-                );
-                await runSQL('DELETE FROM sync_queue WHERE id = ?', [item.id], false);
-              }
-            }
-          }
         }
-
-        await flushSQLite();
 
         if (shouldPull) {
           const { data } = await api.get('/finances/sync');

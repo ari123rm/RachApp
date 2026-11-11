@@ -1,6 +1,12 @@
 // src/services/socket.ts
 import { io, Socket } from 'socket.io-client';
-import { getApiBaseUrl, syncWithBackend } from './database';
+import {
+  getApiBaseUrl,
+  syncWithBackend,
+  applyRealtimeExpenseUpsert,
+  applyRealtimeExpenseDelete,
+  applyRealtimeNotificationUpsert,
+} from './database';
 import { queryOne } from './sqlite';
 import type { AppNotification } from '../types';
 
@@ -59,6 +65,18 @@ export function initSocket(): Promise<Socket | null> {
         syncWithBackend(true).catch(() => {});
       });
 
+      // Recebe o racha já transformado em tempo real para exibição instantânea (< 2ms)
+      newSocket.on('sync:expense_upsert', (payload) => {
+        applyRealtimeExpenseUpsert(payload).catch(() => {});
+      });
+
+      // Recebe exclusão de racha em tempo real
+      newSocket.on('sync:expense_deleted', (payload) => {
+        if (payload?.expenseId) {
+          applyRealtimeExpenseDelete(payload.expenseId).catch(() => {});
+        }
+      });
+
       // Recebe sinal de que algum dado foi alterado no backend e invalida o cache local
       newSocket.on('sync:invalidate', (payload) => {
         console.log('[Socket.io] Invalidação recebida do servidor:', payload);
@@ -71,7 +89,10 @@ export function initSocket(): Promise<Socket | null> {
       newSocket.on('notification:new', (notif: AppNotification) => {
         console.log('[Socket.io] Nova notificação recebida:', notif);
 
-        // Puxa snapshot atualizado
+        // Salva a notificação no SQLite local imediatamente e atualiza contadores
+        applyRealtimeNotificationUpsert(notif).catch(() => {});
+
+        // Puxa snapshot atualizado em background
         syncWithBackend(true).catch(() => {});
 
         // Dispara para ouvintes da interface (ex: toast na tela)

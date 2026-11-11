@@ -88,20 +88,26 @@ export class GroupService {
       transformedMembers = newMembers;
     }
 
-    const transformedExpenses = [];
-    for (const exp of group.expenses || []) {
-      transformedExpenses.push(
-        await ExpenseService.transformExpenseForUser(exp, userId, reverseContext)
-      );
+    let transformedExpenses: any[] | undefined = undefined;
+    if (Array.isArray(group.expenses)) {
+      transformedExpenses = [];
+      for (const exp of group.expenses) {
+        transformedExpenses.push(
+          await ExpenseService.transformExpenseForUser(exp, userId, reverseContext)
+        );
+      }
     }
 
     return {
       ...group,
       members: transformedMembers,
-      expenses: transformedExpenses,
+      ...(transformedExpenses !== undefined ? { expenses: transformedExpenses } : {}),
       _count: {
         members: transformedMembers.length,
-        expenses: transformedExpenses.length,
+        expenses:
+          transformedExpenses !== undefined
+            ? transformedExpenses.length
+            : Number(group._count?.expenses || 0),
       },
     };
   }
@@ -245,18 +251,13 @@ export class GroupService {
         ],
       },
       include: {
-        owner: { select: { id: true, name: true, pix_key: true, phone: true, avatar_url: true } },
+        owner: { select: { id: true, name: true, pix_key: true, phone: true } },
         members: {
           include: {
-            user: { select: { id: true, name: true, pix_key: true, phone: true, avatar_url: true } },
-            friend: true,
-          },
-        },
-        expenses: {
-          include: {
-            owner: { select: { id: true, name: true, pix_key: true, phone: true, avatar_url: true } },
-            participants: { include: { friend: true } },
-            paidByFriend: true,
+            user: { select: { id: true, name: true, pix_key: true, phone: true } },
+            friend: {
+              select: { id: true, name: true, phone: true, pix_key: true, color: true },
+            },
           },
         },
         _count: {
