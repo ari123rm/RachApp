@@ -36,31 +36,31 @@ export function Grupos({ onDataChange }: { onDataChange?: () => void }) {
 
   if (isLoading) {
     return (
-      <div className="flex flex-col items-center justify-center h-64 text-[#2DD4BF]">
-        <LoaderCircle size={40} className="animate-spin mb-4" />
-        <p className="text-gray-400 font-medium">Carregando grupos...</p>
+      <div className="flex flex-col items-center justify-center h-64 text-[#0F766E]">
+        <LoaderCircle size={40} strokeWidth={2} className="animate-spin mb-4" />
+        <p className="text-sm font-medium text-[var(--text-secondary)]">Carregando grupos...</p>
       </div>
     );
   }
 
   return (
     <div className="space-y-6 relative">
-      <header className="mt-2 flex justify-between items-center">
-        <h1 className="text-3xl font-bold text-white">Grupos</h1>
+      <header className="mt-1 flex justify-between items-center">
+        <h1 className="text-h1 text-[var(--text-primary)]">Grupos</h1>
         <button
           onClick={() => setIsModalOpen(true)}
-          className="bg-[#2DD4BF]/20 hover:bg-[#2DD4BF]/30 text-[#2DD4BF] px-4 py-2 rounded-full font-bold flex items-center gap-2 text-sm transition-colors"
+          className="bg-[#CCFBF1] hover:opacity-90 text-[#0F766E] px-4 py-2.5 rounded-xl font-semibold flex items-center gap-2 text-sm transition-colors"
         >
-          <Plus size={16} /> Novo Grupo
+          <Plus size={16} strokeWidth={2} /> Novo Grupo
         </button>
       </header>
 
       {grupos.length === 0 ? (
-        <div className="bg-[#1c1c1e] p-8 rounded-3xl text-center border border-white/5">
-          <p className="text-gray-400 mb-3">Você ainda não criou nenhum grupo.</p>
+        <div className="ds-card p-8 text-center">
+          <p className="text-[var(--text-secondary)] mb-3">Você ainda não criou nenhum grupo.</p>
           <button
             onClick={() => setIsModalOpen(true)}
-            className="text-[#2DD4BF] font-bold text-sm hover:underline"
+            className="text-[#0F766E] font-semibold text-sm hover:underline"
           >
             + Criar meu primeiro grupo
           </button>
@@ -77,10 +77,10 @@ export function Grupos({ onDataChange }: { onDataChange?: () => void }) {
               <div
                 key={grupo.id}
                 onClick={() => setGrupoSelecionadoId(grupo.id)}
-                className="bg-[#1c1c1e] rounded-2xl p-4 flex items-center justify-between border border-white/5 cursor-pointer hover:bg-[#2c2c2e] transition-colors"
+                className="ds-card p-4 flex items-center justify-between cursor-pointer hover:border-[#0F766E]/40 transition-colors"
               >
                 <div className="flex items-start gap-3.5 min-w-0">
-                  <div className="w-12 h-12 rounded-2xl overflow-hidden bg-[#2DD4BF]/15 border border-[#2DD4BF]/30 flex items-center justify-center text-[#2DD4BF] shrink-0 mt-0.5">
+                  <div className="w-12 h-12 rounded-full overflow-hidden bg-[#CCFBF1] text-[#0F766E] flex items-center justify-center shrink-0 mt-0.5">
                     {grupo.avatar_url ? (
                       <img
                         src={grupo.avatar_url}
@@ -88,19 +88,21 @@ export function Grupos({ onDataChange }: { onDataChange?: () => void }) {
                         className="w-full h-full object-cover"
                       />
                     ) : (
-                      <Users size={22} />
+                      <Users size={22} strokeWidth={2} />
                     )}
                   </div>
 
                   <div>
-                    <h3 className="text-white font-bold text-base">{grupo.name}</h3>
-                    <p className="text-xs text-gray-500 mt-0.5 mb-2.5">
+                    <h3 className="font-display font-semibold text-[var(--text-primary)] text-base sm:text-[18px]">
+                      {grupo.name}
+                    </h3>
+                    <p className="text-xs text-[var(--text-secondary)] mt-0.5 mb-2.5">
                       {totalMembers} {totalMembers === 1 ? 'participante' : 'participantes'}
                     </p>
 
-                    {/* Avatares Sobrepostos */}
+                    {/* Pilha de Avatares 32x32px (w-8 h-8) */}
                     <div className="flex -space-x-2">
-                      <div className="w-7 h-7 rounded-full overflow-hidden bg-[#2DD4BF] text-[#05080f] font-black text-[10px] flex items-center justify-center border-2 border-[#1c1c1e]">
+                      <div className="w-8 h-8 rounded-full overflow-hidden bg-[#0F766E] text-white font-display font-bold text-xs flex items-center justify-center border-2 border-[var(--bg-surface)]">
                         {myAvatarUrl ? (
                           <img
                             src={myAvatarUrl}
@@ -121,7 +123,7 @@ export function Grupos({ onDataChange }: { onDataChange?: () => void }) {
                                 ? undefined
                                 : { backgroundColor: getAvatarColor(m.friend?.color) }
                             }
-                            className="w-7 h-7 rounded-full overflow-hidden text-white font-bold text-[10px] flex items-center justify-center border-2 border-[#1c1c1e]"
+                            className="w-8 h-8 rounded-full overflow-hidden text-white font-display font-bold text-xs flex items-center justify-center border-2 border-[var(--bg-surface)]"
                           >
                             {fAvatar ? (
                               <img
@@ -136,7 +138,7 @@ export function Grupos({ onDataChange }: { onDataChange?: () => void }) {
                         );
                       })}
                       {extraCount > 0 && (
-                        <div className="w-7 h-7 rounded-full bg-gray-700 text-gray-200 font-bold text-[10px] flex items-center justify-center border-2 border-[#1c1c1e]">
+                        <div className="w-8 h-8 rounded-full bg-[var(--bg-subtle)] text-[var(--text-secondary)] font-semibold text-xs flex items-center justify-center border-2 border-[var(--bg-surface)]">
                           +{extraCount}
                         </div>
                       )}
@@ -144,7 +146,7 @@ export function Grupos({ onDataChange }: { onDataChange?: () => void }) {
                   </div>
                 </div>
 
-                <ChevronRight size={20} className="text-gray-500" />
+                <ChevronRight size={20} strokeWidth={2} className="text-[var(--text-secondary)]" />
               </div>
             );
           })}

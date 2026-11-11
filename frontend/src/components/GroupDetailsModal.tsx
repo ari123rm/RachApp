@@ -163,7 +163,6 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
     }
   };
 
-  // Quando o membro te deve (você é o lesado), você pode confirmar recebimento sem comprovante
   const handleQuitarMembroNoGrupo = async (friendId: string, amount: number, friendName: string) => {
     if (!grupo) return;
     if (!window.confirm(`Confirmar recebimento de R$ ${moneyConverter(amount)} de ${friendName} neste grupo?`)) {
@@ -178,7 +177,6 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
     }
   };
 
-  // Quando Você deve ao membro no grupo, confirma enviando comprovante
   const handleConfirmPayMemberWithReceipt = async (amount: number, receiptBase64: string) => {
     if (!grupo || !payMemberTarget.friendId) return;
     await dbService.financeiro.registrarPagamento(
@@ -227,7 +225,6 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
     const myPix = freshConfig.pix_key || freshConfig.pix || myConfig.pix || '';
     const myName = freshConfig.nome || freshConfig.name || myConfig.nome || 'Você';
 
-    // Se a transferência parte de "Você" para um amigo, abre o modal de Pagar com Comprovante!
     if (t.fromName === 'Você') {
       setPayMemberTarget({
         isOpen: true,
@@ -316,7 +313,7 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
       );
 
       const corridaParticipantes = [
-        { id: 0, nome: 'Você', cor: '#2DD4BF', avatar_url: myConfig.avatar_url },
+        { id: 0, nome: 'Você', cor: '#0F766E', avatar_url: myConfig.avatar_url },
         ...(corridaCompleta.participantesIds || []).map((pid: string, idx: number) => {
           const f = todosAmigos.find((a) => a.id === pid);
           return {
@@ -367,21 +364,21 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
       label: 'A Pagar',
       count: contagensGrupo.aPagar,
       icon: TrendingDown,
-      color: 'text-red-400',
+      color: 'text-[#F43F5E]',
     },
     {
       id: 'a_receber' as const,
       label: 'A Receber',
       count: contagensGrupo.aReceber,
       icon: TrendingUp,
-      color: 'text-amber-400',
+      color: 'text-[#10B981]',
     },
     {
       id: 'quitados' as const,
       label: 'Quitados',
       count: contagensGrupo.quitados,
       icon: CheckCircle2,
-      color: 'text-emerald-400',
+      color: 'text-[#0F766E]',
     },
   ];
 
@@ -431,58 +428,58 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
 
   return createPortal(
     <div
-      className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 animate-fade-in"
+      className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 animate-fade-in"
       onClick={onClose}
     >
       <div
-        className="bg-[#0b0f19] w-full max-w-md rounded-t-[28px] sm:rounded-3xl border-t sm:border border-white/10 shadow-2xl flex flex-col max-h-[92dvh] sm:max-h-[90vh] pb-safe overflow-hidden animate-slide-up"
+        className="bg-[var(--bg-app)] w-full max-w-md rounded-t-2xl sm:rounded-2xl border-t sm:border border-[var(--border-color)] shadow-xl flex flex-col max-h-[92dvh] sm:max-h-[90vh] pb-safe overflow-hidden animate-slide-up"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Cabeçalho */}
-        <div className="flex items-center justify-between p-3.5 sm:p-4 border-b border-white/10 bg-[#0b0f19]/95 backdrop-blur-md shrink-0">
+        <div className="flex items-center justify-between p-4 border-b border-[var(--border-color)] bg-[var(--bg-surface)] shrink-0">
           <button
             onClick={onClose}
-            className="p-1.5 sm:p-2 text-white hover:bg-gray-800 rounded-full transition-colors"
+            className="p-2 text-[var(--text-primary)] hover:bg-[var(--bg-subtle)] rounded-full transition-colors"
           >
-            <ChevronLeft size={24} />
+            <ChevronLeft size={24} strokeWidth={2} />
           </button>
-          <h2 className="text-sm sm:text-base font-semibold text-white truncate px-2">Detalhes Do Grupo</h2>
+          <h2 className="text-h2 text-[var(--text-primary)] truncate px-2">Detalhes do Grupo</h2>
           <div className="flex items-center gap-1 shrink-0">
             <button
               onClick={() => setIsEditGroupOpen(true)}
-              className="p-1.5 sm:p-2 text-gray-300 hover:bg-white/10 hover:text-white rounded-full transition-colors"
+              className="p-2 text-[var(--text-secondary)] hover:bg-[var(--bg-subtle)] hover:text-[var(--text-primary)] rounded-full transition-colors"
               title="Editar Grupo"
             >
-              <Pencil size={17} />
+              <Pencil size={18} strokeWidth={2} />
             </button>
             <button
               onClick={handleDeleteGroup}
-              className="p-1.5 sm:p-2 text-red-500 hover:bg-red-500/20 hover:text-red-400 rounded-full transition-colors"
+              className="p-2 text-[#F43F5E] hover:bg-[var(--rose-bg)] rounded-full transition-colors"
               title="Excluir Grupo"
             >
-              <Trash2 size={18} />
+              <Trash2 size={18} strokeWidth={2} />
             </button>
           </div>
         </div>
 
         {isLoading || !grupo ? (
           <div className="flex flex-col items-center justify-center flex-1 py-20">
-            <LoaderCircle size={40} className="animate-spin text-[#2DD4BF]" />
+            <LoaderCircle size={36} strokeWidth={2} className="animate-spin text-[#0F766E]" />
           </div>
         ) : (
-          <div className="p-4 sm:p-5 overflow-y-auto flex-1 space-y-5 sm:space-y-6">
+          <div className="p-4 sm:p-5 overflow-y-auto flex-1 space-y-5">
             {/* Card Principal do Grupo */}
-            <div className="bg-[#141923] rounded-3xl p-5 border border-white/10 shadow-xl">
+            <div className="ds-card">
               <div className="flex justify-between items-center mb-4">
                 <div className="flex items-center gap-3">
-                  {/* Ícone do Grupo */}
+                  {/* Ícone Circular do Grupo */}
                   <div className="relative shrink-0">
                     <div
                       onClick={() => {
                         if (isGroupCreator) setIsEditAvatarOpen(true);
                       }}
-                      className={`w-12 h-12 rounded-2xl overflow-hidden bg-[#2DD4BF]/15 border border-[#2DD4BF]/30 flex items-center justify-center text-[#2DD4BF] transition-colors ${
-                        isGroupCreator ? 'cursor-pointer hover:border-[#2DD4BF]' : ''
+                      className={`w-12 h-12 rounded-full overflow-hidden bg-[#0F766E]/10 border border-[#0F766E]/30 flex items-center justify-center text-[#0F766E] transition-colors ${
+                        isGroupCreator ? 'cursor-pointer hover:border-[#0F766E]' : ''
                       }`}
                     >
                       {grupo.avatar_url ? (
@@ -492,7 +489,7 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
                           className="w-full h-full object-cover"
                         />
                       ) : (
-                        <Users size={22} />
+                        <Users size={22} strokeWidth={2} />
                       )}
                     </div>
                     {isGroupCreator && (
@@ -500,18 +497,18 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
                         type="button"
                         onClick={() => setIsEditAvatarOpen(true)}
                         title="Editar ícone do grupo"
-                        className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-[#2DD4BF] hover:bg-[#25b5a3] text-[#05080f] flex items-center justify-center shadow border border-[#141923] active:scale-90 transition-transform"
+                        className="absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full bg-[#0F766E] hover:bg-[#115E59] text-white flex items-center justify-center shadow-sm border border-[var(--bg-surface)] active:scale-90 transition-transform"
                       >
-                        <Pencil size={10} className="stroke-[2.5px]" />
+                        <Pencil size={10} strokeWidth={2.5} />
                       </button>
                     )}
                   </div>
 
                   <div>
-                    <h3 className="text-white font-bold text-base leading-tight">{grupo.name}</h3>
-                    <div className="flex items-center mt-1">
+                    <h3 className="text-[var(--text-primary)] text-h2 leading-tight">{grupo.name}</h3>
+                    <div className="flex items-center mt-1.5">
                       <div className="flex -space-x-2">
-                        <div className="w-6 h-6 rounded-full overflow-hidden bg-[#2DD4BF] text-[#05080f] font-black text-[10px] flex items-center justify-center border-2 border-[#141923]">
+                        <div className="w-8 h-8 rounded-full overflow-hidden bg-[#0F766E] text-white font-bold text-caption flex items-center justify-center border-2 border-[var(--bg-surface)]">
                           {myConfig.avatar_url ? (
                             <img
                               src={myConfig.avatar_url}
@@ -531,7 +528,7 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
                               style={
                                 memberAvatar ? undefined : { backgroundColor: getAvatarColor(m.color) }
                               }
-                              className="w-6 h-6 rounded-full overflow-hidden text-white font-bold text-[10px] flex items-center justify-center border-2 border-[#141923]"
+                              className="w-8 h-8 rounded-full overflow-hidden text-white font-bold text-caption flex items-center justify-center border-2 border-[var(--bg-surface)]"
                             >
                               {memberAvatar ? (
                                 <img
@@ -546,30 +543,34 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
                           );
                         })}
                       </div>
-                      <span className="text-[11px] text-gray-400 ml-2 font-medium">
+                      <span className="text-caption text-[var(--text-secondary)] ml-2">
                         {memberBalances.length + 1} participantes
                       </span>
                     </div>
                   </div>
                 </div>
 
-                <span className="text-[10px] font-bold bg-[#2DD4BF]/15 text-[#2DD4BF] px-2.5 py-1 rounded-full shrink-0">
+                <span className="text-caption font-semibold bg-[var(--emerald-bg)] text-[#10B981] border border-[var(--emerald-border)] px-2.5 py-1 rounded-full shrink-0">
                   • ATIVO
                 </span>
               </div>
 
-              <p className="text-xs text-gray-400 mb-1">
-                Seu saldo em <strong className="text-white">{grupo.name}</strong>
+              <p className="text-caption text-[var(--text-secondary)] mb-1">
+                Seu saldo em <strong className="text-[var(--text-primary)]">{grupo.name}</strong>
               </p>
               <div className="flex items-baseline gap-2 mb-5">
                 <span
-                  className={`text-3xl font-black ${
-                    userNet >= 0 ? 'text-[#2DD4BF]' : 'text-red-400'
+                  className={`text-display ${
+                    userNet > 0.01
+                      ? 'text-[#10B981]'
+                      : userNet < -0.01
+                      ? 'text-[#F43F5E]'
+                      : 'text-[#0F766E]'
                   }`}
                 >
                   R$ {moneyConverter(Math.abs(userNet))}
                 </span>
-                <span className="text-xs text-gray-400 font-semibold">
+                <span className="text-caption text-[var(--text-secondary)] font-semibold">
                   {userNet > 0.01 ? 'a receber' : userNet < -0.01 ? 'a pagar' : 'tudo quitado'}
                 </span>
               </div>
@@ -577,15 +578,15 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
               <div className="grid grid-cols-2 gap-3">
                 <button
                   onClick={() => setIsAddRideOpen(true)}
-                  className="bg-[#2DD4BF] hover:bg-[#25b5a3] text-[#05080f] font-bold py-3 rounded-2xl text-sm flex items-center justify-center gap-1.5 transition-transform active:scale-95"
+                  className="ds-btn-primary"
                 >
-                  <Plus size={18} strokeWidth={2.5} /> Novo Racha
+                  <Plus size={18} strokeWidth={2} /> Novo Racha
                 </button>
                 <button
                   onClick={handleCobrarGrupo}
-                  className="bg-[#1c2230] hover:bg-[#252d3f] text-white border border-white/10 font-bold py-3 rounded-2xl text-sm flex items-center justify-center gap-2 transition-transform active:scale-95"
+                  className="ds-btn-secondary"
                 >
-                  <QrCode size={16} className="text-[#2DD4BF]" /> Cobrar
+                  <QrCode size={18} strokeWidth={2} className="text-[#0F766E]" /> Cobrar
                 </button>
               </div>
             </div>
@@ -594,46 +595,46 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
             <div>
               <div className="flex justify-between items-center mb-3">
                 <div className="flex items-center gap-2">
-                  <h4 className="text-white font-bold text-base">Membros</h4>
-                  <span className="text-[10px] text-gray-400 uppercase font-bold tracking-wider bg-white/5 px-2 py-0.5 rounded-full">
+                  <h4 className="text-[var(--text-primary)] text-h2">Membros</h4>
+                  <span className="text-caption text-[var(--text-secondary)] uppercase font-semibold tracking-wider bg-[var(--bg-subtle)] border border-[var(--border-color)] px-2.5 py-0.5 rounded-full">
                     {pendenciasCount} {pendenciasCount === 1 ? 'PENDÊNCIA' : 'PENDÊNCIAS'}
                   </span>
                 </div>
 
                 <button
                   onClick={() => setShowAddMemberSection(!showAddMemberSection)}
-                  className="text-xs bg-[#2DD4BF]/15 hover:bg-[#2DD4BF]/25 text-[#2DD4BF] px-3 py-1.5 rounded-full font-bold flex items-center gap-1 transition-colors"
+                  className="text-caption bg-[#0F766E]/10 hover:bg-[#0F766E]/20 text-[#0F766E] px-3 py-1.5 rounded-full font-semibold flex items-center gap-1 transition-colors"
                 >
-                  <UserPlus size={14} /> Adicionar Amigo
+                  <UserPlus size={14} strokeWidth={2} /> Adicionar Amigo
                 </button>
               </div>
 
               {showAddMemberSection && (
-                <div className="mb-4 bg-[#141923] rounded-2xl p-4 border border-[#2DD4BF]/30 space-y-3 animate-fade-in">
+                <div className="mb-4 ds-card-sm space-y-3 animate-fade-in">
                   <div className="flex justify-between items-center">
-                    <p className="text-xs font-bold text-gray-300 uppercase tracking-wider">
+                    <p className="text-caption font-semibold text-[var(--text-secondary)] uppercase tracking-wider">
                       Selecionar dos seus Amigos
                     </p>
                     <button
                       type="button"
                       onClick={() => setIsCreateFriendOpen(true)}
-                      className="text-xs text-[#2DD4BF] font-bold flex items-center gap-1 hover:underline"
+                      className="text-caption text-[#0F766E] font-semibold flex items-center gap-1 hover:underline"
                     >
-                      <Plus size={14} /> Criar Novo Amigo
+                      <Plus size={14} strokeWidth={2} /> Criar Novo Amigo
                     </button>
                   </div>
 
                   {amigosForaDoGrupo.length === 0 ? (
-                    <div className="bg-[#1c1c1e] rounded-xl p-3 text-center">
-                      <p className="text-xs text-gray-400 mb-2">
+                    <div className="bg-[var(--bg-subtle)] rounded-xl p-4 text-center border border-[var(--border-color)]">
+                      <p className="text-caption text-[var(--text-secondary)] mb-3">
                         Todos os seus amigos cadastrados já estão neste grupo!
                       </p>
                       <button
                         type="button"
                         onClick={() => setIsCreateFriendOpen(true)}
-                        className="bg-[#2DD4BF] text-[#05080f] px-4 py-2 rounded-xl text-xs font-bold inline-flex items-center gap-1.5"
+                        className="ds-btn-primary px-4 text-caption"
                       >
-                        <UserPlus size={14} /> Cadastrar Novo Amigo
+                        <UserPlus size={15} strokeWidth={2} /> Cadastrar Novo Amigo
                       </button>
                     </div>
                   ) : (
@@ -646,7 +647,7 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
                         return (
                           <div
                             key={amigo.id}
-                            className="bg-[#1c1c1e] p-2.5 rounded-xl flex items-center justify-between border border-white/5"
+                            className="bg-[var(--bg-subtle)] p-2.5 rounded-xl flex items-center justify-between border border-[var(--border-color)]"
                           >
                             <div className="flex items-center gap-2.5">
                               <div
@@ -655,7 +656,7 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
                                     ? undefined
                                     : { backgroundColor: getAvatarColor(corAmigo) }
                                 }
-                                className="w-8 h-8 rounded-full overflow-hidden flex items-center justify-center font-bold text-white text-xs shrink-0"
+                                className="w-9 h-9 rounded-full overflow-hidden flex items-center justify-center font-bold text-white text-caption shrink-0"
                               >
                                 {amigo.avatar_url ? (
                                   <img
@@ -669,24 +670,26 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
                               </div>
                               <div>
                                 <div className="flex items-center gap-1">
-                                  <p className="text-xs font-bold text-white">{nomeAmigo}</p>
+                                  <p className="text-body2 font-semibold text-[var(--text-primary)]">
+                                    {nomeAmigo}
+                                  </p>
                                   {(amigo.has_account || amigo.is_registered) && (
-                                    <BadgeCheck size={12} className="text-[#2DD4BF] fill-[#2DD4BF]/20 shrink-0" />
+                                    <BadgeCheck size={13} strokeWidth={2} className="text-[#0F766E] shrink-0" />
                                   )}
                                 </div>
-                                {tel && <p className="text-[10px] text-gray-500">{tel}</p>}
+                                {tel && <p className="text-caption text-[var(--text-secondary)]">{tel}</p>}
                               </div>
                             </div>
                             <button
                               onClick={() => handleSelectExistingFriend(amigo.id)}
                               disabled={adding}
-                              className="bg-[#2DD4BF]/20 hover:bg-[#2DD4BF] text-[#2DD4BF] hover:text-[#05080f] px-3 py-1.5 rounded-lg text-xs font-bold transition-colors flex items-center gap-1"
+                              className="bg-[#0F766E]/10 hover:bg-[#0F766E] text-[#0F766E] hover:text-white px-3 py-1.5 rounded-xl text-caption font-semibold transition-colors flex items-center gap-1"
                             >
                               {adding ? (
-                                <LoaderCircle size={13} className="animate-spin" />
+                                <LoaderCircle size={13} strokeWidth={2} className="animate-spin" />
                               ) : (
                                 <>
-                                  <Plus size={13} /> Incluir
+                                  <Plus size={13} strokeWidth={2} /> Incluir
                                 </>
                               )}
                             </button>
@@ -700,14 +703,14 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
 
               <div className="space-y-2.5">
                 {memberBalances.length === 0 ? (
-                  <div className="bg-[#1c1c1e] p-5 rounded-2xl border border-white/5 text-center">
-                    <Users size={24} className="text-gray-600 mx-auto mb-2" />
-                    <p className="text-gray-400 text-xs mb-3">
+                  <div className="ds-card text-center">
+                    <Users size={24} strokeWidth={2} className="text-[var(--text-secondary)] mx-auto mb-2" />
+                    <p className="text-[var(--text-secondary)] text-caption mb-3">
                       Nenhum amigo adicionado a este grupo ainda.
                     </p>
                     <button
                       onClick={() => setShowAddMemberSection(true)}
-                      className="text-xs text-[#2DD4BF] font-bold hover:underline"
+                      className="text-caption text-[#0F766E] font-semibold hover:underline"
                     >
                       + Selecionar ou cadastrar amigos
                     </button>
@@ -721,14 +724,14 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
                     return (
                       <div
                         key={m.friendId}
-                        className="bg-[#1c1c1e] p-3 sm:p-3.5 rounded-2xl border border-white/5 flex items-center justify-between gap-2"
+                        className="ds-card-sm flex items-center justify-between gap-2"
                       >
-                        <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1 pr-1">
+                        <div className="flex items-center gap-3 min-w-0 flex-1 pr-1">
                           <div
                             style={
                               memberAvatar ? undefined : { backgroundColor: getAvatarColor(m.color) }
                             }
-                            className="w-9 h-9 sm:w-10 sm:h-10 rounded-full overflow-hidden flex items-center justify-center font-bold text-white text-xs sm:text-sm shrink-0"
+                            className="w-10 h-10 rounded-full overflow-hidden flex items-center justify-center font-bold text-white text-body2 shrink-0"
                           >
                             {memberAvatar ? (
                               <img
@@ -742,14 +745,11 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
                           </div>
                           <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-1.5 min-w-0">
-                              <p className="font-semibold text-white text-xs sm:text-sm truncate">{m.name}</p>
-                              {Boolean(
-                                (m as any).has_account ||
-                                  (m as any).is_registered ||
-                                  friendObj?.has_account
-                              )}
+                              <p className="font-semibold text-[var(--text-primary)] text-body2 truncate">
+                                {m.name}
+                              </p>
                             </div>
-                            <p className="text-[10px] sm:text-[11px] text-gray-500 truncate">
+                            <p className="text-caption text-[var(--text-secondary)] truncate">
                               {m.pendingCount > 0
                                 ? 'Dividindo despesas do grupo'
                                 : 'Sem pendências abertas'}
@@ -757,25 +757,25 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
                           </div>
                         </div>
 
-                        <div className="text-right shrink-0 flex items-center gap-1.5 sm:gap-2">
+                        <div className="text-right shrink-0 flex items-center gap-2">
                           <div>
                             {deveVoce ? (
                               <>
-                                <p className="text-xs font-bold text-[#2DD4BF] tabular-nums">
+                                <p className="text-body2 font-display font-bold text-[#10B981] tabular-nums">
                                   Deve R$ {moneyConverter(m.owesYou)}
                                 </p>
-                                <p className="text-[10px] text-gray-500">
+                                <p className="text-caption text-[var(--text-secondary)]">
                                   {m.pendingCount}{' '}
                                   {m.pendingCount === 1 ? 'pendente' : 'pendentes'}
                                 </p>
                               </>
                             ) : voceDeve ? (
-                              <p className="text-xs font-bold text-red-400 tabular-nums">
+                              <p className="text-body2 font-display font-bold text-[#F43F5E] tabular-nums">
                                 Você deve R$ {moneyConverter(Math.abs(m.owesYou))}
                               </p>
                             ) : (
-                              <span className="text-xs text-[#2DD4BF] flex items-center gap-1 font-medium">
-                                <CheckCircle2 size={13} /> Quitado
+                              <span className="text-caption text-[#10B981] flex items-center gap-1 font-semibold">
+                                <CheckCircle2 size={14} strokeWidth={2} /> Quitado
                               </span>
                             )}
                           </div>
@@ -783,10 +783,10 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
                           {deveVoce && (
                             <button
                               onClick={() => handleQuitarMembroNoGrupo(m.friendId, m.owesYou, m.name)}
-                              className="p-1.5 sm:p-2 bg-[#2DD4BF]/15 text-[#2DD4BF] hover:bg-[#2DD4BF]/25 rounded-xl transition-colors shrink-0"
+                              className="p-2 bg-[var(--emerald-bg)] text-[#10B981] border border-[var(--emerald-border)] hover:opacity-90 rounded-xl transition-colors shrink-0"
                               title="Confirmar que este membro te pagou"
                             >
-                              <DollarSign size={14} />
+                              <DollarSign size={16} strokeWidth={2} />
                             </button>
                           )}
 
@@ -801,10 +801,10 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
                                   amount: Math.abs(m.owesYou),
                                 })
                               }
-                              className="px-2.5 py-1.5 bg-red-500/20 text-red-300 hover:bg-red-500/30 rounded-xl text-[11px] font-bold flex items-center gap-1 transition-colors shrink-0"
+                              className="px-3 py-1.5 bg-[var(--rose-bg)] text-[#F43F5E] border border-[var(--rose-border)] hover:opacity-90 rounded-xl text-caption font-semibold flex items-center gap-1 transition-colors shrink-0"
                               title="Pagar mediante comprovante"
                             >
-                              <Upload size={12} /> Pagar
+                              <Upload size={13} strokeWidth={2} /> Pagar
                             </button>
                           )}
                         </div>
@@ -817,13 +817,13 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
 
             {/* Rotas de Acerto Direto entre Participantes */}
             {grupo.transfers && grupo.transfers.length > 0 && (
-              <div className="bg-[#141923] rounded-2xl p-4 border border-[#2DD4BF]/20">
+              <div className="ds-card-sm">
                 <div className="flex justify-between items-center mb-3">
-                  <h4 className="text-white font-bold text-sm flex items-center gap-2">
-                    <QrCode size={16} className="text-[#2DD4BF]" />
+                  <h4 className="text-[var(--text-primary)] font-semibold text-body2 flex items-center gap-2">
+                    <QrCode size={16} strokeWidth={2} className="text-[#0F766E]" />
                     Rotas de Acerto (Pix)
                   </h4>
-                  <span className="text-[10px] bg-[#2DD4BF]/15 text-[#2DD4BF] px-2 py-0.5 rounded-full font-bold">
+                  <span className="text-caption bg-[#0F766E]/10 text-[#0F766E] px-2.5 py-0.5 rounded-full font-semibold">
                     {grupo.transfers.length} {grupo.transfers.length === 1 ? 'repasse' : 'repasses'}
                   </span>
                 </div>
@@ -831,20 +831,20 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
                   {grupo.transfers.map((t, idx) => (
                     <div
                       key={idx}
-                      className="bg-[#1c1c1e] p-3 rounded-xl flex items-center justify-between border border-white/5"
+                      className="bg-[var(--bg-subtle)] p-3 rounded-xl flex items-center justify-between border border-[var(--border-color)]"
                     >
-                      <div className="flex items-center gap-2 text-xs text-white font-medium">
-                        <span className="font-bold text-red-400">{t.fromName}</span>
-                        <ArrowRight size={14} className="text-gray-500" />
-                        <span className="font-bold text-[#2DD4BF]">{t.toName}</span>
+                      <div className="flex items-center gap-2 text-caption font-medium">
+                        <span className="font-semibold text-[#F43F5E]">{t.fromName}</span>
+                        <ArrowRight size={14} strokeWidth={2} className="text-[var(--text-secondary)]" />
+                        <span className="font-semibold text-[#10B981]">{t.toName}</span>
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className="text-sm font-bold text-white">
+                        <span className="text-body2 font-display font-bold text-[var(--text-primary)]">
                           R$ {moneyConverter(t.amount)}
                         </span>
                         <button
                           onClick={() => handleOpenTransferPix(t)}
-                          className="bg-[#2DD4BF]/20 text-[#2DD4BF] hover:bg-[#2DD4BF]/30 px-2.5 py-1 rounded-lg text-[11px] font-bold"
+                          className="bg-[#0F766E] text-white hover:bg-[#115E59] px-3 py-1.5 rounded-xl text-caption font-semibold transition-colors"
                         >
                           {t.fromName === 'Você' ? 'Pagar' : 'Pix'}
                         </button>
@@ -858,8 +858,8 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
             {/* Rachas no Grupo */}
             <div>
               <div className="flex justify-between items-center mb-3">
-                <h4 className="text-white font-bold text-base">Rachas no Grupo</h4>
-                <span className="text-xs text-[#2DD4BF] font-medium">
+                <h4 className="text-[var(--text-primary)] text-h2">Rachas no Grupo</h4>
+                <span className="text-caption text-[#0F766E] font-semibold">
                   {expensesFiltradas.length}{' '}
                   {expensesFiltradas.length === 1 ? 'racha' : 'rachas'}
                 </span>
@@ -867,7 +867,7 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
 
               {/* Botões de Filtros Rápidos de Status no Grupo */}
               {expensesWithStatus.length > 0 && (
-                <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto pb-2 scrollbar-hide mb-2.5">
+                <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-hide mb-2.5">
                   {botoesFiltroGrupo.map((btn) => {
                     const isActive = filtroStatusGrupo === btn.id;
                     const Icon = btn.icon;
@@ -876,24 +876,25 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
                         key={btn.id}
                         type="button"
                         onClick={() => setFiltroStatusGrupo(btn.id)}
-                        className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-1.5 shrink-0 ${
+                        className={`px-3.5 py-2 rounded-xl text-caption font-semibold whitespace-nowrap transition-all flex items-center gap-1.5 shrink-0 ${
                           isActive
-                            ? 'bg-[#2DD4BF] text-[#05080f] font-bold shadow-sm'
-                            : 'bg-[#1c1c1e] text-gray-400 hover:text-white border border-white/5'
+                            ? 'bg-[#0F766E] text-white shadow-sm'
+                            : 'bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] border border-[var(--border-color)]'
                         }`}
                       >
                         {Icon && (
                           <Icon
-                            size={13}
-                            className={isActive ? 'text-[#05080f]' : btn.color}
+                            size={14}
+                            strokeWidth={2}
+                            className={isActive ? 'text-white' : btn.color}
                           />
                         )}
                         <span>{btn.label}</span>
                         <span
-                          className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                          className={`text-caption px-1.5 py-0.2 rounded-full font-semibold ${
                             isActive
-                              ? 'bg-[#05080f]/20 text-[#05080f]'
-                              : 'bg-white/5 text-gray-400'
+                              ? 'bg-white/20 text-white'
+                              : 'bg-[var(--bg-subtle)] text-[var(--text-secondary)]'
                           }`}
                         >
                           {btn.count}
@@ -905,16 +906,16 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
               )}
 
               {expensesWithStatus.length === 0 ? (
-                <div className="bg-[#1c1c1e] p-6 rounded-2xl border border-white/5 text-center">
-                  <p className="text-gray-500 text-sm italic">
+                <div className="ds-card text-center">
+                  <p className="text-[var(--text-secondary)] text-body2">
                     Nenhuma despesa registrada neste grupo. Clique em "+ Novo Racha" acima!
                   </p>
                 </div>
               ) : expensesFiltradas.length === 0 ? (
-                <div className="bg-[#1c1c1e] p-5 rounded-2xl border border-white/5 text-center">
-                  <p className="text-gray-400 text-xs">
+                <div className="ds-card text-center">
+                  <p className="text-[var(--text-secondary)] text-caption">
                     Nenhum racha encontrado com o filtro{' '}
-                    <span className="text-[#2DD4BF] font-semibold">
+                    <span className="text-[#0F766E] font-semibold">
                       {filtroStatusGrupo === 'a_pagar'
                         ? 'A Pagar'
                         : filtroStatusGrupo === 'a_receber'
@@ -925,7 +926,7 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
                   </p>
                 </div>
               ) : (
-                <div className="space-y-2.5">
+                <div className="space-y-3">
                   {expensesFiltradas.map(({ expense, corridaCompleta, userStatus, corridaParticipantes }) => (
                     <RideCard
                       key={expense.id}
@@ -933,6 +934,7 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
                       tag={corridaCompleta.tag}
                       titulo={corridaCompleta.titulo}
                       valorTotal={moneyConverter(corridaCompleta.valorTotal)}
+                      paidByName={corridaCompleta.paidByName}
                       userStatus={userStatus}
                       participantes={corridaParticipantes}
                       onClick={() => setCorridaSelecionada(corridaCompleta)}
@@ -1023,7 +1025,7 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
         onClose={() => setIsEditAvatarOpen(false)}
         currentAvatarUrl={grupo?.avatar_url}
         title="Ícone do Grupo"
-        maskShape="square"
+        maskShape="circle"
         onSave={handleSaveGroupAvatar}
         onDelete={grupo?.avatar_url ? handleDeleteGroupAvatar : undefined}
       />

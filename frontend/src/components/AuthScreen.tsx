@@ -107,7 +107,7 @@ export function AuthScreen({ onLogin }: { onLogin: () => void }) {
   // Tela separada de Redefinição de Senha
   if (step === 'reset') {
     return (
-      <div className="min-h-screen bg-[#05080f] flex flex-col px-4 sm:px-6 py-6 sm:py-8 pt-safe pb-safe animate-slide-up overflow-y-auto">
+      <div className="min-h-screen bg-[var(--bg-app)] flex flex-col px-6 py-8 pt-safe pb-safe animate-slide-up overflow-y-auto">
         <div className="max-w-md w-full mx-auto flex-1 flex flex-col justify-center">
           <button
             type="button"
@@ -116,283 +116,287 @@ export function AuthScreen({ onLogin }: { onLogin: () => void }) {
               setSuccessMsg('');
               setStep('login');
             }}
-            className="self-start mb-6 flex items-center gap-1.5 text-gray-400 hover:text-white text-sm font-medium"
+            className="self-start mb-6 flex items-center gap-1.5 text-[var(--text-secondary)] hover:text-[var(--text-primary)] text-sm font-medium"
           >
-            <ChevronLeft size={20} /> Voltar para o Login
+            <ChevronLeft size={20} strokeWidth={2} /> Voltar para o Login
           </button>
 
-          <div className="mb-8 text-center">
-            <div className="w-16 h-16 bg-[#2DD4BF]/15 text-[#2DD4BF] border border-[#2DD4BF]/30 rounded-3xl mx-auto mb-4 flex items-center justify-center">
-              <KeyRound size={30} />
+          <div className="ds-card p-6 sm:p-8">
+            <div className="mb-6 text-center">
+              <div className="w-16 h-16 bg-[#CCFBF1] text-[#0F766E] rounded-full mx-auto mb-4 flex items-center justify-center">
+                <KeyRound size={28} strokeWidth={2} />
+              </div>
+              <h1 className="text-h1 text-[var(--text-primary)]">Redefinir Senha</h1>
+              <p className="text-[var(--text-secondary)] mt-1 text-sm">
+                Informe seu e-mail ou WhatsApp cadastrado para criar uma nova senha
+              </p>
             </div>
-            <h1 className="text-2xl font-bold text-white">Redefinir Senha</h1>
-            <p className="text-gray-400 mt-1 text-sm">
-              Informe seu e-mail ou WhatsApp cadastrado para criar uma nova senha
-            </p>
+
+            {errorMsg && (
+              <div className="mb-4 bg-[var(--rose-bg)] border border-[var(--rose-border)] text-[#F43F5E] rounded-xl p-3.5 flex items-center gap-2.5 text-sm">
+                <AlertCircle size={18} strokeWidth={2} className="shrink-0" />
+                <span>{errorMsg}</span>
+              </div>
+            )}
+
+            {successMsg && (
+              <div className="mb-4 bg-[var(--emerald-bg)] border border-[var(--emerald-border)] text-[#10B981] rounded-xl p-3.5 flex items-center gap-2.5 text-sm">
+                <CheckCircle size={18} strokeWidth={2} className="shrink-0" />
+                <span>{successMsg}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="h-12 bg-[var(--bg-subtle)] rounded-xl px-4 flex items-center border border-[var(--border-color)] focus-within:border-[#0F766E] focus-within:bg-[var(--bg-surface)] transition-all">
+                <Mail size={18} strokeWidth={2} className="text-[var(--text-secondary)] mr-3 shrink-0" />
+                <input
+                  type="text"
+                  placeholder="Seu E-mail ou WhatsApp (com DDD)"
+                  required
+                  value={formData.email}
+                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  className="bg-transparent w-full outline-none text-[var(--text-primary)] placeholder:text-[var(--text-secondary)] text-sm"
+                />
+              </div>
+
+              <div className="h-12 bg-[var(--bg-subtle)] rounded-xl px-4 flex items-center border border-[var(--border-color)] focus-within:border-[#0F766E] focus-within:bg-[var(--bg-surface)] transition-all">
+                <Lock size={18} strokeWidth={2} className="text-[var(--text-secondary)] mr-3 shrink-0" />
+                <input
+                  type="password"
+                  placeholder="Nova Senha"
+                  required
+                  value={formData.password}
+                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                  className="bg-transparent w-full outline-none text-[var(--text-primary)] placeholder:text-[var(--text-secondary)] text-sm"
+                />
+              </div>
+
+              <div className="h-12 bg-[var(--bg-subtle)] rounded-xl px-4 flex items-center border border-[var(--border-color)] focus-within:border-[#0F766E] focus-within:bg-[var(--bg-surface)] transition-all">
+                <Lock size={18} strokeWidth={2} className="text-[var(--text-secondary)] mr-3 shrink-0" />
+                <input
+                  type="password"
+                  placeholder="Confirmar Nova Senha"
+                  required
+                  value={formData.confirmPassword}
+                  onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
+                  className="bg-transparent w-full outline-none text-[var(--text-primary)] placeholder:text-[var(--text-secondary)] text-sm"
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={isLoading}
+                className="w-full ds-btn-primary mt-2"
+              >
+                {isLoading ? <LoaderCircle className="animate-spin" size={20} strokeWidth={2} /> : 'Salvar Nova Senha'}
+              </button>
+            </form>
           </div>
-
-          {errorMsg && (
-            <div className="mb-4 bg-red-500/10 border border-red-500/30 text-red-400 rounded-xl p-3.5 flex items-center gap-2.5 text-sm">
-              <AlertCircle size={18} className="shrink-0" />
-              <span>{errorMsg}</span>
-            </div>
-          )}
-
-          {successMsg && (
-            <div className="mb-4 bg-[#34C759]/15 border border-[#34C759]/30 text-[#34C759] rounded-xl p-3.5 flex items-center gap-2.5 text-sm">
-              <CheckCircle size={18} className="shrink-0" />
-              <span>{successMsg}</span>
-            </div>
-          )}
-
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="bg-[#1c1c1e] rounded-xl p-4 flex items-center text-white border border-white/5 focus-within:border-[#2DD4BF]">
-              <Mail size={20} className="text-gray-400 mr-3 shrink-0" />
-              <input
-                type="text"
-                placeholder="Seu E-mail ou WhatsApp (com DDD)"
-                required
-                value={formData.email}
-                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                className="bg-transparent w-full outline-none text-white"
-              />
-            </div>
-
-            <div className="bg-[#1c1c1e] rounded-xl p-4 flex items-center text-white border border-white/5 focus-within:border-[#2DD4BF]">
-              <Lock size={20} className="text-gray-400 mr-3 shrink-0" />
-              <input
-                type="password"
-                placeholder="Nova Senha"
-                required
-                value={formData.password}
-                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                className="bg-transparent w-full outline-none text-white"
-              />
-            </div>
-
-            <div className="bg-[#1c1c1e] rounded-xl p-4 flex items-center text-white border border-white/5 focus-within:border-[#2DD4BF]">
-              <Lock size={20} className="text-gray-400 mr-3 shrink-0" />
-              <input
-                type="password"
-                placeholder="Confirmar Nova Senha"
-                required
-                value={formData.confirmPassword}
-                onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
-                className="bg-transparent w-full outline-none text-white"
-              />
-            </div>
-
-            <button
-              type="submit"
-              disabled={isLoading}
-              className="w-full bg-[#2DD4BF] hover:bg-[#25b5a3] text-[#05080f] font-bold py-4 rounded-xl mt-4 flex justify-center items-center transition-colors disabled:opacity-50"
-            >
-              {isLoading ? <LoaderCircle className="animate-spin" /> : 'Salvar Nova Senha'}
-            </button>
-          </form>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#05080f] flex flex-col justify-center px-4 sm:px-6 py-6 sm:py-10 pt-safe pb-safe overflow-y-auto">
+    <div className="min-h-screen bg-[var(--bg-app)] flex flex-col justify-center px-6 py-8 pt-safe pb-safe overflow-y-auto">
       <div className="max-w-md w-full mx-auto my-auto">
         <div className="mb-8 text-center">
           <img
             src={appIcon}
             alt="RachApp"
-            className="w-24 h-24 rounded-3xl mx-auto mb-4 shadow-lg shadow-teal-500/20 object-cover border border-white/10"
+            className="w-20 h-20 rounded-2xl mx-auto mb-4 shadow-md object-cover border border-[var(--border-color)]"
           />
-          <h1 className="text-3xl font-bold text-white">RachApp</h1>
-          <p className="text-gray-400 mt-2 text-sm">
+          <h1 className="text-display text-[var(--text-primary)]">RachApp</h1>
+          <p className="text-[var(--text-secondary)] mt-2 text-sm">
             {step === 'login' && 'Faça login na sua conta para acessar seus rachas'}
             {step === 'register' && 'Crie sua conta gratuita'}
             {step === 'verify' && 'Verifique seu número de WhatsApp'}
           </p>
         </div>
 
-        {errorMsg && (
-          <div className="mb-4 bg-red-500/10 border border-red-500/30 text-red-400 rounded-xl p-3.5 text-sm space-y-2">
-            <div className="flex items-center gap-2.5">
-              <AlertCircle size={18} className="shrink-0" />
-              <span>
-                {errorMsg === 'Network Error'
-                  ? `Não foi possível conectar ao servidor (${getApiBaseUrl()}).`
-                  : errorMsg}
-              </span>
-            </div>
-            {errorMsg === 'Network Error' && (
-              <button
-                type="button"
-                onClick={() => setShowServerConfig(true)}
-                className="text-xs text-[#2DD4BF] underline font-semibold block"
-              >
-                Configurar endereço do servidor
-              </button>
-            )}
-          </div>
-        )}
-
-        {showServerConfig && (
-          <div className="mb-4 bg-[#1c1c1e] border border-white/10 rounded-xl p-3.5 space-y-2.5">
-            <label className="text-xs text-gray-400 font-bold uppercase flex items-center gap-1.5">
-              <Server size={13} className="text-[#2DD4BF]" /> URL da API do Servidor
-            </label>
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={serverUrlInput}
-                onChange={(e) => setServerUrlInput(e.target.value)}
-                placeholder="http://SEU_IP_VPS:5000/api"
-                className="flex-1 bg-[#2c2c2e] text-white text-xs rounded-lg px-3 py-2 outline-none border border-white/10 focus:border-[#2DD4BF]"
-              />
-              <button
-                type="button"
-                onClick={() => {
-                  const updated = setCustomApiUrl(serverUrlInput);
-                  setServerUrlInput(updated);
-                  setShowServerConfig(false);
-                  setErrorMsg('');
-                }}
-                className="bg-[#2DD4BF] text-[#05080f] text-xs font-bold px-3 py-2 rounded-lg"
-              >
-                Salvar
-              </button>
-            </div>
-          </div>
-        )}
-
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {step !== 'verify' && (
-            <>
-              {step === 'register' && (
-                <>
-                  <div className="bg-[#1c1c1e] rounded-xl p-4 flex items-center text-white border border-white/5 focus-within:border-[#2DD4BF]">
-                    <User size={20} className="text-gray-400 mr-3 shrink-0" />
-                    <input
-                      type="text"
-                      placeholder="Seu Nome"
-                      required
-                      value={formData.name}
-                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                      className="bg-transparent w-full outline-none text-white"
-                    />
-                  </div>
-                  <div className="bg-[#1c1c1e] rounded-xl p-4 flex items-center text-white border border-white/5 focus-within:border-[#2DD4BF]">
-                    <Phone size={20} className="text-gray-400 mr-3 shrink-0" />
-                    <input
-                      type="tel"
-                      placeholder="WhatsApp ex: (85) 99999-8888"
-                      required
-                      value={formData.phone}
-                      onChange={(e) =>
-                        setFormData({ ...formData, phone: formatPhoneBR(e.target.value) })
-                      }
-                      className="bg-transparent w-full outline-none text-white"
-                    />
-                  </div>
-                </>
+        <div className="ds-card p-6 sm:p-8">
+          {errorMsg && (
+            <div className="mb-4 bg-[var(--rose-bg)] border border-[var(--rose-border)] text-[#F43F5E] rounded-xl p-3.5 text-sm space-y-2">
+              <div className="flex items-center gap-2.5">
+                <AlertCircle size={18} strokeWidth={2} className="shrink-0" />
+                <span>
+                  {errorMsg === 'Network Error'
+                    ? `Não foi possível conectar ao servidor (${getApiBaseUrl()}).`
+                    : errorMsg}
+                </span>
+              </div>
+              {errorMsg === 'Network Error' && (
+                <button
+                  type="button"
+                  onClick={() => setShowServerConfig(true)}
+                  className="text-xs text-[#0F766E] underline font-semibold block"
+                >
+                  Configurar endereço do servidor
+                </button>
               )}
+            </div>
+          )}
 
-              <div className="bg-[#1c1c1e] rounded-xl p-4 flex items-center text-white border border-white/5 focus-within:border-[#2DD4BF]">
-                <Mail size={20} className="text-gray-400 mr-3 shrink-0" />
+          {showServerConfig && (
+            <div className="mb-4 bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-xl p-3.5 space-y-2.5">
+              <label className="text-xs text-[var(--text-secondary)] font-semibold uppercase flex items-center gap-1.5">
+                <Server size={13} strokeWidth={2} className="text-[#0F766E]" /> URL da API do Servidor
+              </label>
+              <div className="flex gap-2">
                 <input
                   type="text"
-                  placeholder={step === 'login' ? 'E-mail ou WhatsApp' : 'E-mail'}
-                  required
-                  value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  className="bg-transparent w-full outline-none text-white"
+                  value={serverUrlInput}
+                  onChange={(e) => setServerUrlInput(e.target.value)}
+                  placeholder="http://SEU_IP_VPS:5000/api"
+                  className="flex-1 bg-[var(--bg-surface)] text-[var(--text-primary)] text-xs rounded-lg px-3 py-2 outline-none border border-[var(--border-color)] focus:border-[#0F766E]"
                 />
+                <button
+                  type="button"
+                  onClick={() => {
+                    const updated = setCustomApiUrl(serverUrlInput);
+                    setServerUrlInput(updated);
+                    setShowServerConfig(false);
+                    setErrorMsg('');
+                  }}
+                  className="bg-[#0F766E] text-white text-xs font-semibold px-3 py-2 rounded-lg"
+                >
+                  Salvar
+                </button>
               </div>
+            </div>
+          )}
 
-              <div>
-                <div className="bg-[#1c1c1e] rounded-xl p-4 flex items-center text-white border border-white/5 focus-within:border-[#2DD4BF]">
-                  <Lock size={20} className="text-gray-400 mr-3 shrink-0" />
-                  <input
-                    type="password"
-                    placeholder="Senha"
-                    required
-                    value={formData.password}
-                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                    className="bg-transparent w-full outline-none text-white"
-                  />
-                </div>
-                {step === 'login' && (
-                  <div className="flex justify-end mt-2">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setErrorMsg('');
-                        setStep('reset');
-                      }}
-                      className="text-xs text-[#2DD4BF] hover:underline font-medium"
-                    >
-                      Esqueceu sua senha?
-                    </button>
-                  </div>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            {step !== 'verify' && (
+              <>
+                {step === 'register' && (
+                  <>
+                    <div className="h-12 bg-[var(--bg-subtle)] rounded-xl px-4 flex items-center border border-[var(--border-color)] focus-within:border-[#0F766E] focus-within:bg-[var(--bg-surface)] transition-all">
+                      <User size={18} strokeWidth={2} className="text-[var(--text-secondary)] mr-3 shrink-0" />
+                      <input
+                        type="text"
+                        placeholder="Seu Nome"
+                        required
+                        value={formData.name}
+                        onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                        className="bg-transparent w-full outline-none text-[var(--text-primary)] placeholder:text-[var(--text-secondary)] text-sm"
+                      />
+                    </div>
+                    <div className="h-12 bg-[var(--bg-subtle)] rounded-xl px-4 flex items-center border border-[var(--border-color)] focus-within:border-[#0F766E] focus-within:bg-[var(--bg-surface)] transition-all">
+                      <Phone size={18} strokeWidth={2} className="text-[var(--text-secondary)] mr-3 shrink-0" />
+                      <input
+                        type="tel"
+                        placeholder="WhatsApp ex: (85) 99999-8888"
+                        required
+                        value={formData.phone}
+                        onChange={(e) =>
+                          setFormData({ ...formData, phone: formatPhoneBR(e.target.value) })
+                        }
+                        className="bg-transparent w-full outline-none text-[var(--text-primary)] placeholder:text-[var(--text-secondary)] text-sm"
+                      />
+                    </div>
+                  </>
                 )}
-              </div>
 
-              {step === 'register' && (
-                <div className="bg-[#1c1c1e] rounded-xl p-4 flex items-center text-white border border-white/5 focus-within:border-[#2DD4BF]">
-                  <QrCode size={20} className="text-gray-400 mr-3 shrink-0" />
+                <div className="h-12 bg-[var(--bg-subtle)] rounded-xl px-4 flex items-center border border-[var(--border-color)] focus-within:border-[#0F766E] focus-within:bg-[var(--bg-surface)] transition-all">
+                  <Mail size={18} strokeWidth={2} className="text-[var(--text-secondary)] mr-3 shrink-0" />
                   <input
                     type="text"
-                    placeholder="Sua Chave Pix (CPF, E-mail, Celular ou Aleatória)"
-                    value={formData.pix_key}
-                    onChange={(e) => setFormData({ ...formData, pix_key: e.target.value })}
-                    className="bg-transparent w-full outline-none text-white"
+                    placeholder={step === 'login' ? 'E-mail ou WhatsApp' : 'E-mail'}
+                    required
+                    value={formData.email}
+                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                    className="bg-transparent w-full outline-none text-[var(--text-primary)] placeholder:text-[var(--text-secondary)] text-sm"
                   />
                 </div>
-              )}
-            </>
-          )}
 
-          {step === 'verify' && (
-            <div className="space-y-4">
-              {simulatedCode && (
-                <div className="bg-[#2DD4BF]/10 border border-[#2DD4BF]/30 text-[#2DD4BF] rounded-xl p-3 text-xs flex items-center justify-center gap-1.5">
-                  <Phone size={14} className="shrink-0" />
-                  <strong>Código de Verificação:</strong>{' '}
-                  <span className="font-mono font-bold text-sm underline">{simulatedCode}</span>
+                <div>
+                  <div className="h-12 bg-[var(--bg-subtle)] rounded-xl px-4 flex items-center border border-[var(--border-color)] focus-within:border-[#0F766E] focus-within:bg-[var(--bg-surface)] transition-all">
+                    <Lock size={18} strokeWidth={2} className="text-[var(--text-secondary)] mr-3 shrink-0" />
+                    <input
+                      type="password"
+                      placeholder="Senha"
+                      required
+                      value={formData.password}
+                      onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                      className="bg-transparent w-full outline-none text-[var(--text-primary)] placeholder:text-[var(--text-secondary)] text-sm"
+                    />
+                  </div>
+                  {step === 'login' && (
+                    <div className="flex justify-end mt-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setErrorMsg('');
+                          setStep('reset');
+                        }}
+                        className="text-xs text-[#0F766E] hover:underline font-medium"
+                      >
+                        Esqueceu sua senha?
+                      </button>
+                    </div>
+                  )}
                 </div>
-              )}
-              <div className="bg-[#1c1c1e] rounded-xl p-4 flex items-center text-white border border-white/5 focus-within:border-[#2DD4BF]">
-                <CheckCircle size={20} className="text-gray-400 mr-3 shrink-0" />
-                <input
-                  type="text"
-                  placeholder="Código de 6 dígitos"
-                  required
-                  maxLength={6}
-                  value={formData.code}
-                  onChange={(e) => setFormData({ ...formData, code: e.target.value })}
-                  className="bg-transparent w-full outline-none text-center tracking-[0.5em] text-xl font-bold text-white"
-                />
-              </div>
-            </div>
-          )}
 
-          <button
-            type="submit"
-            disabled={isLoading}
-            className="w-full bg-[#2DD4BF] hover:bg-[#25b5a3] text-[#05080f] font-bold py-4 rounded-xl mt-6 flex justify-center items-center transition-colors disabled:opacity-50"
-          >
-            {isLoading ? (
-              <LoaderCircle className="animate-spin" />
-            ) : step === 'login' ? (
-              'Entrar'
-            ) : step === 'register' ? (
-              'Continuar'
-            ) : (
-              'Verificar e Entrar'
+                {step === 'register' && (
+                  <div className="h-12 bg-[var(--bg-subtle)] rounded-xl px-4 flex items-center border border-[var(--border-color)] focus-within:border-[#0F766E] focus-within:bg-[var(--bg-surface)] transition-all">
+                    <QrCode size={18} strokeWidth={2} className="text-[var(--text-secondary)] mr-3 shrink-0" />
+                    <input
+                      type="text"
+                      placeholder="Sua Chave Pix (CPF, E-mail, Celular ou Aleatória)"
+                      value={formData.pix_key}
+                      onChange={(e) => setFormData({ ...formData, pix_key: e.target.value })}
+                      className="bg-transparent w-full outline-none text-[var(--text-primary)] placeholder:text-[var(--text-secondary)] text-sm"
+                    />
+                  </div>
+                )}
+              </>
             )}
-          </button>
-        </form>
+
+            {step === 'verify' && (
+              <div className="space-y-4">
+                {simulatedCode && (
+                  <div className="bg-[#CCFBF1] text-[#0F766E] rounded-xl p-3 text-xs flex items-center justify-center gap-1.5">
+                    <Phone size={14} strokeWidth={2} className="shrink-0" />
+                    <strong>Código de Verificação:</strong>{' '}
+                    <span className="font-mono font-bold text-sm underline">{simulatedCode}</span>
+                  </div>
+                )}
+                <div className="h-12 bg-[var(--bg-subtle)] rounded-xl px-4 flex items-center border border-[var(--border-color)] focus-within:border-[#0F766E] focus-within:bg-[var(--bg-surface)] transition-all">
+                  <CheckCircle size={18} strokeWidth={2} className="text-[var(--text-secondary)] mr-3 shrink-0" />
+                  <input
+                    type="text"
+                    placeholder="Código de 6 dígitos"
+                    required
+                    maxLength={6}
+                    value={formData.code}
+                    onChange={(e) => setFormData({ ...formData, code: e.target.value })}
+                    className="bg-transparent w-full outline-none text-center tracking-[0.5em] text-lg font-display font-bold text-[var(--text-primary)]"
+                  />
+                </div>
+              </div>
+            )}
+
+            <button
+              type="submit"
+              disabled={isLoading}
+              className="w-full ds-btn-primary mt-6"
+            >
+              {isLoading ? (
+                <LoaderCircle className="animate-spin" size={20} strokeWidth={2} />
+              ) : step === 'login' ? (
+                'Entrar'
+              ) : step === 'register' ? (
+                'Continuar'
+              ) : (
+                'Verificar e Entrar'
+              )}
+            </button>
+          </form>
+        </div>
 
         {step !== 'verify' ? (
-          <p className="text-center text-gray-500 mt-8">
+          <p className="text-center text-sm text-[var(--text-secondary)] mt-6">
             {step === 'login' ? 'Não tem uma conta?' : 'Já tem uma conta?'}
             <button
               type="button"
@@ -400,17 +404,17 @@ export function AuthScreen({ onLogin }: { onLogin: () => void }) {
                 setErrorMsg('');
                 setStep(step === 'login' ? 'register' : 'login');
               }}
-              className="text-[#2DD4BF] font-bold ml-2 hover:underline"
+              className="text-[#0F766E] font-semibold ml-2 hover:underline"
             >
               {step === 'login' ? 'Criar Conta' : 'Fazer Login'}
             </button>
           </p>
         ) : (
-          <p className="text-center text-gray-500 mt-6">
+          <p className="text-center text-[var(--text-secondary)] mt-6">
             <button
               type="button"
               onClick={() => setStep('login')}
-              className="text-gray-400 hover:text-white text-sm underline"
+              className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] text-sm underline"
             >
               Voltar para Login
             </button>

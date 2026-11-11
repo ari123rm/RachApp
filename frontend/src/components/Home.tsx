@@ -112,7 +112,6 @@ export function Home({
     let isSubscribed = true;
     let isInitialSyncEvent = true;
     const unsub = dbService.sync.subscribe((st) => {
-      // Ignora o disparo síncrono inicial da inscrição para evitar duplo carregamento no mount
       if (isInitialSyncEvent) {
         isInitialSyncEvent = false;
         return;
@@ -145,52 +144,57 @@ export function Home({
     }
   };
 
-
   if (isLoading) {
     return (
-      <div className="flex flex-col items-center justify-center h-64 text-[#2DD4BF]">
-        <LoaderCircle size={40} className="animate-spin mb-4" />
-        <p className="text-gray-400">Calculando finanças...</p>
+      <div className="flex flex-col items-center justify-center h-64 text-[#0F766E]">
+        <LoaderCircle size={40} strokeWidth={2} className="animate-spin mb-4" />
+        <p className="text-sm font-medium text-[var(--text-secondary)]">Calculando finanças...</p>
       </div>
     );
   }
 
+  const totalReceber = Number(dashboard.totalAReceber || 0);
+  const totalPagar = Number(dashboard.totalAPagar || 0);
+  const saldoGeral = Number((totalReceber - totalPagar).toFixed(2));
+
   return (
     <div className="space-y-6">
       {/* Cabeçalho */}
-      <header className="flex justify-between items-center mt-1 sm:mt-2 gap-2 min-w-0">
-        <div className="min-w-0 flex-1 pr-1">
-          <h1 className="text-lg sm:text-xl font-bold text-white truncate">Olá, {nomeUsuario.split(' ')[0]}</h1>
-          <p className="text-xs text-gray-500 truncate">
+      <header className="flex justify-between items-center mt-1 gap-3 min-w-0">
+        <div className="min-w-0 flex-1">
+          <h1 className="text-h1 text-[var(--text-primary)] truncate">
+            Olá, {nomeUsuario.split(' ')[0]}
+          </h1>
+          <p className="text-body2 text-[var(--text-secondary)] truncate mt-0.5">
             {periodoSelecionado === 'all'
               ? 'Seu resumo de todos os meses'
               : `Seu resumo de ${formatarMesAno(periodoSelecionado)}`}
           </p>
         </div>
 
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-2.5 shrink-0">
           {/* Botão de Notificações */}
           {onOpenNotifications && (
             <button
               onClick={onOpenNotifications}
               title="Notificações"
-              className="relative w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-[#18202c] border border-gray-800 text-gray-300 hover:text-white flex items-center justify-center transition-colors shadow-sm shrink-0 active:scale-95"
+              className="relative w-10 h-10 rounded-full bg-[var(--bg-surface)] border border-[var(--border-color)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] flex items-center justify-center transition-colors shadow-sm shrink-0 active:scale-95"
             >
-              <Bell size={16} />
+              <Bell size={18} strokeWidth={2} />
               {unreadNotifCount > 0 && (
-                <span className="absolute -top-1 -right-1 min-w-[16px] h-[16px] px-1 rounded-full bg-[#2DD4BF] text-[#05080f] text-[9px] font-black flex items-center justify-center border-2 border-[#0a0f16]">
+                <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-[#F43F5E] text-white text-xs font-bold flex items-center justify-center border-2 border-[var(--bg-app)]">
                   {unreadNotifCount > 9 ? '9+' : unreadNotifCount}
                 </span>
               )}
             </button>
           )}
 
-          {/* Avatar que leva para a aba do Perfil */}
+          {/* Avatar Circular 40x40px que leva para a aba do Perfil */}
           <button
             type="button"
             onClick={onNavigateToProfile}
             title="Ir para o meu perfil"
-            className="w-8 h-8 sm:w-10 sm:h-10 bg-[#2DD4BF] text-[#05080f] rounded-full overflow-hidden flex items-center justify-center font-bold shadow-md border border-[#2DD4BF]/30 shrink-0 cursor-pointer hover:ring-2 hover:ring-[#2DD4BF] transition-all active:scale-95"
+            className="w-10 h-10 bg-[#0F766E] text-white rounded-full overflow-hidden flex items-center justify-center font-display font-bold shadow-sm border border-[#0F766E]/20 shrink-0 cursor-pointer hover:ring-2 hover:ring-[#0F766E]/40 transition-all active:scale-95"
           >
             {avatarUsuario ? (
               <img
@@ -199,7 +203,7 @@ export function Home({
                 className="w-full h-full object-cover"
               />
             ) : (
-              <span className="text-xs sm:text-sm uppercase font-black">{(nomeUsuario || 'U')[0]}</span>
+              <span className="text-sm uppercase font-bold">{(nomeUsuario || 'U')[0]}</span>
             )}
           </button>
         </div>
@@ -207,139 +211,150 @@ export function Home({
 
       {/* Banner de Atualização Disponível (Opcional / Não-bloqueante) */}
       {updateInfo && updateInfo.isNewer && (
-        <div className="bg-gradient-to-r from-[#2DD4BF]/15 via-sky-500/10 to-[#1c1c1e] border border-[#2DD4BF]/30 rounded-2xl p-3 sm:p-3.5 flex items-center justify-between gap-2.5 animate-fade-in shadow-md">
-          <div className="flex items-center gap-2.5 min-w-0 flex-1">
-            <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-[#2DD4BF]/20 text-[#2DD4BF] flex items-center justify-center shrink-0 border border-[#2DD4BF]/30">
-              <Sparkles size={16} />
+        <div className="ds-card p-4 border-[#0F766E]/30 flex items-center justify-between gap-3 animate-fade-in">
+          <div className="flex items-center gap-3 min-w-0 flex-1">
+            <div className="w-10 h-10 rounded-full bg-[#CCFBF1] text-[#0F766E] flex items-center justify-center shrink-0">
+              <Sparkles size={18} strokeWidth={2} />
             </div>
             <div className="min-w-0 flex-1">
-              <p className="text-white text-xs font-bold truncate">
+              <p className="font-display font-semibold text-sm text-[var(--text-primary)] truncate">
                 Nova versão disponível ({updateInfo.tagName})
               </p>
-              <p className="text-gray-400 text-[10px] truncate">
+              <p className="text-xs text-[var(--text-secondary)] truncate">
                 Atualização opcional com melhorias
               </p>
             </div>
           </div>
           <button
             onClick={onOpenUpdateModal}
-            className="bg-[#2DD4BF] hover:bg-[#25b5a3] text-[#05080f] px-3 py-1.5 rounded-xl text-xs font-bold transition-all active:scale-95 flex items-center gap-1 shrink-0 shadow-sm"
+            className="bg-[#0F766E] hover:bg-[#115E59] text-white px-3.5 py-2 rounded-xl text-xs font-semibold transition-all active:scale-95 flex items-center gap-1.5 shrink-0 shadow-sm"
           >
-            <Download size={13} />
+            <Download size={14} strokeWidth={2} />
             <span>Atualizar</span>
           </button>
         </div>
       )}
 
-      {/* Card Principal: Seletor de Período + A Receber e A Pagar */}
-      <div className="bg-gradient-to-br from-[#1A2b4c] via-[#241b3d] to-[#3B1F42] rounded-3xl p-4 sm:p-5 shadow-2xl relative overflow-hidden border border-white/5">
-        <div className="relative z-10 space-y-3.5 sm:space-y-4">
-          {/* Topo do Card: Título e Seletor de Mês / Todos */}
-          <div className="flex items-center justify-between gap-1.5 sm:gap-2">
-            <div className="flex items-center gap-1.5 text-gray-300 text-xs font-semibold shrink-0">
-              <Calendar size={13} className="text-[#2DD4BF] shrink-0" />
-              <span className="hidden xs:inline">Período:</span>
-            </div>
-
-            <div className="flex items-center gap-1.5 min-w-0">
-              <button
-                type="button"
-                onClick={() =>
-                  setPeriodoSelecionado(periodoSelecionado === 'all' ? ymAtual : 'all')
-                }
-                className={`px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-xl text-xs font-bold transition-colors border shrink-0 ${
-                  periodoSelecionado === 'all'
-                    ? 'bg-[#2DD4BF] text-[#05080f] border-[#2DD4BF]'
-                    : 'bg-white/10 text-gray-300 hover:bg-white/15 border-white/10'
-                }`}
-              >
-                Todos
-              </button>
-
-              <div className="relative min-w-0 max-w-[150px] sm:max-w-[200px]">
-                <select
-                  value={periodoSelecionado}
-                  onChange={(e) => setPeriodoSelecionado(e.target.value)}
-                  className="w-full appearance-none bg-[#121626]/80 hover:bg-[#121626] text-white text-xs font-bold pl-2.5 pr-6 py-1 sm:py-1.5 rounded-xl border border-white/15 outline-none focus:border-[#2DD4BF] transition-colors cursor-pointer truncate"
-                >
-                  <option value="all" className="bg-[#141923] text-white">
-                    Todos os meses
-                  </option>
-                  {mesesDisponiveis.map((ym) => (
-                    <option key={ym} value={ym} className="bg-[#141923] text-white">
-                      {formatarMesAno(ym, ymAtual)}
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown
-                  size={13}
-                  className="text-gray-400 pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2"
-                />
-              </div>
-            </div>
+      {/* Card Principal: Saldo Geral + Seletor de Período + A Receber e A Pagar */}
+      <div className="ds-card p-5 sm:p-6 space-y-5">
+        {/* Topo do Card: Saldo Líquido e Seletor de Mês / Todos */}
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <span className="text-xs font-medium text-[var(--text-secondary)] uppercase tracking-wider block">
+              Balanço Geral
+            </span>
+            <p
+              className={`text-display mt-1 tabular-nums ${
+                saldoGeral > 0.01
+                  ? 'text-[#10B981]'
+                  : saldoGeral < -0.01
+                  ? 'text-[#F43F5E]'
+                  : 'text-[var(--text-primary)]'
+              }`}
+            >
+              {saldoGeral > 0.01 ? '+ ' : saldoGeral < -0.01 ? '- ' : ''}R${' '}
+              {moneyConverter(Math.abs(saldoGeral))}
+            </p>
           </div>
 
-          {/* Cards A Receber e A Pagar */}
-          <div className="grid grid-cols-2 gap-2.5 sm:gap-3">
-            <div
-              role="button"
-              tabIndex={0}
-              onClick={() => onNavigateToRachas?.('a_receber')}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault();
-                  onNavigateToRachas?.('a_receber');
-                }
-              }}
-              className={`bg-white/10 backdrop-blur-md rounded-2xl p-3 sm:p-3.5 flex flex-col justify-between border border-white/10 min-w-0 transition-all select-none ${
-                onNavigateToRachas
-                  ? 'cursor-pointer hover:bg-white/15 active:scale-[0.98]'
-                  : ''
+          <div className="flex items-center gap-2 min-w-0">
+            <button
+              type="button"
+              onClick={() =>
+                setPeriodoSelecionado(periodoSelecionado === 'all' ? ymAtual : 'all')
+              }
+              className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors border shrink-0 ${
+                periodoSelecionado === 'all'
+                  ? 'bg-[#0F766E] text-white border-[#0F766E]'
+                  : 'bg-[var(--bg-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] border-[var(--border-color)]'
               }`}
-              title="Filtrar rachas a receber"
             >
-              <div className="flex items-center gap-1.5 sm:gap-2 mb-1.5 sm:mb-2 min-w-0">
-                <div className="w-7 h-7 sm:w-8 sm:h-8 bg-amber-400 rounded-full flex items-center justify-center text-[#05080f] shrink-0">
-                  <TrendingUp size={15} />
-                </div>
-                <p className="text-[10px] text-gray-300 uppercase font-bold tracking-wider truncate">
-                  A receber
-                </p>
-              </div>
-              <p className="text-amber-300 font-black text-lg sm:text-2xl tracking-tight truncate tabular-nums">
-                R$ {moneyConverter(Number(dashboard.totalAReceber || 0))}
-              </p>
-            </div>
+              Todos
+            </button>
 
-            <div
-              role="button"
-              tabIndex={0}
-              onClick={() => onNavigateToRachas?.('a_pagar')}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault();
-                  onNavigateToRachas?.('a_pagar');
-                }
-              }}
-              className={`bg-white/10 backdrop-blur-md rounded-2xl p-3 sm:p-3.5 flex flex-col justify-between border border-white/10 min-w-0 transition-all select-none ${
-                onNavigateToRachas
-                  ? 'cursor-pointer hover:bg-white/15 active:scale-[0.98]'
-                  : ''
-              }`}
-              title="Filtrar rachas a pagar"
-            >
-              <div className="flex items-center gap-1.5 sm:gap-2 mb-1.5 sm:mb-2 min-w-0">
-                <div className="w-7 h-7 sm:w-8 sm:h-8 bg-red-500 rounded-full flex items-center justify-center text-white shrink-0">
-                  <TrendingDown size={15} />
-                </div>
-                <p className="text-[10px] text-gray-300 uppercase font-bold tracking-wider truncate">
-                  A pagar
-                </p>
+            <div className="relative min-w-0 max-w-[160px] sm:max-w-[200px]">
+              <Calendar
+                size={13}
+                strokeWidth={2}
+                className="text-[#0F766E] pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2"
+              />
+              <select
+                value={periodoSelecionado}
+                onChange={(e) => setPeriodoSelecionado(e.target.value)}
+                className="w-full appearance-none bg-[var(--bg-subtle)] text-[var(--text-primary)] text-xs font-semibold pl-7 pr-6 py-1.5 rounded-xl border border-[var(--border-color)] outline-none focus:border-[#0F766E] transition-colors cursor-pointer truncate"
+              >
+                <option value="all">Todos os meses</option>
+                {mesesDisponiveis.map((ym) => (
+                  <option key={ym} value={ym}>
+                    {formatarMesAno(ym, ymAtual)}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown
+                size={13}
+                strokeWidth={2}
+                className="text-[var(--text-secondary)] pointer-events-none absolute right-2 top-1/2 -translate-y-1/2"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Cards Semânticos: A Receber (Emerald #10B981) e A Pagar (Rose #F43F5E) */}
+        <div className="grid grid-cols-2 gap-3 sm:gap-4">
+          <div
+            role="button"
+            tabIndex={0}
+            onClick={() => onNavigateToRachas?.('a_receber')}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                onNavigateToRachas?.('a_receber');
+              }
+            }}
+            className={`bg-[var(--emerald-bg)] rounded-2xl p-4 flex flex-col justify-between border border-[var(--emerald-border)] min-w-0 transition-all select-none ${
+              onNavigateToRachas ? 'cursor-pointer hover:opacity-90 active:scale-[0.98]' : ''
+            }`}
+            title="Filtrar rachas a receber"
+          >
+            <div className="flex items-center gap-2 mb-2 min-w-0">
+              <div className="w-8 h-8 bg-[#10B981] rounded-full flex items-center justify-center text-white shrink-0 shadow-sm">
+                <TrendingUp size={16} strokeWidth={2} />
               </div>
-              <p className="text-red-400 font-black text-lg sm:text-2xl tracking-tight truncate tabular-nums">
-                R$ {moneyConverter(Number(dashboard.totalAPagar || 0))}
+              <p className="text-xs text-[#10B981] font-semibold uppercase tracking-wider truncate">
+                A receber
               </p>
             </div>
+            <p className="font-display font-bold text-[#10B981] text-lg sm:text-2xl tracking-tight truncate tabular-nums">
+              R$ {moneyConverter(totalReceber)}
+            </p>
+          </div>
+
+          <div
+            role="button"
+            tabIndex={0}
+            onClick={() => onNavigateToRachas?.('a_pagar')}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                onNavigateToRachas?.('a_pagar');
+              }
+            }}
+            className={`bg-[var(--rose-bg)] rounded-2xl p-4 flex flex-col justify-between border border-[var(--rose-border)] min-w-0 transition-all select-none ${
+              onNavigateToRachas ? 'cursor-pointer hover:opacity-90 active:scale-[0.98]' : ''
+            }`}
+            title="Filtrar rachas a pagar"
+          >
+            <div className="flex items-center gap-2 mb-2 min-w-0">
+              <div className="w-8 h-8 bg-[#F43F5E] rounded-full flex items-center justify-center text-white shrink-0 shadow-sm">
+                <TrendingDown size={16} strokeWidth={2} />
+              </div>
+              <p className="text-xs text-[#F43F5E] font-semibold uppercase tracking-wider truncate">
+                A pagar
+              </p>
+            </div>
+            <p className="font-display font-bold text-[#F43F5E] text-lg sm:text-2xl tracking-tight truncate tabular-nums">
+              R$ {moneyConverter(totalPagar)}
+            </p>
           </div>
         </div>
       </div>
@@ -347,9 +362,9 @@ export function Home({
       {/* Seção Pendências com Amigos */}
       <div>
         <div className="flex justify-between items-center mb-4">
-          <h3 className="text-lg font-bold text-gray-200">Amigos com pendências</h3>
+          <h3 className="text-h2 text-[var(--text-primary)]">Amigos com pendências</h3>
           {dashboard.amigosDevedores.length > 0 && (
-            <span className="text-xs text-gray-500 font-medium">
+            <span className="text-caption text-[var(--text-secondary)]">
               {dashboard.amigosDevedores.length}{' '}
               {dashboard.amigosDevedores.length === 1 ? 'pendente' : 'pendentes'}
             </span>
@@ -357,20 +372,20 @@ export function Home({
         </div>
 
         {dashboard.amigosDevedores.length === 0 ? (
-          <div className="bg-[#1c1c1e] p-6 rounded-3xl border border-white/5 text-center">
-            <p className="text-gray-500 text-sm italic flex items-center justify-center gap-2">
-              <CheckCircle2 size={16} className="text-[#2DD4BF] shrink-0" />
-              <span>Nenhuma dívida pendente.</span>
+          <div className="ds-card p-6 text-center">
+            <p className="text-[var(--text-secondary)] text-sm flex items-center justify-center gap-2">
+              <CheckCircle2 size={18} strokeWidth={2} className="text-[#10B981] shrink-0" />
+              <span>Tudo em dia com seus amigos.</span>
             </p>
           </div>
         ) : (
           <div
             data-horizontal-scroll="true"
-            className="flex gap-3 sm:gap-4 overflow-x-auto pt-2 pb-3 px-1 scrollbar-hide -mt-1"
+            className="flex gap-4 overflow-x-auto pt-2 pb-3 px-1 scrollbar-hide -mt-1"
           >
             {dashboard.amigosDevedores.map((amigo) => {
               const nome = amigo.nome || amigo.name || 'Amigo';
-              const cor = amigo.cor || amigo.color || 'bg-sky-500';
+              const cor = amigo.cor || amigo.color || 'bg-teal-600';
               const divida = Number(amigo.divida || 0);
               const voceDeve = Number(amigo.voceDeve || 0);
               const saldoLiquido = Number((divida - voceDeve).toFixed(2));
@@ -409,14 +424,14 @@ export function Home({
                       });
                     }
                   }}
-                  className="flex flex-col items-center gap-1.5 min-w-[76px] max-w-[85px] sm:min-w-[85px] cursor-pointer active:scale-95 transition-transform shrink-0 select-none"
+                  className="flex flex-col items-center gap-2 min-w-[80px] max-w-[88px] cursor-pointer active:scale-95 transition-transform shrink-0 select-none"
                 >
                   <div className="relative">
                     <div
                       style={
                         amigo.avatar_url ? undefined : { backgroundColor: getAvatarColor(cor) }
                       }
-                      className="w-14 h-14 sm:w-16 sm:h-16 rounded-full overflow-hidden flex items-center justify-center shadow-lg border-2 border-[#05080f]"
+                      className="w-16 h-16 rounded-full overflow-hidden flex items-center justify-center shadow-sm border-2 border-[var(--bg-surface)]"
                     >
                       {amigo.avatar_url ? (
                         <img
@@ -425,29 +440,31 @@ export function Home({
                           className="w-full h-full object-cover"
                         />
                       ) : (
-                        <span className="text-xl sm:text-2xl font-black text-white">
+                        <span className="text-xl font-display font-bold text-white">
                           {nome[0]?.toUpperCase()}
                         </span>
                       )}
                     </div>
                     <div
-                      className={`absolute -top-1 -right-1 w-5 h-5 ${
-                        isVoceDeve ? 'bg-red-500' : 'bg-amber-500'
-                      } rounded-full border-2 border-[#05080f] flex items-center justify-center shadow-sm select-none`}
+                      className={`absolute -top-0.5 -right-0.5 w-5 h-5 ${
+                        isVoceDeve ? 'bg-[#F43F5E]' : 'bg-[#10B981]'
+                      } rounded-full border-2 border-[var(--bg-app)] flex items-center justify-center shadow-sm select-none`}
                     >
-                      <span className="text-[11px] font-black text-white leading-none select-none block">!</span>
+                      <span className="text-xs font-bold text-white leading-none select-none block">
+                        {isVoceDeve ? '-' : '+'}
+                      </span>
                     </div>
                   </div>
                   <div className="text-center w-full">
-                    <p className="text-xs font-semibold text-white truncate max-w-full flex items-center justify-center gap-1 mx-auto">
+                    <p className="text-xs font-semibold text-[var(--text-primary)] truncate max-w-full flex items-center justify-center gap-1 mx-auto">
                       <span className="truncate">{nome.split(' ')[0]}</span>
                       {(amigo.has_account || amigo.is_registered) && (
-                        <BadgeCheck size={13} className="text-[#2DD4BF] fill-[#2DD4BF]/20 shrink-0" />
+                        <BadgeCheck size={13} strokeWidth={2} className="text-[#0F766E] fill-[#CCFBF1] shrink-0" />
                       )}
                     </p>
                     <p
-                      className={`text-[11px] font-bold truncate tabular-nums ${
-                        isVoceDeve ? 'text-red-400' : 'text-amber-400'
+                      className={`text-xs font-display font-bold truncate tabular-nums mt-0.5 ${
+                        isVoceDeve ? 'text-[#F43F5E]' : 'text-[#10B981]'
                       }`}
                     >
                       R$ {moneyConverter(valorExibido)}
@@ -463,9 +480,9 @@ export function Home({
       {/* Seção Pendências em Grupos */}
       <div>
         <div className="flex justify-between items-center mb-4">
-          <h3 className="text-lg font-bold text-gray-200">Grupos com pendências</h3>
+          <h3 className="text-h2 text-[var(--text-primary)]">Grupos com pendências</h3>
           {dashboard.gruposPendentes.length > 0 && (
-            <span className="text-xs text-gray-500 font-medium">
+            <span className="text-caption text-[var(--text-secondary)]">
               {dashboard.gruposPendentes.length}{' '}
               {dashboard.gruposPendentes.length === 1 ? 'pendente' : 'pendentes'}
             </span>
@@ -473,16 +490,16 @@ export function Home({
         </div>
 
         {dashboard.gruposPendentes.length === 0 ? (
-          <div className="bg-[#1c1c1e] p-6 rounded-3xl border border-white/5 text-center">
-            <p className="text-gray-500 text-sm italic flex items-center justify-center gap-2">
-              <CheckCircle2 size={16} className="text-[#2DD4BF] shrink-0" />
+          <div className="ds-card p-6 text-center">
+            <p className="text-[var(--text-secondary)] text-sm flex items-center justify-center gap-2">
+              <CheckCircle2 size={18} strokeWidth={2} className="text-[#10B981] shrink-0" />
               <span>Nenhum grupo com pendências.</span>
             </p>
           </div>
         ) : (
           <div
             data-horizontal-scroll="true"
-            className="flex gap-3 sm:gap-4 overflow-x-auto pt-2 pb-3 px-1 scrollbar-hide -mt-1"
+            className="flex gap-4 overflow-x-auto pt-2 pb-3 px-1 scrollbar-hide -mt-1"
           >
             {dashboard.gruposPendentes.map((grupo) => {
               const nome = grupo.nome || grupo.name || 'Grupo';
@@ -508,12 +525,12 @@ export function Home({
                       setGrupoSelecionadoId(grupo.id);
                     }
                   }}
-                  className="flex flex-col items-center gap-1.5 min-w-[76px] max-w-[85px] sm:min-w-[85px] cursor-pointer active:scale-95 transition-transform shrink-0 select-none"
+                  className="flex flex-col items-center gap-2 min-w-[80px] max-w-[88px] cursor-pointer active:scale-95 transition-transform shrink-0 select-none"
                 >
                   <div className="relative">
                     <div
                       style={grupo.avatar_url ? undefined : { backgroundColor: cor }}
-                      className="w-14 h-14 sm:w-16 sm:h-16 rounded-full overflow-hidden flex items-center justify-center shadow-lg border-2 border-[#05080f]"
+                      className="w-16 h-16 rounded-full overflow-hidden flex items-center justify-center shadow-sm border-2 border-[var(--bg-surface)]"
                     >
                       {grupo.avatar_url ? (
                         <img
@@ -522,26 +539,28 @@ export function Home({
                           className="w-full h-full object-cover"
                         />
                       ) : (
-                        <span className="text-xl sm:text-2xl font-black text-white">
+                        <span className="text-xl font-display font-bold text-white">
                           {nome[0]?.toUpperCase()}
                         </span>
                       )}
                     </div>
                     <div
-                      className={`absolute -top-1 -right-1 w-5 h-5 ${
-                        isVoceDeve ? 'bg-red-500' : 'bg-amber-500'
-                      } rounded-full border-2 border-[#05080f] flex items-center justify-center shadow-sm select-none`}
+                      className={`absolute -top-0.5 -right-0.5 w-5 h-5 ${
+                        isVoceDeve ? 'bg-[#F43F5E]' : 'bg-[#10B981]'
+                      } rounded-full border-2 border-[var(--bg-app)] flex items-center justify-center shadow-sm select-none`}
                     >
-                      <span className="text-[11px] font-black text-white leading-none select-none block">!</span>
+                      <span className="text-xs font-bold text-white leading-none select-none block">
+                        {isVoceDeve ? '-' : '+'}
+                      </span>
                     </div>
                   </div>
                   <div className="text-center w-full">
-                    <p className="text-xs font-semibold text-white truncate max-w-full mx-auto">
+                    <p className="text-xs font-semibold text-[var(--text-primary)] truncate max-w-full mx-auto">
                       {nome}
                     </p>
                     <p
-                      className={`text-[11px] font-bold truncate tabular-nums ${
-                        isVoceDeve ? 'text-red-400' : 'text-amber-400'
+                      className={`text-xs font-display font-bold truncate tabular-nums mt-0.5 ${
+                        isVoceDeve ? 'text-[#F43F5E]' : 'text-[#10B981]'
                       }`}
                     >
                       R$ {moneyConverter(valorExibido)}

@@ -1,5 +1,5 @@
-import { createPortal } from 'react-dom';
 // src/components/FriendDetailsModal.tsx
+import { createPortal } from 'react-dom';
 import { useState, useEffect, useMemo } from 'react';
 import {
   ChevronLeft,
@@ -68,12 +68,10 @@ export function FriendDetailsModal({
     [todasCorridas, todosAmigos]
   );
 
-  // Modal de Registrar Recebimento (usado quando o amigo deve para Você — você é o lesado/credor)
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [paymentAmount, setPaymentAmount] = useState('');
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
 
-  // Modal de Pagar com Comprovante (usado quando Você deve para o amigo — você é o devedor)
   const [payWithReceiptTarget, setPayWithReceiptTarget] = useState<{
     isOpen: boolean;
     mode: 'all' | 'single';
@@ -88,7 +86,6 @@ export function FriendDetailsModal({
     description: '',
   });
 
-  // Modal de Visualizar Comprovante
   const [receiptToView, setReceiptToView] = useState<{
     isOpen: boolean;
     url: string | null;
@@ -157,7 +154,6 @@ export function FriendDetailsModal({
       const effectivePhone = stripCountryCode(atualizado.telefone || atualizado.phone || targetPhone);
       const effectiveName = (atualizado.nome || atualizado.name || targetName).trim().toLowerCase();
 
-      // Mapeia todos os IDs de amigos equivalentes (por ID direto, telefone ou nome)
       const matchingFriendIds = new Set<string>();
       if (atualizado.id) matchingFriendIds.add(atualizado.id);
       if (targetAmigo.id) matchingFriendIds.add(targetAmigo.id);
@@ -178,7 +174,6 @@ export function FriendDetailsModal({
         groupMap.set(g.id, g.name);
       });
 
-      // Determina se este amigo foi o pagador da corrida
       const checkIfFriendIsPayer = (c: any) => {
         if (!c.paidByFriendId) return false;
         if (matchingFriendIds.has(c.paidByFriendId)) return true;
@@ -187,7 +182,6 @@ export function FriendDetailsModal({
         return false;
       };
 
-      // Determina se este amigo é participante da corrida
       const checkIfFriendIsParticipant = (c: any) => {
         return (c.participantesIds || []).some((pid: string) => {
           if (matchingFriendIds.has(pid)) return true;
@@ -202,7 +196,6 @@ export function FriendDetailsModal({
         });
       };
 
-      // Prioriza a chave Pix que o amigo cadastrou para si (caso exista em racha pago por ele)
       const rachaComPix = todasCorridasData.find(
         (c) => checkIfFriendIsPayer(c) && c.payerPixKey?.trim()
       );
@@ -219,10 +212,8 @@ export function FriendDetailsModal({
           const amigoFoiPagador = checkIfFriendIsPayer(corrida);
           const amigoEhParticipante = checkIfFriendIsParticipant(corrida);
 
-          // Se o amigo não foi pagador e nem participante, desconsidera
           if (!amigoFoiPagador && !amigoEhParticipante) return null;
 
-          // Se outro amigo (terceiro) pagou a corrida, o acerto é entre eles
           if (corrida.paidByFriendId && !amigoFoiPagador) {
             return null;
           }
@@ -231,14 +222,12 @@ export function FriendDetailsModal({
             corrida.participantesIds.find((id) => matchingFriendIds.has(id)) || atualizado.id;
           const qtdPessoas = (corrida.participantesIds?.length || 0) + 1;
 
-          // Quando Você pagou e o amigo deve a parte dele:
           const parte =
             corrida.valoresDevidos?.[pid] !== undefined
               ? Number(corrida.valoresDevidos[pid])
               : corrida.valorTotal / qtdPessoas;
           const jaPago = Number(corrida.pagamentos?.[pid] || 0);
 
-          // Quando o amigo pagou e Você deve sua parte para ele:
           const parteAmigosSoma = Object.values(corrida.valoresDevidos || {}).reduce(
             (acc, v) => acc + Number(v || 0),
             0
@@ -334,7 +323,6 @@ export function FriendDetailsModal({
   const cor = baseAmigo.cor || baseAmigo.color || 'bg-sky-500';
   const telefone = baseAmigo.telefone || baseAmigo.phone || '';
 
-  // Prioriza a chave Pix que o próprio amigo cadastrou para si (vinda da conta dele ou do pagador do racha)
   let friendPix = (baseAmigo.registered_pix_key || '').trim();
   if (!friendPix) {
     for (const c of corridasDoAmigo) {
@@ -348,7 +336,6 @@ export function FriendDetailsModal({
     friendPix = (baseAmigo.pix_key || baseAmigo.pix || '').trim();
   }
 
-  // Saldos consolidados das corridas e do perfil do amigo
   const rawVoceDeveFromAmigo = parseCurrency(
     baseAmigo?.voceDeveNumerico ??
     baseAmigo?.voceDeve ??
@@ -504,48 +491,48 @@ export function FriendDetailsModal({
 
   return createPortal(
     <div
-      className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 animate-fade-in"
+      className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 animate-fade-in"
       onClick={onClose}
     >
       <div
-        className="bg-[#0b0f19] w-full max-w-md rounded-t-[28px] sm:rounded-3xl border-t sm:border border-white/10 shadow-2xl flex flex-col max-h-[92dvh] sm:max-h-[90vh] pb-safe overflow-hidden animate-slide-up"
+        className="bg-[var(--bg-app)] w-full max-w-md rounded-t-2xl sm:rounded-2xl border-t sm:border border-[var(--border-color)] shadow-xl flex flex-col max-h-[92dvh] sm:max-h-[90vh] pb-safe overflow-hidden animate-slide-up"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Cabeçalho com Editar e Excluir */}
-        <div className="flex items-center justify-between p-3.5 sm:p-4 border-b border-white/10 bg-[#0b0f19]/95 backdrop-blur-md shrink-0">
+        <div className="flex items-center justify-between p-4 border-b border-[var(--border-color)] bg-[var(--bg-surface)] shrink-0">
           <button
             onClick={onClose}
-            className="p-1.5 sm:p-2 text-white hover:bg-gray-800 rounded-full transition-colors"
+            className="p-2 text-[var(--text-primary)] hover:bg-[var(--bg-subtle)] rounded-full transition-colors"
           >
-            <ChevronLeft size={24} />
+            <ChevronLeft size={24} strokeWidth={2} />
           </button>
-          <h2 className="text-sm sm:text-base font-semibold text-white truncate px-2">Detalhes do Amigo</h2>
+          <h2 className="text-h2 text-[var(--text-primary)] truncate px-2">Detalhes do Amigo</h2>
           <div className="flex items-center gap-1 shrink-0">
             <button
               onClick={() => setIsEditModalOpen(true)}
-              className="p-1.5 sm:p-2 text-gray-300 hover:bg-white/10 hover:text-white rounded-full transition-colors"
+              className="p-2 text-[var(--text-secondary)] hover:bg-[var(--bg-subtle)] hover:text-[var(--text-primary)] rounded-full transition-colors"
               title="Editar Amigo"
             >
-              <Pencil size={17} />
+              <Pencil size={18} strokeWidth={2} />
             </button>
             <button
               onClick={() => onDelete(baseAmigo.id)}
-              className="p-1.5 sm:p-2 text-red-500 hover:bg-red-500/20 hover:text-red-400 rounded-full transition-colors"
+              className="p-2 text-[#F43F5E] hover:bg-[var(--rose-bg)] rounded-full transition-colors"
               title="Excluir Amigo"
             >
-              <Trash2 size={18} />
+              <Trash2 size={18} strokeWidth={2} />
             </button>
           </div>
         </div>
 
-        <div className="px-4 py-4 sm:px-5 sm:py-5 overflow-y-auto flex-1">
+        <div className="px-4 py-5 sm:px-6 overflow-y-auto flex-1">
           {/* Resumo do Perfil */}
-          <div className="flex flex-col items-center mb-6">
+          <div className="ds-card flex flex-col items-center mb-6">
             <div
               style={
                 baseAmigo.avatar_url ? undefined : { backgroundColor: getAvatarColor(cor) }
               }
-              className="w-20 h-20 rounded-full overflow-hidden flex items-center justify-center text-3xl font-black text-white shadow-lg mb-3"
+              className="w-20 h-20 rounded-full overflow-hidden flex items-center justify-center text-2xl font-display font-bold text-white shadow-sm mb-3"
             >
               {baseAmigo.avatar_url ? (
                 <img
@@ -558,38 +545,42 @@ export function FriendDetailsModal({
               )}
             </div>
             <div className="flex items-center gap-1.5">
-              <h3 className="text-xl font-bold text-white">{nome}</h3>
+              <h3 className="text-h1 text-[var(--text-primary)]">{nome}</h3>
               {(amigoAtual?.has_account || amigoAtual?.is_registered) && (
-                <BadgeCheck size={20} className="text-[#2DD4BF] fill-[#2DD4BF]/20 shrink-0" />
+                <BadgeCheck size={20} strokeWidth={2} className="text-[#0F766E] shrink-0" />
               )}
             </div>
             {(amigoAtual?.has_account || amigoAtual?.is_registered) && (
-              <span className="text-[11px] font-semibold text-[#2DD4BF] bg-[#2DD4BF]/10 px-2.5 py-0.5 rounded-full flex items-center gap-1 mt-1 mb-0.5">
-                <BadgeCheck size={12} /> Conta RachApp Ativa
+              <span className="text-caption font-semibold text-[#0F766E] bg-[#0F766E]/10 px-2.5 py-0.5 rounded-full flex items-center gap-1 mt-1 mb-0.5">
+                <BadgeCheck size={12} strokeWidth={2} /> Conta RachApp Ativa
               </span>
             )}
 
-            <div className="flex flex-wrap items-center justify-center gap-2 mt-1.5">
+            <div className="flex flex-wrap items-center justify-center gap-2 mt-2">
               {telefone && (
-                <span className="text-xs text-gray-400 bg-white/5 px-2.5 py-1 rounded-full flex items-center gap-1">
-                  <Phone size={11} /> {formatPhoneBR(telefone)}
+                <span className="text-caption text-[var(--text-secondary)] bg-[var(--bg-subtle)] border border-[var(--border-color)] px-2.5 py-1 rounded-full flex items-center gap-1">
+                  <Phone size={12} strokeWidth={2} /> {formatPhoneBR(telefone)}
                 </span>
               )}
               {friendPix && (
-                <span className="text-xs text-[#2DD4BF] bg-[#2DD4BF]/10 px-2.5 py-1 rounded-full flex items-center gap-1">
-                  <QrCode size={11} /> Pix: {friendPix}
+                <span className="text-caption text-[#0F766E] bg-[#0F766E]/10 px-2.5 py-1 rounded-full flex items-center gap-1 font-medium">
+                  <QrCode size={12} strokeWidth={2} /> Pix: {friendPix}
                 </span>
               )}
             </div>
 
             <div
-              className={`text-4xl font-black mt-4 mb-1 ${
-                voceDeveNoSaldo ? 'text-red-400' : eleDeveNoSaldo ? 'text-amber-400' : 'text-[#2DD4BF]'
+              className={`text-display mt-4 mb-1 ${
+                voceDeveNoSaldo
+                  ? 'text-[#F43F5E]'
+                  : eleDeveNoSaldo
+                  ? 'text-[#10B981]'
+                  : 'text-[#0F766E]'
               }`}
             >
               R$ {moneyConverter(valorDestaque)}
             </div>
-            <p className="text-gray-500 text-xs uppercase font-bold tracking-wider mb-4">
+            <p className="text-[var(--text-secondary)] text-caption uppercase font-semibold tracking-wider mb-5">
               {voceDeveNoSaldo
                 ? `Você deve para ${nome.split(' ')[0]}`
                 : eleDeveNoSaldo
@@ -608,30 +599,29 @@ export function FriendDetailsModal({
                     description: `Acerto RachApp ${nome}`,
                   })
                 }
-                className="w-full bg-[#2DD4BF] hover:bg-[#25b5a3] text-[#05080f] py-3.5 px-6 rounded-2xl font-bold flex items-center justify-center gap-2 transition-transform active:scale-95 shadow-lg shadow-teal-500/20 text-sm"
+                className="w-full ds-btn-primary"
               >
-                <Upload size={18} />
+                <Upload size={18} strokeWidth={2} />
                 Pagar {nome.split(' ')[0]} (R$ {moneyConverter(valorDestaque)})
               </button>
             ) : (
-              <>
-                {/* Quando o amigo te deve (você é o lesado): pode registrar que ele pagou e cobrar via WhatsApp / QR Pix */}
+              <div className="w-full space-y-2.5">
                 {valorDestaque > 0.005 && (
                   <button
                     onClick={() => {
                       setPaymentAmount(moneyConverter(valorDestaque));
                       setIsPaymentModalOpen(true);
                     }}
-                    className="bg-[#2DD4BF] hover:bg-[#25b5a3] text-[#05080f] px-6 py-2.5 rounded-full font-bold flex items-center gap-2 transition-colors shadow-lg shadow-teal-500/20 mb-4"
+                    className="w-full ds-btn-primary"
                   >
-                    <DollarSign size={18} /> Informar que {nome.split(' ')[0]} Pagou
+                    <DollarSign size={18} strokeWidth={2} /> Informar que {nome.split(' ')[0]} Pagou
                   </button>
                 )}
 
-                <div className="grid grid-cols-2 gap-2 sm:gap-3 w-full">
+                <div className="grid grid-cols-2 gap-2.5 w-full">
                   <button
                     onClick={handleCobrarWhatsApp}
-                    className="bg-[#25D366] hover:bg-[#1ebd5a] text-white font-bold py-2.5 sm:py-3 px-2 sm:px-4 rounded-2xl text-xs sm:text-sm flex items-center justify-center gap-1.5 transition-transform active:scale-95 truncate"
+                    className="h-12 bg-[#10B981] hover:bg-[#059669] text-white font-semibold px-4 rounded-xl text-body2 flex items-center justify-center gap-1.5 transition-all active:scale-95 truncate shadow-sm"
                   >
                     <svg
                       viewBox="0 0 24 24"
@@ -651,38 +641,40 @@ export function FriendDetailsModal({
 
                   <button
                     onClick={handleOpenPixModal}
-                    className="bg-[#1c1c1e] hover:bg-[#2c2c2e] border border-[#2DD4BF]/40 text-[#2DD4BF] font-bold py-2.5 sm:py-3 px-2 sm:px-4 rounded-2xl text-xs sm:text-sm flex items-center justify-center gap-1.5 transition-transform active:scale-95 truncate"
+                    className="ds-btn-secondary px-4 truncate"
                   >
-                    <QrCode size={16} className="shrink-0" />
+                    <QrCode size={16} strokeWidth={2} className="shrink-0 text-[#0F766E]" />
                     <span className="truncate">QR Code Pix</span>
                   </button>
                 </div>
-              </>
+              </div>
             )}
           </div>
 
           <div className="flex justify-between items-center mb-3">
-            <h4 className="text-white font-bold text-base">Rachas Compartilhados</h4>
-            <span className="text-xs text-gray-500 font-medium">{corridasDoAmigo.length} itens</span>
+            <h4 className="text-[var(--text-primary)] text-h2">Rachas Compartilhados</h4>
+            <span className="text-caption text-[var(--text-secondary)] font-medium">
+              {corridasDoAmigo.length} itens
+            </span>
           </div>
 
           {isLoading ? (
             <div className="flex justify-center py-8">
-              <LoaderCircle className="animate-spin text-[#2DD4BF]" />
+              <LoaderCircle className="animate-spin text-[#0F766E]" />
             </div>
           ) : corridasDoAmigo.length === 0 ? (
-            <div className="bg-[#1c1c1e] p-6 rounded-2xl border border-white/5 text-center mb-4">
+            <div className="ds-card text-center mb-4">
               {voceDeveNoSaldo ? (
                 <>
-                  <p className="text-red-400 font-bold text-sm mb-1">
+                  <p className="text-[#F43F5E] font-semibold text-body2 mb-1">
                     Você possui uma pendência de R$ {moneyConverter(valorDestaque)} com {nome.split(' ')[0]}.
                   </p>
-                  <p className="text-gray-400 text-xs">
+                  <p className="text-[var(--text-secondary)] text-caption">
                     Toque no botão "Pagar {nome.split(' ')[0]}" acima para anexar o comprovante Pix e liquidar este saldo.
                   </p>
                 </>
               ) : (
-                <p className="text-gray-400 text-sm">
+                <p className="text-[var(--text-secondary)] text-body2">
                   Você ainda não dividiu nenhum racha com {nome.split(' ')[0]}.
                 </p>
               )}
@@ -709,7 +701,7 @@ export function FriendDetailsModal({
                 );
 
                 const corridaParticipantes = [
-                  { id: 0, nome: 'Você', cor: '#2DD4BF', avatar_url: myAvatarUrl },
+                  { id: 0, nome: 'Você', cor: '#0F766E', avatar_url: myAvatarUrl },
                   ...(corridaCompleta.participantesIds || []).map((pid: string, idx: number) => {
                     const f = todosAmigos.find((a) => a.id === pid);
                     return {
@@ -728,6 +720,7 @@ export function FriendDetailsModal({
                     tag={corridaCompleta.tag}
                     titulo={corridaCompleta.titulo}
                     valorTotal={moneyConverter(corridaCompleta.valorTotal)}
+                    paidByName={corridaCompleta.paidByName}
                     userStatus={userStatus}
                     participantes={corridaParticipantes}
                     onClick={() => setCorridaSelecionada(corridaCompleta)}
@@ -742,29 +735,29 @@ export function FriendDetailsModal({
       {/* Sub-modal de Recebimento pelo Credor (quando o amigo deve para Você) */}
       {isPaymentModalOpen && (
         <div
-          className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[65] flex items-center justify-center p-4 animate-fade-in"
+          className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[65] flex items-center justify-center p-4 animate-fade-in"
           onClick={() => setIsPaymentModalOpen(false)}
         >
           <div
-            className="bg-[#1c1c1e] w-full max-w-sm rounded-3xl p-6 border border-white/10 animate-slide-up shadow-2xl"
+            className="bg-[var(--bg-surface)] w-full max-w-sm rounded-2xl p-6 border border-[var(--border-color)] animate-slide-up shadow-xl"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-white font-bold text-lg">Confirmar Recebimento</h3>
+              <h3 className="text-[var(--text-primary)] text-h2">Confirmar Recebimento</h3>
               <button
                 onClick={() => setIsPaymentModalOpen(false)}
-                className="text-gray-400 hover:text-white"
+                className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] p-1 rounded-full"
               >
-                <X size={22} />
+                <X size={20} strokeWidth={2} />
               </button>
             </div>
 
-            <p className="text-gray-400 text-sm mb-4">
+            <p className="text-[var(--text-secondary)] text-body2 mb-4">
               Informe o valor que {nome.split(' ')[0]} te pagou para abater nos rachas pendentes.
             </p>
 
             <div className="relative mb-6">
-              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-medium">
+              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-secondary)] font-semibold">
                 R$
               </span>
               <input
@@ -772,7 +765,7 @@ export function FriendDetailsModal({
                 placeholder="0,00"
                 value={paymentAmount}
                 onChange={handlePaymentAmountChange}
-                className="w-full bg-[#05080f] border border-white/10 rounded-xl py-4 pl-12 pr-4 text-white text-xl font-bold focus:outline-none focus:border-[#2DD4BF] transition-colors"
+                className="w-full h-12 bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-xl pl-12 pr-4 text-[var(--text-primary)] text-h2 font-display font-bold focus:outline-none focus:border-[#0F766E] transition-colors"
                 autoFocus
               />
             </div>
@@ -780,17 +773,17 @@ export function FriendDetailsModal({
             <div className="flex gap-3">
               <button
                 onClick={() => setIsPaymentModalOpen(false)}
-                className="flex-1 bg-transparent border border-white/10 text-white font-bold py-3 rounded-xl hover:bg-white/5 transition-colors"
+                className="flex-1 ds-btn-secondary"
               >
                 Cancelar
               </button>
               <button
                 onClick={handleConfirmCreditorPayment}
                 disabled={isProcessingPayment || !paymentAmount}
-                className="flex-1 bg-[#2DD4BF] text-[#05080f] font-bold py-3 rounded-xl hover:bg-[#25b5a3] transition-colors disabled:opacity-50 flex justify-center items-center"
+                className="flex-1 ds-btn-primary"
               >
                 {isProcessingPayment ? (
-                  <LoaderCircle className="animate-spin" size={20} />
+                  <LoaderCircle className="animate-spin" size={20} strokeWidth={2} />
                 ) : (
                   'Confirmar'
                 )}

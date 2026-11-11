@@ -17,6 +17,8 @@ import {
   Check,
   Pencil,
   X,
+  Sun,
+  Moon,
 } from 'lucide-react';
 import { Capacitor } from '@capacitor/core';
 import { dbService } from '../services/database';
@@ -24,6 +26,7 @@ import { PixModal } from './PixModal';
 import { ChangePasswordScreen } from './ChangePasswordScreen';
 import { formatPhoneBR, isValidPhoneBR } from '../utils/phoneFormatter';
 import { AvatarEditModal } from './AvatarEditModal';
+import { useTheme } from '../utils/theme';
 import type { SyncStatus } from '../types';
 import {
   getCurrentAppVersion,
@@ -51,6 +54,7 @@ export function Perfil({
   onOpenUpdateModal,
   onUpdateDetected,
 }: PerfilProps) {
+  const { theme, setTheme } = useTheme();
   const [currentVersion, setCurrentVersion] = useState('');
   const [manualUpdateInfo, setManualUpdateInfo] = useState<AppReleaseInfo | null>(updateInfo || null);
   const [isCheckingUpdate, setIsCheckingUpdate] = useState(false);
@@ -180,7 +184,7 @@ export function Perfil({
   if (isLoading) {
     return (
       <div className="flex justify-center items-center h-64">
-        <LoaderCircle size={40} className="animate-spin text-[#2DD4BF]" />
+        <LoaderCircle size={40} strokeWidth={2} className="animate-spin text-[#0F766E]" />
       </div>
     );
   }
@@ -189,12 +193,12 @@ export function Perfil({
 
   return (
     <div className="space-y-6 pb-20">
-      {/* Cabeçalho com Foto de Perfil Grande Centralizada e Nome embaixo */}
+      {/* Cabeçalho com Foto de Perfil Grande Centralizada (Circular) e Nome */}
       <div className="flex flex-col items-center pt-4 pb-2">
         <div className="relative">
           <div
             onClick={() => setIsAvatarModalOpen(true)}
-            className="w-28 h-28 rounded-full overflow-hidden bg-[#1c1c1e] border-2 border-[#2DD4BF]/40 hover:border-[#2DD4BF] shadow-xl shadow-black/40 flex items-center justify-center cursor-pointer relative group transition-colors"
+            className="w-24 h-24 rounded-full overflow-hidden bg-[var(--bg-surface)] border-2 border-[#0F766E]/30 hover:border-[#0F766E] shadow-md flex items-center justify-center cursor-pointer relative group transition-colors"
           >
             {avatarUrl ? (
               <img
@@ -203,50 +207,89 @@ export function Perfil({
                 className="w-full h-full object-cover"
               />
             ) : (
-              <div className="w-full h-full bg-gradient-to-br from-[#2DD4BF]/25 to-[#1c1c1e] flex items-center justify-center text-[#2DD4BF] text-4xl font-extrabold select-none">
+              <div className="w-full h-full bg-[#CCFBF1] flex items-center justify-center text-[#0F766E] text-3xl font-display font-bold select-none">
                 {userInitial}
               </div>
             )}
 
             {isSavingPhoto && (
-              <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
-                <LoaderCircle size={28} className="animate-spin text-[#2DD4BF]" />
+              <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                <LoaderCircle size={24} strokeWidth={2} className="animate-spin text-white" />
               </div>
             )}
           </div>
 
-          {/* Lapizinho ao lado da foto */}
+          {/* Botão de editar foto */}
           <button
             type="button"
             onClick={() => setIsAvatarModalOpen(true)}
             title="Editar foto de perfil"
-            className="absolute bottom-0 right-0 w-9 h-9 rounded-full bg-[#2DD4BF] hover:bg-[#25b5a3] text-[#05080f] shadow-lg flex items-center justify-center border-2 border-[#05080f] transition-transform active:scale-90"
+            className="absolute bottom-0 right-0 w-9 h-9 rounded-full bg-[#0F766E] hover:bg-[#115E59] text-white shadow-md flex items-center justify-center border-2 border-[var(--bg-app)] transition-transform active:scale-90"
           >
-            <Pencil size={15} className="stroke-[2.5px]" />
+            <Pencil size={14} strokeWidth={2} />
           </button>
         </div>
 
-        <h1 className="text-2xl font-bold text-white mt-3 text-center break-words max-w-xs">
+        <h1 className="text-h1 text-[var(--text-primary)] mt-3 text-center break-words max-w-xs">
           {nome || 'Seu Perfil'}
         </h1>
-        {email && <p className="text-gray-500 text-xs mt-0.5">{email}</p>}
+        {email && <p className="text-caption text-[var(--text-secondary)] mt-1">{email}</p>}
       </div>
 
-      {/* Dados Públicos e Chave Pix (Somente editável ao clicar no lapizinho) */}
-      <section className="bg-[#1c1c1e] rounded-3xl p-4 sm:p-5 border border-white/5 space-y-4">
+      {/* Aparência do App (Modo Claro Padrão / Modo Escuro) */}
+      <section className="ds-card p-5 space-y-3">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-h2 text-[var(--text-primary)]">Aparência</h2>
+            <p className="text-xs text-[var(--text-secondary)] mt-0.5">
+              Escolha entre o tema claro padrão ou escuro
+            </p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3 pt-1">
+          <button
+            type="button"
+            onClick={() => setTheme('light')}
+            className={`h-12 rounded-xl border font-semibold text-sm flex items-center justify-center gap-2 transition-all ${
+              theme === 'light'
+                ? 'bg-[#CCFBF1] text-[#0F766E] border-[#0F766E]'
+                : 'bg-[var(--bg-subtle)] text-[var(--text-secondary)] border-[var(--border-color)] hover:text-[var(--text-primary)]'
+            }`}
+          >
+            <Sun size={18} strokeWidth={2} />
+            <span>Modo Claro</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setTheme('dark')}
+            className={`h-12 rounded-xl border font-semibold text-sm flex items-center justify-center gap-2 transition-all ${
+              theme === 'dark'
+                ? 'bg-[#0F766E] text-white border-[#0F766E]'
+                : 'bg-[var(--bg-subtle)] text-[var(--text-secondary)] border-[var(--border-color)] hover:text-[var(--text-primary)]'
+            }`}
+          >
+            <Moon size={18} strokeWidth={2} />
+            <span>Modo Escuro</span>
+          </button>
+        </div>
+      </section>
+
+      {/* Dados Públicos e Chave Pix */}
+      <section className="ds-card p-5 space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-white font-semibold text-sm sm:text-base flex items-center gap-2">
-            <ShieldCheck size={18} className="text-[#2DD4BF] shrink-0" />
+          <h2 className="text-h2 text-[var(--text-primary)] flex items-center gap-2">
+            <ShieldCheck size={20} strokeWidth={2} className="text-[#0F766E] shrink-0" />
             Dados Públicos e Pix
           </h2>
-          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+          <div className="flex items-center gap-2 shrink-0">
             {pix && (
               <button
                 type="button"
                 onClick={() => setIsPixPreviewOpen(true)}
-                className="text-xs bg-[#2DD4BF]/15 text-[#2DD4BF] hover:bg-[#2DD4BF]/25 px-2.5 sm:px-3 py-1.5 rounded-full font-bold flex items-center gap-1"
+                className="text-xs bg-[#CCFBF1] text-[#0F766E] hover:opacity-90 px-3 py-1.5 rounded-xl font-semibold flex items-center gap-1.5"
               >
-                <QrCode size={13} />
+                <QrCode size={14} strokeWidth={2} />
                 <span className="hidden xs:inline">Testar QR Pix</span>
                 <span className="xs:hidden">QR Pix</span>
               </button>
@@ -255,52 +298,52 @@ export function Perfil({
               type="button"
               onClick={handleToggleEditDados}
               title={isEditingDados ? 'Cancelar edição' : 'Editar dados públicos'}
-              className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${
+              className={`w-9 h-9 rounded-full flex items-center justify-center transition-colors border ${
                 isEditingDados
-                  ? 'bg-[#2DD4BF] text-[#05080f]'
-                  : 'bg-[#2c2c2e] text-gray-300 hover:text-white hover:bg-white/10'
+                  ? 'bg-[#0F766E] text-white border-[#0F766E]'
+                  : 'bg-[var(--bg-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] border-[var(--border-color)]'
               }`}
             >
-              {isEditingDados ? <X size={15} /> : <Pencil size={15} />}
+              {isEditingDados ? <X size={16} strokeWidth={2} /> : <Pencil size={15} strokeWidth={2} />}
             </button>
           </div>
         </div>
 
         <div>
-          <label className="block text-gray-400 text-xs mb-1.5 uppercase font-bold tracking-wider">
+          <label className="block text-[var(--text-secondary)] text-xs mb-1.5 uppercase font-semibold tracking-wider">
             Seu Nome
           </label>
           <div
-            className={`bg-[#2c2c2e] rounded-xl p-3 flex items-center text-white transition-all ${
+            className={`h-12 bg-[var(--bg-subtle)] rounded-xl px-4 flex items-center border transition-all ${
               isEditingDados
-                ? 'ring-1 ring-[#2DD4BF]/40 focus-within:ring-[#2DD4BF]'
-                : 'opacity-70'
+                ? 'border-[#0F766E] ring-2 ring-[#0F766E]/15 bg-[var(--bg-surface)]'
+                : 'border-[var(--border-color)] opacity-80'
             }`}
           >
-            <User size={18} className="text-gray-400 mr-3 shrink-0" />
+            <User size={18} strokeWidth={2} className="text-[var(--text-secondary)] mr-3 shrink-0" />
             <input
               type="text"
               value={nome}
               disabled={!isEditingDados}
               readOnly={!isEditingDados}
               onChange={(e) => setNome(e.target.value)}
-              className="bg-transparent w-full outline-none text-white disabled:cursor-default"
+              className="bg-transparent w-full outline-none text-[var(--text-primary)] text-sm disabled:cursor-default"
             />
           </div>
         </div>
 
         <div>
-          <label className="block text-gray-400 text-xs mb-1.5 uppercase font-bold tracking-wider">
+          <label className="block text-[var(--text-secondary)] text-xs mb-1.5 uppercase font-semibold tracking-wider">
             Seu WhatsApp (com DDD)
           </label>
           <div
-            className={`bg-[#2c2c2e] rounded-xl p-3 flex items-center text-white transition-all ${
+            className={`h-12 bg-[var(--bg-subtle)] rounded-xl px-4 flex items-center border transition-all ${
               isEditingDados
-                ? 'ring-1 ring-[#2DD4BF]/40 focus-within:ring-[#2DD4BF]'
-                : 'opacity-70'
+                ? 'border-[#0F766E] ring-2 ring-[#0F766E]/15 bg-[var(--bg-surface)]'
+                : 'border-[var(--border-color)] opacity-80'
             }`}
           >
-            <Phone size={18} className="text-gray-400 mr-3 shrink-0" />
+            <Phone size={18} strokeWidth={2} className="text-[var(--text-secondary)] mr-3 shrink-0" />
             <input
               type="tel"
               value={telefone}
@@ -308,23 +351,23 @@ export function Perfil({
               readOnly={!isEditingDados}
               onChange={(e) => setTelefone(formatPhoneBR(e.target.value))}
               placeholder="(85) 99999-8888"
-              className="bg-transparent w-full outline-none text-white disabled:cursor-default"
+              className="bg-transparent w-full outline-none text-[var(--text-primary)] text-sm disabled:cursor-default"
             />
           </div>
         </div>
 
         <div>
-          <label className="block text-gray-400 text-xs mb-1.5 uppercase font-bold tracking-wider">
+          <label className="block text-[var(--text-secondary)] text-xs mb-1.5 uppercase font-semibold tracking-wider">
             Sua Chave Pix Principal
           </label>
           <div
-            className={`bg-[#2c2c2e] rounded-xl p-3 flex items-center text-white transition-all ${
+            className={`h-12 bg-[var(--bg-subtle)] rounded-xl px-4 flex items-center border transition-all ${
               isEditingDados
-                ? 'ring-1 ring-[#2DD4BF]/40 focus-within:ring-[#2DD4BF]'
-                : 'opacity-70'
+                ? 'border-[#0F766E] ring-2 ring-[#0F766E]/15 bg-[var(--bg-surface)]'
+                : 'border-[var(--border-color)] opacity-80'
             }`}
           >
-            <QrCode size={18} className="text-gray-400 mr-3 shrink-0" />
+            <QrCode size={18} strokeWidth={2} className="text-[var(--text-secondary)] mr-3 shrink-0" />
             <input
               type="text"
               value={pix}
@@ -332,18 +375,18 @@ export function Perfil({
               readOnly={!isEditingDados}
               onChange={(e) => setPix(e.target.value)}
               placeholder="CPF, E-mail, Celular ou Chave Aleatória"
-              className="bg-transparent w-full outline-none text-white disabled:cursor-default"
+              className="bg-transparent w-full outline-none text-[var(--text-primary)] text-sm disabled:cursor-default"
             />
           </div>
         </div>
 
         {isEditingDados && (
-          <div className="flex items-center gap-2 pt-1">
+          <div className="flex items-center gap-3 pt-1">
             <button
               type="button"
               onClick={handleToggleEditDados}
               disabled={isSavingProfile}
-              className="flex-1 bg-[#2c2c2e] hover:bg-gray-700 text-gray-300 font-semibold py-3.5 rounded-xl transition-colors"
+              className="flex-1 h-12 bg-[var(--bg-subtle)] border border-[var(--border-color)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] font-semibold rounded-xl transition-colors"
             >
               Cancelar
             </button>
@@ -351,33 +394,33 @@ export function Perfil({
               type="button"
               onClick={handleSalvarPerfil}
               disabled={isSavingProfile}
-              className="flex-[2] bg-[#2DD4BF] hover:bg-[#25b5a3] text-[#05080f] font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 disabled:opacity-50 transition-colors"
+              className="flex-[2] ds-btn-primary"
             >
               {isSavingProfile ? (
-                <LoaderCircle className="animate-spin" size={20} />
+                <LoaderCircle className="animate-spin" size={18} strokeWidth={2} />
               ) : (
-                <Save size={20} />
-              )}{' '}
-              Salvar Dados
+                <Save size={18} strokeWidth={2} />
+              )}
+              <span>Salvar Dados</span>
             </button>
           </div>
         )}
       </section>
 
       {/* Status de Sincronização na Nuvem */}
-      <section className="bg-[#1c1c1e] rounded-3xl p-5 border border-white/5 space-y-2">
+      <section className="ds-card p-5 space-y-2">
         <div className="flex justify-between items-center">
-          <h2 className="text-white font-semibold flex items-center gap-2">
-            <CloudCheck size={20} className="text-[#2DD4BF]" />
+          <h2 className="text-h2 text-[var(--text-primary)] flex items-center gap-2">
+            <CloudCheck size={20} strokeWidth={2} className="text-[#0F766E]" />
             Sincronização da Conta
           </h2>
           <span
-            className={`text-xs px-2.5 py-1 rounded-full font-bold ${
+            className={`text-xs px-2.5 py-1 rounded-full font-semibold border ${
               syncStatus.state === 'synced'
-                ? 'bg-[#34C759]/20 text-[#34C759]'
+                ? 'bg-[var(--emerald-bg)] text-[#10B981] border-[var(--emerald-border)]'
                 : syncStatus.state === 'syncing'
-                ? 'bg-blue-500/20 text-blue-400'
-                : 'bg-amber-500/20 text-amber-400'
+                ? 'bg-[#CCFBF1] text-[#0F766E] border-[#0F766E]/20'
+                : 'bg-[var(--amber-bg)] text-[#F59E0B] border-[var(--amber-border)]'
             }`}
           >
             {syncStatus.state === 'synced'
@@ -387,51 +430,55 @@ export function Perfil({
               : `Pendente (${syncStatus.pendingCount})`}
           </span>
         </div>
-        <p className="text-xs text-gray-400">
+        <p className="text-xs text-[var(--text-secondary)] leading-relaxed">
           Seus rachas, amigos e grupos ficam salvos no aparelho e sincronizados automaticamente. Para atualizar manualmente, basta puxar a tela para baixo no topo.
         </p>
       </section>
 
-      {/* Segurança - Abre tela separada de alteração/redefinição de senha */}
-      <section className="bg-[#1c1c1e] rounded-3xl p-5 border border-white/5">
+      {/* Segurança */}
+      <section className="ds-card p-5">
         <button
           onClick={() => setIsPasswordScreenOpen(true)}
           className="w-full flex items-center justify-between text-left group"
         >
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-[#2DD4BF]/15 text-[#2DD4BF] flex items-center justify-center">
-              <Lock size={18} />
+          <div className="flex items-center gap-3.5">
+            <div className="w-11 h-11 rounded-full bg-[#CCFBF1] text-[#0F766E] flex items-center justify-center shrink-0">
+              <Lock size={18} strokeWidth={2} />
             </div>
             <div>
-              <h2 className="text-white font-semibold text-base">Alterar ou Redefinir Senha</h2>
-              <p className="text-xs text-gray-400">
+              <h2 className="text-h2 text-[var(--text-primary)]">Alterar ou Redefinir Senha</h2>
+              <p className="text-xs text-[var(--text-secondary)] mt-0.5">
                 Abra a tela exclusiva para trocar ou recuperar sua senha
               </p>
             </div>
           </div>
-          <ChevronRight size={20} className="text-gray-500 group-hover:text-white transition-colors" />
+          <ChevronRight
+            size={20}
+            strokeWidth={2}
+            className="text-[var(--text-secondary)] group-hover:text-[var(--text-primary)] transition-colors"
+          />
         </button>
       </section>
 
       {/* Versão e Atualizações do Aplicativo */}
-      <section className="bg-[#1c1c1e] rounded-3xl p-4 sm:p-5 border border-white/5 space-y-3">
+      <section className="ds-card p-5 space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
-            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-2xl bg-[#2DD4BF]/15 text-[#2DD4BF] flex items-center justify-center shrink-0">
-              <Sparkles size={18} />
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-11 h-11 rounded-full bg-[#CCFBF1] text-[#0F766E] flex items-center justify-center shrink-0">
+              <Sparkles size={18} strokeWidth={2} />
             </div>
             <div className="min-w-0">
-              <h2 className="text-white font-semibold text-sm sm:text-base truncate">Versão do Aplicativo</h2>
-              <p className="text-xs text-gray-400 truncate">
+              <h2 className="text-h2 text-[var(--text-primary)] truncate">Versão do Aplicativo</h2>
+              <p className="text-xs text-[var(--text-secondary)] truncate mt-0.5">
                 {currentVersion ? `Versão instalada: v${currentVersion}` : 'RachApp'}
               </p>
             </div>
           </div>
           <span
-            className={`text-[10px] sm:text-xs px-2.5 py-1 rounded-full font-bold flex items-center gap-1 shrink-0 ${
+            className={`text-xs px-2.5 py-1 rounded-full font-semibold border flex items-center gap-1 shrink-0 ${
               manualUpdateInfo?.isNewer || updateInfo?.isNewer
-                ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
-                : 'bg-[#2DD4BF]/15 text-[#2DD4BF] border border-[#2DD4BF]/30'
+                ? 'bg-[var(--amber-bg)] text-[#F59E0B] border-[var(--amber-border)]'
+                : 'bg-[#CCFBF1] text-[#0F766E] border-[#0F766E]/20'
             }`}
           >
             {manualUpdateInfo?.isNewer || updateInfo?.isNewer ? 'Atualização disponível' : 'Mais recente'}
@@ -439,14 +486,14 @@ export function Perfil({
         </div>
 
         {manualUpdateInfo?.isNewer || updateInfo?.isNewer ? (
-          <div className="bg-[#2c2c2e] p-3.5 sm:p-4 rounded-2xl border border-amber-500/30 space-y-3">
+          <div className="bg-[var(--bg-subtle)] p-4 rounded-2xl border border-[var(--amber-border)] space-y-3">
             <div className="flex items-center justify-between gap-2">
               <div>
-                <p className="text-sm font-bold text-white flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+                <p className="text-sm font-display font-bold text-[var(--text-primary)] flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-[#F59E0B] animate-pulse" />
                   Nova versão disponível: {(manualUpdateInfo || updateInfo)?.tagName}
                 </p>
-                <p className="text-xs text-gray-400 mt-0.5">
+                <p className="text-xs text-[var(--text-secondary)] mt-0.5">
                   {(manualUpdateInfo || updateInfo)?.otaZipUrl && Capacitor.isNativePlatform()
                     ? 'Atualize instantaneamente (OTA) sem precisar reinstalar o APK.'
                     : 'Baixe o APK para atualizar sem perder nenhum dado.'}
@@ -455,8 +502,8 @@ export function Perfil({
             </div>
 
             {downloadMsg && (
-              <div className="bg-[#2DD4BF]/15 border border-[#2DD4BF]/30 text-[#2DD4BF] text-xs p-2.5 rounded-xl flex items-center gap-2 animate-fade-in">
-                <Check size={15} className="shrink-0" />
+              <div className="bg-[#CCFBF1] text-[#0F766E] text-xs p-3 rounded-xl flex items-center gap-2 animate-fade-in">
+                <Check size={15} strokeWidth={2} className="shrink-0" />
                 <span>{downloadMsg}</span>
               </div>
             )}
@@ -503,16 +550,16 @@ export function Perfil({
                   }
                 }}
                 disabled={isDownloadingApk}
-                className="flex-1 bg-[#2DD4BF] hover:bg-[#25b5a3] text-[#05080f] font-bold py-2.5 px-4 rounded-xl text-xs flex items-center justify-center gap-2 transition-all active:scale-95 shadow-md shadow-[#2DD4BF]/10 disabled:opacity-50"
+                className="flex-1 ds-btn-primary text-xs"
               >
                 {isDownloadingApk ? (
                   <>
-                    <RefreshCw size={14} className="animate-spin" />
+                    <RefreshCw size={15} strokeWidth={2} className="animate-spin" />
                     Atualizando...
                   </>
                 ) : (
                   <>
-                    <Download size={15} />
+                    <Download size={15} strokeWidth={2} />
                     {(manualUpdateInfo || updateInfo)?.otaZipUrl && Capacitor.isNativePlatform()
                       ? 'Atualizar Agora (OTA)'
                       : 'Baixar e Atualizar APK'}
@@ -523,7 +570,7 @@ export function Perfil({
               {onOpenUpdateModal && (
                 <button
                   onClick={() => onOpenUpdateModal()}
-                  className="bg-white/5 hover:bg-white/10 text-gray-300 font-medium py-2.5 px-3 rounded-xl text-xs transition-colors shrink-0"
+                  className="h-12 bg-[var(--bg-surface)] border border-[var(--border-color)] hover:border-[#0F766E]/40 text-[var(--text-primary)] font-semibold px-4 rounded-xl text-xs transition-colors shrink-0"
                   title="Ver detalhes da versão"
                 >
                   Ver Detalhes
@@ -550,21 +597,21 @@ export function Perfil({
               }
             }}
             disabled={isCheckingUpdate}
-            className="w-full bg-[#2c2c2e] hover:bg-gray-700 text-white font-semibold py-2.5 rounded-xl text-sm flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
+            className="w-full ds-btn-secondary text-sm"
           >
-            <RefreshCw size={15} className={isCheckingUpdate ? 'animate-spin' : ''} />
+            <RefreshCw size={16} strokeWidth={2} className={isCheckingUpdate ? 'animate-spin' : ''} />
             {isCheckingUpdate ? 'Verificando atualizações...' : 'Verificar Atualizações'}
           </button>
         )}
       </section>
 
-      {/* Logout */}
-      <section className="pt-2">
+      {/* Logout (Alerta / Pagar Rose #F43F5E) */}
+      <section className="pt-1">
         <button
           onClick={handleSairApp}
-          className="w-full border border-red-500/20 bg-red-500/10 text-red-500 hover:bg-red-500/20 font-medium py-3.5 rounded-xl flex items-center justify-center gap-2 transition-colors"
+          className="w-full h-12 border border-[var(--rose-border)] bg-[var(--rose-bg)] text-[#F43F5E] hover:opacity-90 font-semibold rounded-xl flex items-center justify-center gap-2 transition-all active:scale-[0.99]"
         >
-          <Trash2 size={18} /> Sair da Conta
+          <Trash2 size={18} strokeWidth={2} /> Sair da Conta
         </button>
       </section>
 

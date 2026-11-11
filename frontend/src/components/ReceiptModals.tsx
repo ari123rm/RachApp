@@ -1,5 +1,5 @@
-import { createPortal } from 'react-dom';
 // src/components/ReceiptModals.tsx
+import { createPortal } from 'react-dom';
 import { useState, useEffect, useRef } from 'react';
 import {
   X,
@@ -70,25 +70,25 @@ export function ReceiptViewerModal({
 
   return createPortal(
     <div
-      className="fixed inset-0 bg-black/85 backdrop-blur-sm z-[80] flex items-end sm:items-center justify-center p-0 sm:p-4 animate-fade-in"
+      className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[80] flex items-end sm:items-center justify-center p-0 sm:p-4 animate-fade-in"
       onClick={onClose}
     >
       <div
-        className="bg-[#1c1c1e] w-full sm:max-w-md rounded-t-[28px] sm:rounded-3xl p-5 border border-white/10 shadow-2xl relative max-h-[92dvh] sm:max-h-[88vh] flex flex-col pb-safe"
+        className="bg-[var(--bg-surface)] w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl p-6 border border-[var(--border-color)] shadow-xl relative max-h-[92dvh] sm:max-h-[88vh] flex flex-col pb-safe"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Handle visual mobile */}
-        <div className="w-12 h-1 bg-white/20 rounded-full mx-auto mb-3 sm:hidden shrink-0" />
+        <div className="w-12 h-1 bg-[var(--border-color)] rounded-full mx-auto mb-3 sm:hidden shrink-0" />
 
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-2 min-w-0 pr-2">
-            <div className="w-9 h-9 rounded-xl bg-[#2DD4BF]/20 text-[#2DD4BF] flex items-center justify-center shrink-0">
-              <FileCheck2 size={18} />
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-3 min-w-0 pr-2">
+            <div className="w-10 h-10 rounded-full bg-[#0F766E]/10 text-[#0F766E] flex items-center justify-center shrink-0">
+              <FileCheck2 size={20} strokeWidth={2} />
             </div>
             <div className="min-w-0">
-              <h3 className="text-white font-bold text-base truncate">{title}</h3>
+              <h3 className="text-[var(--text-primary)] text-h2 truncate">{title}</h3>
               {receipts.length > 1 && (
-                <p className="text-[11px] text-[#2DD4BF] font-semibold">
+                <p className="text-caption text-[#0F766E] font-semibold">
                   Comprovante {activeIndex + 1} de {receipts.length}
                 </p>
               )}
@@ -99,15 +99,15 @@ export function ReceiptViewerModal({
               onClick={handleShare}
               disabled={isSharing}
               title="Compartilhar comprovante em outros apps"
-              className="p-2 text-gray-400 hover:text-[#2DD4BF] rounded-full hover:bg-white/10 transition-colors disabled:opacity-50"
+              className="p-2 text-[var(--text-secondary)] hover:text-[#0F766E] rounded-full hover:bg-[var(--bg-subtle)] transition-colors disabled:opacity-50"
             >
-              <Share2 size={20} />
+              <Share2 size={20} strokeWidth={2} />
             </button>
             <button
               onClick={onClose}
-              className="p-1.5 text-gray-400 hover:text-white rounded-full hover:bg-white/10 transition-colors"
+              className="p-2 text-[var(--text-secondary)] hover:text-[var(--text-primary)] rounded-full hover:bg-[var(--bg-subtle)] transition-colors"
             >
-              <X size={22} />
+              <X size={22} strokeWidth={2} />
             </button>
           </div>
         </div>
@@ -115,7 +115,7 @@ export function ReceiptViewerModal({
         {/* Seletor de Comprovantes quando há mais de 1 */}
         {receipts.length > 1 && (
           <div className="mb-3">
-            <p className="text-[11px] text-gray-400 font-semibold mb-1.5">
+            <p className="text-caption text-[var(--text-secondary)] font-semibold mb-1.5">
               Escolha qual comprovante deseja visualizar:
             </p>
             <div className="flex items-center gap-2 overflow-x-auto pb-1">
@@ -126,13 +126,13 @@ export function ReceiptViewerModal({
                     key={idx}
                     type="button"
                     onClick={() => setActiveIndex(idx)}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-bold shrink-0 flex items-center gap-1.5 transition-all ${
+                    className={`px-3 py-2 rounded-xl text-caption font-semibold shrink-0 flex items-center gap-1.5 transition-all ${
                       isSelected
-                        ? 'bg-[#2DD4BF] text-[#05080f] shadow-md shadow-teal-500/20'
-                        : 'bg-[#2c2c2e] text-gray-300 hover:text-white border border-white/10'
+                        ? 'bg-[#0F766E] text-white shadow-sm'
+                        : 'bg-[var(--bg-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] border border-[var(--border-color)]'
                     }`}
                   >
-                    <FileCheck2 size={13} />
+                    <FileCheck2 size={14} strokeWidth={2} />
                     Comprovante {idx + 1}
                   </button>
                 );
@@ -141,17 +141,17 @@ export function ReceiptViewerModal({
           </div>
         )}
 
-        <div className="flex-1 overflow-y-auto bg-[#05080f] rounded-2xl p-2 border border-white/5 flex items-center justify-center min-h-[240px] relative">
+        <div className="flex-1 overflow-y-auto bg-slate-950 rounded-2xl p-2 border border-[var(--border-color)] flex items-center justify-center min-h-[240px] relative">
           {receipts.length > 1 && (
             <button
               type="button"
               onClick={() =>
                 setActiveIndex((prev) => (prev - 1 + receipts.length) % receipts.length)
               }
-              className="absolute left-2.5 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-black/70 hover:bg-black/90 text-white border border-white/15 flex items-center justify-center shadow-lg z-10"
+              className="absolute left-2.5 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-slate-900/80 hover:bg-slate-900 text-white border border-white/15 flex items-center justify-center shadow-md z-10"
               title="Comprovante anterior"
             >
-              <ChevronLeft size={20} />
+              <ChevronLeft size={20} strokeWidth={2} />
             </button>
           )}
 
@@ -165,15 +165,15 @@ export function ReceiptViewerModal({
             <button
               type="button"
               onClick={() => setActiveIndex((prev) => (prev + 1) % receipts.length)}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-black/70 hover:bg-black/90 text-white border border-white/15 flex items-center justify-center shadow-lg z-10"
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-slate-900/80 hover:bg-slate-900 text-white border border-white/15 flex items-center justify-center shadow-md z-10"
               title="Próximo comprovante"
             >
-              <ChevronRight size={20} />
+              <ChevronRight size={20} strokeWidth={2} />
             </button>
           )}
         </div>
 
-        <div className="flex flex-col gap-2 mt-4">
+        <div className="flex flex-col gap-2.5 mt-4">
           {onViewDetails && (
             <button
               type="button"
@@ -181,16 +181,16 @@ export function ReceiptViewerModal({
                 onClose();
                 onViewDetails();
               }}
-              className="w-full bg-white/5 hover:bg-white/10 border border-white/10 text-gray-200 font-semibold py-2.5 rounded-xl transition-colors text-xs"
+              className="w-full ds-btn-secondary h-11 text-body2"
             >
               Ver Detalhes do Racha
             </button>
           )}
-          <div className="flex gap-2.5">
+          <div className="flex gap-3">
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 bg-[#2c2c2e] hover:bg-[#3a3a3c] text-gray-300 font-bold py-3 rounded-xl transition-colors text-sm"
+              className="flex-1 ds-btn-secondary"
             >
               Fechar
             </button>
@@ -198,21 +198,21 @@ export function ReceiptViewerModal({
               type="button"
               disabled={isSharing}
               onClick={handleShare}
-              className="flex-1 bg-[#2DD4BF] hover:bg-[#25b5a3] text-[#05080f] font-bold py-3 rounded-xl transition-colors text-sm flex items-center justify-center gap-2 shadow-lg shadow-teal-500/20 active:scale-95 disabled:opacity-50"
+              className="flex-1 ds-btn-primary"
             >
               {sharedFeedback ? (
                 <>
-                  <Check size={18} />
+                  <Check size={18} strokeWidth={2} />
                   <span>Compartilhado!</span>
                 </>
               ) : isSharing ? (
                 <>
-                  <LoaderCircle size={18} className="animate-spin" />
+                  <LoaderCircle size={18} strokeWidth={2} className="animate-spin" />
                   <span>Enviando...</span>
                 </>
               ) : (
                 <>
-                  <Share2 size={18} />
+                  <Share2 size={18} strokeWidth={2} />
                   <span>Compartilhar</span>
                 </>
               )}
@@ -406,56 +406,60 @@ export function PayWithReceiptModal({
 
   return createPortal(
     <div
-      className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[75] flex items-end sm:items-center justify-center p-0 sm:p-4 animate-fade-in"
+      className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[75] flex items-end sm:items-center justify-center p-0 sm:p-4 animate-fade-in"
       onClick={onClose}
     >
       <div
-        className="bg-[#1c1c1e] w-full sm:max-w-md rounded-t-[28px] sm:rounded-3xl p-5 sm:p-6 border border-white/10 shadow-2xl relative max-h-[92dvh] sm:max-h-[90vh] overflow-y-auto pb-safe"
+        className="bg-[var(--bg-surface)] w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl p-6 border border-[var(--border-color)] shadow-xl relative max-h-[92dvh] sm:max-h-[90vh] overflow-y-auto pb-safe"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Handle visual mobile */}
-        <div className="w-12 h-1 bg-white/20 rounded-full mx-auto mb-3.5 sm:hidden shrink-0" />
+        <div className="w-12 h-1 bg-[var(--border-color)] rounded-full mx-auto mb-4 sm:hidden shrink-0" />
 
         <button
           onClick={onClose}
-          className="absolute top-5 right-5 text-gray-400 hover:text-white p-1 rounded-full hover:bg-white/10 transition-colors active:scale-95"
+          className="absolute top-5 right-5 text-[var(--text-secondary)] hover:text-[var(--text-primary)] p-2 rounded-full hover:bg-[var(--bg-subtle)] transition-colors active:scale-95"
         >
-          <X size={22} />
+          <X size={22} strokeWidth={2} />
         </button>
 
         <div className="flex items-center gap-3 mb-4 pr-8">
-          <div className="w-10 h-10 rounded-2xl bg-[#2DD4BF]/20 text-[#2DD4BF] flex items-center justify-center shrink-0">
-            <QrCode size={22} />
+          <div className="w-12 h-12 rounded-full bg-[#0F766E]/10 text-[#0F766E] flex items-center justify-center shrink-0">
+            <QrCode size={22} strokeWidth={2} />
           </div>
           <div className="min-w-0 flex-1">
-            <h3 className="text-white font-bold text-lg truncate">Pagar {recipientName.split(' ')[0]}</h3>
-            <p className="text-xs text-gray-400 truncate">
+            <h3 className="text-[var(--text-primary)] text-h1 truncate">
+              Pagar {recipientName.split(' ')[0]}
+            </h3>
+            <p className="text-body2 text-[var(--text-secondary)] truncate">
               Faça o Pix e anexe o comprovante para dar baixa
             </p>
           </div>
         </div>
 
         {errorMsg && (
-          <div className="mb-4 bg-red-500/15 border border-red-500/30 text-red-400 text-xs font-medium p-3 rounded-xl">
+          <div className="mb-4 bg-[var(--rose-bg)] border border-[var(--rose-border)] text-[#F43F5E] text-caption font-semibold p-3 rounded-xl">
             {errorMsg}
           </div>
         )}
 
         {/* Valor do Pagamento */}
-        <div className="bg-[#05080f] rounded-2xl p-4 text-center mb-4 border border-white/5">
-          <p className="text-xs text-gray-400 uppercase font-semibold mb-1">Valor a Pagar</p>
+        <div className="bg-[var(--bg-subtle)] rounded-2xl p-4 text-center mb-4 border border-[var(--border-color)]">
+          <p className="text-caption text-[var(--text-secondary)] uppercase font-semibold mb-1">
+            Valor a Pagar
+          </p>
           {allowCustomAmount ? (
             <div className="flex items-center justify-center gap-1">
-              <span className="text-xl font-bold text-[#2DD4BF]">R$</span>
+              <span className="text-h2 font-bold text-[#0F766E]">R$</span>
               <input
                 type="tel"
                 value={amountStr}
                 onChange={handleAmountChange}
-                className="bg-transparent text-3xl font-black text-[#2DD4BF] text-center w-40 outline-none border-b border-[#2DD4BF]/40 focus:border-[#2DD4BF]"
+                className="bg-transparent text-display font-bold text-[#0F766E] text-center w-40 outline-none border-b-2 border-[#0F766E]/40 focus:border-[#0F766E]"
               />
             </div>
           ) : (
-            <p className="text-3xl font-black text-[#2DD4BF]">
+            <p className="text-display font-bold text-[#0F766E]">
               R$ {moneyConverter(numericAmount)}
             </p>
           )}
@@ -466,56 +470,62 @@ export function PayWithReceiptModal({
           <div className="mb-4 space-y-2.5">
             {qrCodeUrl && (
               <div className="flex flex-col items-center justify-center mb-2">
-                <div className="bg-white p-2.5 rounded-2xl shadow-md">
+                <div className="bg-white p-3 rounded-2xl border border-[var(--border-color)] shadow-sm">
                   <img src={qrCodeUrl} alt="QR Code Pix" className="w-36 h-36" />
                 </div>
               </div>
             )}
 
-            <div className="bg-[#2c2c2e] rounded-xl p-3 flex items-center justify-between gap-2">
+            <div className="bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-xl p-3 flex items-center justify-between gap-2">
               <div className="overflow-hidden">
-                <p className="text-[10px] text-gray-400 uppercase font-bold">
+                <p className="text-caption text-[var(--text-secondary)] uppercase font-semibold">
                   Chave Pix de {recipientName.split(' ')[0]}
                 </p>
-                <p className="text-xs text-white font-medium truncate">{pixKey}</p>
+                <p className="text-body2 text-[var(--text-primary)] font-semibold truncate">
+                  {pixKey}
+                </p>
               </div>
               <button
                 type="button"
                 onClick={handleCopyKey}
-                className="bg-[#2DD4BF]/20 text-[#2DD4BF] hover:bg-[#2DD4BF]/30 px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1 shrink-0"
+                className="bg-[#0F766E]/10 text-[#0F766E] hover:bg-[#0F766E]/20 px-3 py-2 rounded-xl text-caption font-semibold flex items-center gap-1 shrink-0 transition-colors"
               >
-                {copiedKey ? <Check size={13} /> : <Copy size={13} />}
+                {copiedKey ? <Check size={14} strokeWidth={2} /> : <Copy size={14} strokeWidth={2} />}
                 {copiedKey ? 'Copiada!' : 'Copiar'}
               </button>
             </div>
 
             {copiaECola && (
-              <div className="bg-[#2c2c2e] rounded-xl p-3 flex items-center justify-between gap-2">
+              <div className="bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-xl p-3 flex items-center justify-between gap-2">
                 <div className="overflow-hidden">
-                  <p className="text-[10px] text-gray-400 uppercase font-bold">Pix Copia e Cola</p>
-                  <p className="text-xs text-gray-300 font-mono truncate">{copiaECola}</p>
+                  <p className="text-caption text-[var(--text-secondary)] uppercase font-semibold">
+                    Pix Copia e Cola
+                  </p>
+                  <p className="text-caption text-[var(--text-primary)] font-mono truncate">
+                    {copiaECola}
+                  </p>
                 </div>
                 <button
                   type="button"
                   onClick={handleCopyCode}
-                  className="bg-[#2DD4BF] text-[#05080f] hover:bg-[#25b5a3] px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1 shrink-0"
+                  className="bg-[#0F766E] text-white hover:bg-[#115E59] px-3 py-2 rounded-xl text-caption font-semibold flex items-center gap-1 shrink-0 transition-colors"
                 >
-                  {copiedCode ? <Check size={13} /> : <Copy size={13} />}
+                  {copiedCode ? <Check size={14} strokeWidth={2} /> : <Copy size={14} strokeWidth={2} />}
                   {copiedCode ? 'Copiado!' : 'Copiar'}
                 </button>
               </div>
             )}
           </div>
         ) : (
-          <div className="bg-amber-500/10 border border-amber-500/30 text-amber-300 rounded-xl p-3 text-xs text-center mb-4">
+          <div className="bg-[var(--amber-bg)] border border-[var(--amber-border)] text-[#F59E0B] rounded-xl p-3 text-caption font-semibold text-center mb-4">
             {recipientName.split(' ')[0]} ainda não cadastrou chave Pix. Realize o pagamento e anexe o comprovante abaixo!
           </div>
         )}
 
         {/* Upload Obrigatório de Comprovante */}
         <div className="mb-5">
-          <label className="block text-gray-300 text-xs uppercase font-bold mb-2">
-            Comprovante(s) de Pagamento <span className="text-amber-400">* Obrigatório</span>
+          <label className="block text-[var(--text-secondary)] text-caption uppercase font-semibold mb-2">
+            Comprovante(s) de Pagamento <span className="text-[#F59E0B]">* Obrigatório</span>
           </label>
 
           <input
@@ -532,24 +542,24 @@ export function PayWithReceiptModal({
               type="button"
               onClick={() => fileInputRef.current?.click()}
               disabled={isCompressing}
-              className="w-full border-2 border-dashed border-[#2DD4BF]/40 hover:border-[#2DD4BF] bg-[#2DD4BF]/5 hover:bg-[#2DD4BF]/10 rounded-2xl p-5 flex flex-col items-center justify-center gap-2 transition-colors"
+              className="w-full border-2 border-dashed border-[#0F766E]/40 hover:border-[#0F766E] bg-[#0F766E]/5 hover:bg-[#0F766E]/10 rounded-2xl p-5 flex flex-col items-center justify-center gap-2 transition-colors"
             >
               {isCompressing ? (
                 <>
-                  <LoaderCircle size={26} className="animate-spin text-[#2DD4BF]" />
-                  <span className="text-xs text-gray-300 font-medium">
+                  <LoaderCircle size={26} strokeWidth={2} className="animate-spin text-[#0F766E]" />
+                  <span className="text-caption text-[var(--text-secondary)] font-medium">
                     Processando imagem...
                   </span>
                 </>
               ) : (
                 <>
-                  <div className="w-11 h-11 rounded-full bg-[#2DD4BF]/20 text-[#2DD4BF] flex items-center justify-center">
-                    <Upload size={20} />
+                  <div className="w-12 h-12 rounded-full bg-[#0F766E]/15 text-[#0F766E] flex items-center justify-center">
+                    <Upload size={20} strokeWidth={2} />
                   </div>
-                  <span className="text-sm font-bold text-white">
+                  <span className="text-body2 font-semibold text-[var(--text-primary)]">
                     Anexar Imagem do Comprovante
                   </span>
-                  <span className="text-[11px] text-gray-400">
+                  <span className="text-caption text-[var(--text-secondary)]">
                     Toque para escolher um ou mais prints de Pix
                   </span>
                 </>
@@ -560,11 +570,11 @@ export function PayWithReceiptModal({
               {receiptList.map((url, idx) => (
                 <div
                   key={idx}
-                  className="bg-[#05080f] border border-[#2DD4BF]/40 rounded-2xl p-3 relative"
+                  className="bg-[var(--bg-subtle)] border border-[var(--emerald-border)] rounded-2xl p-3 relative"
                 >
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs font-bold text-[#34C759] flex items-center gap-1.5">
-                      <ImageIcon size={14} />{' '}
+                    <span className="text-caption font-semibold text-[#10B981] flex items-center gap-1.5">
+                      <ImageIcon size={14} strokeWidth={2} />{' '}
                       {receiptList.length > 1
                         ? `Comprovante ${idx + 1} de ${receiptList.length}`
                         : 'Comprovante anexado'}
@@ -574,15 +584,15 @@ export function PayWithReceiptModal({
                       onClick={() =>
                         setReceiptList((prev) => prev.filter((_, itemIdx) => itemIdx !== idx))
                       }
-                      className="text-xs text-red-400 hover:text-red-300 flex items-center gap-1 font-semibold"
+                      className="text-caption text-[#F43F5E] hover:opacity-80 flex items-center gap-1 font-semibold"
                     >
-                      <Trash2 size={13} /> Remover
+                      <Trash2 size={14} strokeWidth={2} /> Remover
                     </button>
                   </div>
                   <img
                     src={url}
                     alt={`Preview do Comprovante ${idx + 1}`}
-                    className="w-full max-h-36 object-contain rounded-xl bg-black/40"
+                    className="w-full max-h-36 object-contain rounded-xl bg-slate-950"
                   />
                 </div>
               ))}
@@ -591,16 +601,16 @@ export function PayWithReceiptModal({
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
                 disabled={isCompressing}
-                className="w-full py-2.5 rounded-xl border border-dashed border-[#2DD4BF]/40 hover:border-[#2DD4BF] bg-[#2DD4BF]/10 hover:bg-[#2DD4BF]/15 text-[#2DD4BF] text-xs font-bold flex items-center justify-center gap-1.5 transition-colors"
+                className="w-full h-11 rounded-xl border border-dashed border-[#0F766E]/40 hover:border-[#0F766E] bg-[#0F766E]/10 hover:bg-[#0F766E]/15 text-[#0F766E] text-caption font-semibold flex items-center justify-center gap-1.5 transition-colors"
               >
                 {isCompressing ? (
                   <>
-                    <LoaderCircle size={14} className="animate-spin" />
+                    <LoaderCircle size={14} strokeWidth={2} className="animate-spin" />
                     <span>Adicionando comprovante...</span>
                   </>
                 ) : (
                   <>
-                    <Plus size={14} />
+                    <Plus size={14} strokeWidth={2} />
                     <span>Adicionar outro comprovante (Pix separado)</span>
                   </>
                 )}
@@ -613,7 +623,7 @@ export function PayWithReceiptModal({
           <button
             type="button"
             onClick={onClose}
-            className="flex-1 bg-transparent border border-white/10 text-white font-bold py-3.5 rounded-xl hover:bg-white/5 transition-colors text-sm"
+            className="flex-1 ds-btn-secondary"
           >
             Cancelar
           </button>
@@ -621,13 +631,13 @@ export function PayWithReceiptModal({
             type="button"
             onClick={handleSubmit}
             disabled={isSubmitting || isCompressing || receiptList.length === 0}
-            className="flex-1 bg-[#2DD4BF] hover:bg-[#25b5a3] text-[#05080f] font-bold py-3.5 px-4 rounded-xl transition-colors disabled:opacity-40 flex items-center justify-center gap-2 text-sm"
+            className="flex-1 ds-btn-primary"
           >
             {isSubmitting ? (
-              <LoaderCircle size={18} className="animate-spin" />
+              <LoaderCircle size={18} strokeWidth={2} className="animate-spin" />
             ) : (
               <>
-                <Check size={17} strokeWidth={2.5} />
+                <Check size={18} strokeWidth={2} />
                 Confirmar Pagamento
               </>
             )}

@@ -113,7 +113,7 @@ export function Amigos({
           return {
             ...amigo,
             nome: amigo.nome || amigo.name || 'Amigo',
-            cor: amigo.cor || amigo.color || 'bg-sky-500',
+            cor: amigo.cor || amigo.color || 'bg-teal-600',
             favorito: amigo.favorito ?? amigo.is_favorite ?? false,
             has_account: amigo.has_account ?? amigo.is_registered ?? false,
             divida: dividaFormatada,
@@ -187,7 +187,7 @@ export function Amigos({
         nome: displayName,
         telefone: cleanPhone,
         pix_key: user.pix_key || '',
-        cor: user.color || 'bg-teal-500',
+        cor: user.color || 'bg-teal-600',
         favorito: false,
       });
       setUsuariosComConta((prev) => prev.filter((u) => u.id !== user.id));
@@ -305,7 +305,6 @@ export function Amigos({
 
   const amigosFiltrados = useMemo(() => {
     return amigos.filter((amigo) => {
-      // 1. Busca textual por nome ou telefone
       if (buscaAmigos.trim()) {
         const termo = buscaAmigos.trim().toLowerCase();
         const nomeMatch = (amigo.nome || amigo.name || '').toLowerCase().includes(termo);
@@ -320,21 +319,18 @@ export function Amigos({
         }
       }
 
-      // 2. Filtro de verificado
       if (filtroAmigos === 'verificados') {
         if (!amigo.has_account && !amigo.is_registered) {
           return false;
         }
       }
 
-      // 3. Filtro de favoritos
       if (filtroAmigos === 'favoritos') {
         if (!amigo.favorito) {
           return false;
         }
       }
 
-      // 4. Filtro de pendentes
       if (filtroAmigos === 'pendentes') {
         const dev = Number(amigo.dividaNumerica || 0);
         const vd = Number(amigo.voceDeveNumerico || 0);
@@ -353,7 +349,6 @@ export function Amigos({
 
   const usuariosComContaFiltrados = useMemo(() => {
     return usuariosComConta.filter((u) => {
-      // Exibe apenas contatos que estão na agenda do usuário
       if (u.is_in_contacts === false) return false;
 
       const uPhone = stripCountryCode(u.phone || '');
@@ -379,7 +374,6 @@ export function Amigos({
     });
   }, [usuariosComConta, amigos, buscaAmigos]);
 
-  // Contagens para chips de filtro de grupos
   const contagemMeusGrupos = useMemo(() => {
     if (!currentUserId) return 0;
     return grupos.filter((g) => g.created_by === currentUserId).length;
@@ -387,27 +381,21 @@ export function Amigos({
 
   const gruposFiltrados = useMemo(() => {
     return grupos.filter((grupo) => {
-      // 1. Filtro rápido (Meus grupos)
       if (filtroGrupos === 'meus' && currentUserId) {
         if (grupo.created_by !== currentUserId) {
           return false;
         }
       }
 
-      // 2. Busca textual por nome do grupo, criador ou participantes (amigos e usuários)
       if (buscaGrupos.trim()) {
         const termo = buscaGrupos.trim().toLowerCase();
         const termoDigits = termo.replace(/\D/g, '');
 
-        // Match no nome do grupo
         const groupNameMatch = (grupo.name || '').toLowerCase().includes(termo);
-
-        // Match no criador / dono
         const creatorMatch =
           (grupo as any).owner?.name?.toLowerCase().includes(termo) ||
           (grupo as any).creator_name?.toLowerCase().includes(termo);
 
-        // Match em qualquer participante (friend ou user) por nome ou telefone
         const memberMatch = (grupo.members || []).some((m) => {
           const name = (m.friend?.name || m.user?.name || '').toLowerCase();
           const phone = (m.friend?.phone || m.user?.phone || '').replace(/\D/g, '');
@@ -427,54 +415,56 @@ export function Amigos({
 
   if (isLoading) {
     return (
-      <div className="flex flex-col items-center justify-center h-64 text-[#2DD4BF]">
-        <LoaderCircle size={40} className="animate-spin mb-4" />
-        <p className="text-gray-400 font-medium">Carregando amigos e grupos...</p>
+      <div className="flex flex-col items-center justify-center h-64 text-[#0F766E]">
+        <LoaderCircle size={40} strokeWidth={2} className="animate-spin mb-4" />
+        <p className="text-sm font-medium text-[var(--text-secondary)]">
+          Carregando amigos e grupos...
+        </p>
       </div>
     );
   }
 
   return (
     <div className="space-y-6 relative">
-      <header className="mt-2 space-y-3.5">
+      <header className="mt-1 space-y-4">
         <div className="flex justify-between items-center gap-2">
-          <h1 className="text-3xl font-bold text-white">Contatos</h1>
+          <h1 className="text-h1 text-[var(--text-primary)]">Contatos</h1>
         </div>
 
         {/* Barra de alternância Amigos / Grupos com indicador deslizante */}
         <div className="flex items-center justify-between gap-2">
-          <div className="relative bg-[#1c1c1e] p-1 rounded-full flex items-center border border-white/5 flex-1">
+          <div className="relative bg-[var(--bg-subtle)] p-1 rounded-xl flex items-center border border-[var(--border-color)] flex-1">
             <div
-              className={`absolute top-1 bottom-1 w-[calc(50%-4px)] bg-[#2DD4BF] rounded-full transition-all duration-300 ease-out shadow-sm ${
+              className={`absolute top-1 bottom-1 w-[calc(50%-4px)] bg-[#0F766E] rounded-lg transition-all duration-300 ease-out shadow-sm ${
                 subTab === 'amigos' ? 'left-1' : 'left-[calc(50%+2px)]'
               }`}
             />
             <button
               onClick={() => setSubTab('amigos')}
-              className={`relative z-10 flex-1 py-2 rounded-full text-xs font-bold transition-colors flex items-center justify-center gap-1.5 ${
+              className={`relative z-10 flex-1 py-2.5 rounded-lg text-xs font-semibold transition-colors flex items-center justify-center gap-1.5 ${
                 subTab === 'amigos'
-                  ? 'text-[#05080f]'
-                  : 'text-gray-400 hover:text-white'
+                  ? 'text-white'
+                  : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
               }`}
             >
               <span>Amigos</span>
               {solicitacoesAmizade.length > 0 && (
-                <span className="w-5 h-5 rounded-full bg-red-500 text-white text-[10px] flex items-center justify-center font-bold">
+                <span className="w-5 h-5 rounded-full bg-[#F43F5E] text-white text-xs flex items-center justify-center font-bold">
                   {solicitacoesAmizade.length}
                 </span>
               )}
             </button>
             <button
               onClick={() => setSubTab('grupos')}
-              className={`relative z-10 flex-1 py-2 rounded-full text-xs font-bold transition-colors flex items-center justify-center gap-1.5 ${
+              className={`relative z-10 flex-1 py-2.5 rounded-lg text-xs font-semibold transition-colors flex items-center justify-center gap-1.5 ${
                 subTab === 'grupos'
-                  ? 'text-[#05080f]'
-                  : 'text-gray-400 hover:text-white'
+                  ? 'text-white'
+                  : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
               }`}
             >
               <span>Grupos</span>
               {convitesGrupo.length > 0 && (
-                <span className="w-5 h-5 rounded-full bg-red-500 text-white text-[10px] flex items-center justify-center font-bold">
+                <span className="w-5 h-5 rounded-full bg-[#F43F5E] text-white text-xs flex items-center justify-center font-bold">
                   {convitesGrupo.length}
                 </span>
               )}
@@ -482,9 +472,9 @@ export function Amigos({
           </div>
         </div>
 
-        {/* Barra de Busca Dinâmica */}
-        <div className="bg-[#1c1c1e] rounded-2xl flex items-center p-3 text-gray-400 border border-white/5 focus-within:ring-1 focus-within:ring-[#2DD4BF] focus-within:text-[#2DD4BF] transition-all">
-          <Search size={20} className="mr-3 shrink-0" />
+        {/* Barra de Busca Dinâmica (48px height, 12px radius) */}
+        <div className="h-12 bg-[var(--bg-surface)] rounded-xl flex items-center px-4 text-[var(--text-secondary)] border border-[var(--border-color)] focus-within:border-[#0F766E] focus-within:ring-2 focus-within:ring-[#0F766E]/15 transition-all shadow-sm">
+          <Search size={18} strokeWidth={2} className="mr-3 shrink-0" />
           <input
             type="text"
             placeholder={
@@ -500,7 +490,7 @@ export function Amigos({
                 setBuscaGrupos(e.target.value);
               }
             }}
-            className="bg-transparent w-full outline-none text-white placeholder:text-gray-500 text-sm"
+            className="bg-transparent w-full outline-none text-[var(--text-primary)] placeholder:text-[var(--text-secondary)] text-sm"
           />
           {(subTab === 'amigos' ? buscaAmigos : buscaGrupos) && (
             <button
@@ -509,23 +499,23 @@ export function Amigos({
                 if (subTab === 'amigos') setBuscaAmigos('');
                 else setBuscaGrupos('');
               }}
-              className="text-gray-500 hover:text-white p-1 rounded-full transition-colors ml-1"
+              className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] p-1 rounded-full transition-colors ml-1"
             >
-              <X size={16} />
+              <X size={16} strokeWidth={2} />
             </button>
           )}
         </div>
 
         {/* Chips de Filtros Rápidos */}
         {subTab === 'amigos' ? (
-          <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto pb-1 scrollbar-hide pt-0.5">
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-hide pt-0.5">
             <button
               type="button"
               onClick={() => setFiltroAmigos('todos')}
-              className={`px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-colors flex items-center gap-1.5 shrink-0 ${
+              className={`px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-colors flex items-center gap-1.5 shrink-0 border ${
                 filtroAmigos === 'todos'
-                  ? 'bg-[#2DD4BF] text-[#05080f]'
-                  : 'bg-[#1c1c1e] text-gray-400 hover:text-white border border-white/5'
+                  ? 'bg-[#0F766E] text-white border-[#0F766E]'
+                  : 'bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] border-[var(--border-color)]'
               }`}
             >
               Todos ({amigos.length})
@@ -534,15 +524,16 @@ export function Amigos({
             <button
               type="button"
               onClick={() => setFiltroAmigos(filtroAmigos === 'verificados' ? 'todos' : 'verificados')}
-              className={`px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-colors flex items-center gap-1.5 shrink-0 ${
+              className={`px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-colors flex items-center gap-1.5 shrink-0 border ${
                 filtroAmigos === 'verificados'
-                  ? 'bg-[#2DD4BF] text-[#05080f]'
-                  : 'bg-[#1c1c1e] text-gray-400 hover:text-white border border-white/5'
+                  ? 'bg-[#0F766E] text-white border-[#0F766E]'
+                  : 'bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] border-[var(--border-color)]'
               }`}
             >
               <BadgeCheck
                 size={14}
-                className={filtroAmigos === 'verificados' ? 'text-[#05080f]' : 'text-[#2DD4BF]'}
+                strokeWidth={2}
+                className={filtroAmigos === 'verificados' ? 'text-white' : 'text-[#0F766E]'}
               />
               Verificados ({contagemVerificados})
             </button>
@@ -550,18 +541,19 @@ export function Amigos({
             <button
               type="button"
               onClick={() => setFiltroAmigos(filtroAmigos === 'favoritos' ? 'todos' : 'favoritos')}
-              className={`px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-colors flex items-center gap-1.5 shrink-0 ${
+              className={`px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-colors flex items-center gap-1.5 shrink-0 border ${
                 filtroAmigos === 'favoritos'
-                  ? 'bg-[#2DD4BF] text-[#05080f]'
-                  : 'bg-[#1c1c1e] text-gray-400 hover:text-white border border-white/5'
+                  ? 'bg-[#0F766E] text-white border-[#0F766E]'
+                  : 'bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] border-[var(--border-color)]'
               }`}
             >
               <Star
                 size={13}
+                strokeWidth={2}
                 className={
                   filtroAmigos === 'favoritos'
-                    ? 'fill-[#05080f] text-[#05080f]'
-                    : 'fill-yellow-500 text-yellow-500'
+                    ? 'fill-white text-white'
+                    : 'fill-[#F59E0B] text-[#F59E0B]'
                 }
               />
               Favoritos ({contagemFavoritos})
@@ -570,24 +562,24 @@ export function Amigos({
             <button
               type="button"
               onClick={() => setFiltroAmigos(filtroAmigos === 'pendentes' ? 'todos' : 'pendentes')}
-              className={`px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-colors flex items-center gap-1.5 shrink-0 ${
+              className={`px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-colors flex items-center gap-1.5 shrink-0 border ${
                 filtroAmigos === 'pendentes'
-                  ? 'bg-[#2DD4BF] text-[#05080f]'
-                  : 'bg-[#1c1c1e] text-gray-400 hover:text-white border border-white/5'
+                  ? 'bg-[#0F766E] text-white border-[#0F766E]'
+                  : 'bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] border-[var(--border-color)]'
               }`}
             >
               Com saldo ({contagemPendentes})
             </button>
           </div>
         ) : (
-          <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto pb-1 scrollbar-hide pt-0.5">
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-hide pt-0.5">
             <button
               type="button"
               onClick={() => setFiltroGrupos('todos')}
-              className={`px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-colors flex items-center gap-1.5 shrink-0 ${
+              className={`px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-colors flex items-center gap-1.5 shrink-0 border ${
                 filtroGrupos === 'todos'
-                  ? 'bg-[#2DD4BF] text-[#05080f]'
-                  : 'bg-[#1c1c1e] text-gray-400 hover:text-white border border-white/5'
+                  ? 'bg-[#0F766E] text-white border-[#0F766E]'
+                  : 'bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] border-[var(--border-color)]'
               }`}
             >
               Todos ({grupos.length})
@@ -596,10 +588,10 @@ export function Amigos({
             <button
               type="button"
               onClick={() => setFiltroGrupos(filtroGrupos === 'meus' ? 'todos' : 'meus')}
-              className={`px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-colors flex items-center gap-1.5 shrink-0 ${
+              className={`px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-colors flex items-center gap-1.5 shrink-0 border ${
                 filtroGrupos === 'meus'
-                  ? 'bg-[#2DD4BF] text-[#05080f]'
-                  : 'bg-[#1c1c1e] text-gray-400 hover:text-white border border-white/5'
+                  ? 'bg-[#0F766E] text-white border-[#0F766E]'
+                  : 'bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] border-[var(--border-color)]'
               }`}
             >
               Criados por mim ({contagemMeusGrupos})
@@ -609,10 +601,10 @@ export function Amigos({
               <button
                 type="button"
                 onClick={() => setFiltroGrupos(filtroGrupos === 'convites' ? 'todos' : 'convites')}
-                className={`px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-colors flex items-center gap-1.5 shrink-0 ${
+                className={`px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-colors flex items-center gap-1.5 shrink-0 border ${
                   filtroGrupos === 'convites'
-                    ? 'bg-[#2DD4BF] text-[#05080f]'
-                    : 'bg-[#1c1c1e] text-gray-400 hover:text-white border border-white/5'
+                    ? 'bg-[#0F766E] text-white border-[#0F766E]'
+                    : 'bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] border-[var(--border-color)]'
                 }`}
               >
                 Convites ({convitesGrupo.length})
@@ -622,26 +614,26 @@ export function Amigos({
         )}
       </header>
 
-      {/* Painel ativo (alternado exclusivamente pelo seletor Amigos / Grupos) */}
+      {/* Painel ativo */}
       <div className="w-full">
         {subTab === 'amigos' ? (
           /* PAINEL AMIGOS */
           <div className="w-full space-y-6">
             {/* SOLICITAÇÕES DE AMIZADE PENDENTES */}
             {solicitacoesAmizade.length > 0 && (
-              <section className="bg-gradient-to-r from-[#1c1c1e] to-[#252528] rounded-2xl p-4 border border-[#2DD4BF]/30 shadow-lg space-y-3">
+              <section className="ds-card p-4 border-[#F59E0B]/40 space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <UserCheck className="text-[#2DD4BF]" size={18} />
-                    <h2 className="text-sm font-bold text-white uppercase tracking-wider">
+                    <UserCheck className="text-[#F59E0B]" size={18} strokeWidth={2} />
+                    <h2 className="text-sm font-display font-bold text-[var(--text-primary)] uppercase tracking-wider">
                       Solicitações de Amizade ({solicitacoesAmizade.length})
                     </h2>
                   </div>
-                  <span className="text-[11px] text-[#2DD4BF] font-semibold bg-[#2DD4BF]/10 px-2.5 py-0.5 rounded-full">
+                  <span className="text-xs text-[#F59E0B] font-semibold bg-[var(--amber-bg)] border border-[var(--amber-border)] px-2.5 py-0.5 rounded-full">
                     Pendente
                   </span>
                 </div>
-                <p className="text-xs text-gray-400">
+                <p className="text-xs text-[var(--text-secondary)]">
                   Confirme as amizades para visualizar os rachas compartilhados.
                 </p>
 
@@ -651,7 +643,7 @@ export function Amigos({
                     return (
                       <div
                         key={req.id}
-                        className="bg-[#121214] p-3 rounded-xl border border-white/5 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                        className="bg-[var(--bg-subtle)] p-3.5 rounded-xl border border-[var(--border-color)] flex flex-col sm:flex-row sm:items-center justify-between gap-3"
                       >
                         <div className="flex items-center gap-3">
                           <div
@@ -660,7 +652,7 @@ export function Amigos({
                                 ? undefined
                                 : { backgroundColor: getAvatarColor(req.sender?.color || req.sender?.cor) }
                             }
-                            className="w-10 h-10 rounded-2xl overflow-hidden text-white font-bold text-sm flex items-center justify-center shadow shrink-0"
+                            className="w-12 h-12 rounded-full overflow-hidden text-white font-display font-bold text-base flex items-center justify-center shadow-sm shrink-0"
                           >
                             {req.sender?.avatar_url ? (
                               <img
@@ -673,10 +665,10 @@ export function Amigos({
                             )}
                           </div>
                           <div>
-                            <p className="text-sm font-bold text-white">
+                            <p className="text-base font-display font-semibold text-[var(--text-primary)]">
                               {req.sender?.name || 'Usuário'}
                             </p>
-                            <p className="text-xs text-gray-400">
+                            <p className="text-xs text-[var(--text-secondary)]">
                               {req.sender?.phone || 'Telefone não informado'}
                             </p>
                           </div>
@@ -686,16 +678,16 @@ export function Amigos({
                           <button
                             disabled={isProcessing}
                             onClick={() => handleRecusarAmizade(req.id)}
-                            className="px-3 py-1.5 rounded-xl text-xs font-bold text-gray-400 hover:text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-50"
+                            className="px-3.5 py-2 rounded-xl text-xs font-semibold text-[#F43F5E] hover:bg-[var(--rose-bg)] transition-colors disabled:opacity-50"
                           >
                             Recusar
                           </button>
                           <button
                             disabled={isProcessing}
                             onClick={() => handleAceitarAmizade(req.id)}
-                            className="px-4 py-1.5 rounded-xl text-xs font-bold bg-[#2DD4BF] text-[#05080f] hover:brightness-110 active:scale-95 transition-all shadow-md flex items-center gap-1 disabled:opacity-50"
+                            className="px-4 py-2 rounded-xl text-xs font-semibold bg-[#0F766E] hover:bg-[#115E59] text-white active:scale-95 transition-all shadow-sm flex items-center gap-1.5 disabled:opacity-50"
                           >
-                            <Check size={14} />
+                            <Check size={14} strokeWidth={2} />
                             Confirmar
                           </button>
                         </div>
@@ -706,18 +698,18 @@ export function Amigos({
               </section>
             )}
 
-            {/* FAVORITOS */}
+            {/* FAVORITOS (Avatares Circulares 64x64px) */}
             {buscaAmigos === '' && filtroAmigos === 'todos' && favoritos.length > 0 && (
               <section>
                 <div className="flex justify-between items-end mb-4">
-                  <h2 className="text-lg font-bold text-white">Favoritos</h2>
+                  <h2 className="text-h2 text-[var(--text-primary)]">Favoritos</h2>
                 </div>
-                <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide">
+                <div className="flex gap-4 overflow-x-auto pb-3 scrollbar-hide">
                   {favoritos.map((amigo) => (
                     <div
                       key={amigo.id}
                       onClick={() => setAmigoSelecionado(amigo)}
-                      className="flex flex-col items-center min-w-[72px] cursor-pointer active:opacity-70"
+                      className="flex flex-col items-center min-w-[72px] cursor-pointer active:scale-95 transition-transform"
                     >
                       <div className="relative mb-2">
                         <div
@@ -726,7 +718,7 @@ export function Amigos({
                               ? undefined
                               : { backgroundColor: getAvatarColor(amigo.cor || amigo.color) }
                           }
-                          className="w-16 h-16 rounded-3xl overflow-hidden flex items-center justify-center shadow-lg border border-white/10"
+                          className="w-16 h-16 rounded-full overflow-hidden flex items-center justify-center shadow-sm border-2 border-[var(--bg-surface)]"
                         >
                           {amigo.avatar_url ? (
                             <img
@@ -735,19 +727,19 @@ export function Amigos({
                               className="w-full h-full object-cover"
                             />
                           ) : (
-                            <span className="text-2xl font-black text-white">
+                            <span className="text-xl font-display font-bold text-white">
                               {amigo.nome[0]?.toUpperCase()}
                             </span>
                           )}
                         </div>
-                        <div className="absolute -bottom-2 -right-2 bg-[#05080f] rounded-full p-1">
-                          <Star size={16} className="text-yellow-500 fill-yellow-500" />
+                        <div className="absolute -bottom-1 -right-1 bg-[var(--bg-surface)] border border-[var(--border-color)] rounded-full p-1 shadow-sm">
+                          <Star size={13} strokeWidth={2} className="text-[#F59E0B] fill-[#F59E0B]" />
                         </div>
                       </div>
-                      <span className="text-sm font-medium text-gray-300 truncate w-full text-center flex items-center justify-center gap-1">
+                      <span className="text-xs font-semibold text-[var(--text-primary)] truncate w-full text-center flex items-center justify-center gap-1">
                         <span className="truncate">{amigo.nome.split(' ')[0]}</span>
                         {(amigo.has_account || amigo.is_registered) && (
-                          <BadgeCheck size={13} className="text-[#2DD4BF] fill-[#2DD4BF]/20 shrink-0" />
+                          <BadgeCheck size={13} strokeWidth={2} className="text-[#0F766E] fill-[#CCFBF1] shrink-0" />
                         )}
                       </span>
                     </div>
@@ -757,9 +749,9 @@ export function Amigos({
             )}
 
             {/* LISTA DE AMIGOS */}
-            <section className="pb-10">
+            <section className="pb-6">
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-bold text-white">
+                <h2 className="text-h2 text-[var(--text-primary)]">
                   {buscaAmigos
                     ? 'Resultados da busca'
                     : filtroAmigos === 'verificados'
@@ -770,16 +762,18 @@ export function Amigos({
                     ? 'Amigos com Saldo Pendente'
                     : 'Todos os Amigos'}
                 </h2>
-                <span className="text-xs text-gray-500 font-medium">
+                <span className="text-caption text-[var(--text-secondary)]">
                   {amigosFiltrados.length} {amigosFiltrados.length === 1 ? 'amigo' : 'amigos'}
                 </span>
               </div>
 
               <div className="space-y-3">
                 {amigosFiltrados.length === 0 ? (
-                  <div className="bg-[#1c1c1e] p-8 rounded-3xl text-center border border-white/5 space-y-3">
-                    <p className="text-gray-400 font-medium">Nenhum amigo encontrado</p>
-                    <p className="text-xs text-gray-500">
+                  <div className="ds-card p-8 text-center space-y-3">
+                    <p className="font-display font-semibold text-[var(--text-primary)]">
+                      Nenhum amigo encontrado
+                    </p>
+                    <p className="text-sm text-[var(--text-secondary)]">
                       {filtroAmigos === 'verificados'
                         ? 'Nenhum amigo verificado encontrado com o filtro atual.'
                         : 'Tente ajustar ou limpar sua busca/filtros.'}
@@ -791,7 +785,7 @@ export function Amigos({
                           setBuscaAmigos('');
                           setFiltroAmigos('todos');
                         }}
-                        className="bg-[#2DD4BF]/15 text-[#2DD4BF] hover:bg-[#2DD4BF]/25 px-4 py-2 rounded-xl text-xs font-bold inline-flex items-center gap-1.5 transition-colors"
+                        className="bg-[#CCFBF1] text-[#0F766E] hover:opacity-90 px-4 py-2 rounded-xl text-xs font-semibold inline-flex items-center gap-1.5 transition-colors"
                       >
                         Limpar filtros
                       </button>
@@ -813,9 +807,9 @@ export function Amigos({
             {/* AMIGOS QUE JÁ POSSUEM CONTA */}
             <section className="pb-10">
               <div className="flex items-center justify-between gap-2 mb-3 min-w-0">
-                <div className="flex items-center gap-1.5 sm:gap-2 min-w-0 flex-1">
-                  <BadgeCheck size={18} className="text-[#2DD4BF] shrink-0" />
-                  <h2 className="text-base sm:text-lg font-bold text-white truncate">
+                <div className="flex items-center gap-2 min-w-0 flex-1">
+                  <BadgeCheck size={18} strokeWidth={2} className="text-[#0F766E] shrink-0" />
+                  <h2 className="text-h2 text-[var(--text-primary)] truncate">
                     Amigos com conta
                   </h2>
                 </div>
@@ -823,34 +817,34 @@ export function Amigos({
                   type="button"
                   onClick={handleSincronizarAgenda}
                   disabled={isSyncingAgenda}
-                  className="text-xs font-bold text-[#2DD4BF] hover:underline flex items-center gap-1.5 shrink-0 disabled:opacity-50"
+                  className="text-xs font-semibold text-[#0F766E] hover:underline flex items-center gap-1.5 shrink-0 disabled:opacity-50"
                 >
-                  <RefreshCw size={13} className={isSyncingAgenda ? 'animate-spin' : ''} />
+                  <RefreshCw size={13} strokeWidth={2} className={isSyncingAgenda ? 'animate-spin' : ''} />
                   <span className="hidden xs:inline">Sincronizar agenda</span>
                   <span className="xs:hidden">Sincronizar</span>
                 </button>
               </div>
 
               {usuariosComContaFiltrados.length === 0 ? (
-                <div className="bg-[#1c1c1e] p-5 sm:p-6 rounded-3xl text-center border border-white/5 space-y-2.5">
-                  <p className="text-sm text-gray-300 font-medium">
+                <div className="ds-card p-6 text-center space-y-3">
+                  <p className="text-sm font-display font-semibold text-[var(--text-primary)]">
                     Nenhum novo contato com conta encontrado
                   </p>
-                  <p className="text-xs text-gray-500">
+                  <p className="text-xs text-[var(--text-secondary)]">
                     Sincronize sua agenda do celular para encontrar contatos que já têm conta no RachApp.
                   </p>
                   <button
                     type="button"
                     onClick={handleSincronizarAgenda}
                     disabled={isSyncingAgenda}
-                    className="bg-[#2DD4BF]/15 text-[#2DD4BF] hover:bg-[#2DD4BF]/25 border border-[#2DD4BF]/30 px-4 py-2 rounded-xl text-xs font-bold inline-flex items-center gap-1.5 transition-colors disabled:opacity-50"
+                    className="bg-[#CCFBF1] text-[#0F766E] hover:opacity-90 px-4 py-2.5 rounded-xl text-xs font-semibold inline-flex items-center gap-1.5 transition-colors disabled:opacity-50"
                   >
-                    <BookUser size={14} />
+                    <BookUser size={15} strokeWidth={2} />
                     <span>Buscar na minha agenda</span>
                   </button>
                 </div>
               ) : (
-                <div className="space-y-2.5">
+                <div className="space-y-3">
                   {usuariosComContaFiltrados.map((user) => {
                     const isAdding = addingUserId === user.id;
                     const displayName = user.contact_name || user.name || 'Usuário';
@@ -864,16 +858,16 @@ export function Amigos({
                     return (
                       <div
                         key={user.id}
-                        className="bg-[#1c1c1e] rounded-2xl p-3 sm:p-3.5 border border-white/5 flex items-center justify-between gap-2.5 hover:border-[#2DD4BF]/30 transition-colors"
+                        className="ds-card p-4 flex items-center justify-between gap-3 hover:border-[#0F766E]/40 transition-colors"
                       >
-                        <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1 pr-1">
+                        <div className="flex items-center gap-3 min-w-0 flex-1 pr-1">
                           <div
                             style={
                               user.avatar_url
                                 ? undefined
-                                : { backgroundColor: getAvatarColor(user.color || 'bg-teal-500') }
+                                : { backgroundColor: getAvatarColor(user.color || 'bg-teal-600') }
                             }
-                            className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl overflow-hidden flex items-center justify-center text-white font-bold text-base shrink-0 border border-white/10"
+                            className="w-12 h-12 rounded-full overflow-hidden flex items-center justify-center text-white font-display font-bold text-base shrink-0 shadow-sm"
                           >
                             {user.avatar_url ? (
                               <img
@@ -888,28 +882,29 @@ export function Amigos({
 
                           <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-1.5 min-w-0">
-                              <h3 className="text-sm font-bold text-white truncate">
+                              <h3 className="text-base font-display font-semibold text-[var(--text-primary)] truncate">
                                 {displayName}
                               </h3>
                               <BadgeCheck
-                                size={14}
-                                className="text-[#2DD4BF] fill-[#2DD4BF]/20 shrink-0"
+                                size={15}
+                                strokeWidth={2}
+                                className="text-[#0F766E] fill-[#CCFBF1] shrink-0"
                               />
                               {user.is_in_contacts && (
-                                <span className="text-[10px] font-bold text-[#2DD4BF] bg-[#2DD4BF]/10 px-1.5 py-0.5 rounded-md shrink-0">
+                                <span className="text-xs font-semibold text-[#0F766E] bg-[#CCFBF1] px-2 py-0.5 rounded-full shrink-0">
                                   Agenda
                                 </span>
                               )}
                             </div>
 
                             {subName && (
-                              <p className="text-[11px] text-gray-400 truncate">
+                              <p className="text-xs text-[var(--text-secondary)] truncate">
                                 Conta: {subName}
                               </p>
                             )}
 
-                            <p className="text-xs text-gray-400 flex items-center gap-1 mt-0.5 truncate">
-                              <Phone size={11} className="text-gray-500 shrink-0" />
+                            <p className="text-xs text-[var(--text-secondary)] flex items-center gap-1 mt-0.5 truncate">
+                              <Phone size={12} strokeWidth={2} className="text-[var(--text-secondary)] shrink-0" />
                               <span>{formatPhoneBR(stripCountryCode(user.phone || ''))}</span>
                             </p>
                           </div>
@@ -919,12 +914,12 @@ export function Amigos({
                           type="button"
                           disabled={isAdding}
                           onClick={() => handleAdicionarUsuarioComConta(user)}
-                          className="px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl text-xs font-bold bg-[#2DD4BF] text-[#05080f] hover:brightness-110 active:scale-95 transition-all shadow-md flex items-center gap-1 shrink-0 disabled:opacity-50"
+                          className="px-3.5 py-2 rounded-xl text-xs font-semibold bg-[#0F766E] hover:bg-[#115E59] text-white active:scale-95 transition-all shadow-sm flex items-center gap-1.5 shrink-0 disabled:opacity-50"
                         >
                           {isAdding ? (
-                            <LoaderCircle size={14} className="animate-spin" />
+                            <LoaderCircle size={14} strokeWidth={2} className="animate-spin" />
                           ) : (
-                            <UserPlus size={14} strokeWidth={2.5} />
+                            <UserPlus size={14} strokeWidth={2} />
                           )}
                           <span>Adicionar</span>
                         </button>
@@ -940,19 +935,19 @@ export function Amigos({
           <div className="w-full space-y-4">
             {/* CONVITES DE GRUPO PENDENTES */}
             {convitesGrupo.length > 0 && (
-              <div className="bg-gradient-to-r from-[#1c1c1e] to-[#252528] rounded-2xl p-4 border border-[#2DD4BF]/30 shadow-lg space-y-3">
+              <div className="ds-card p-4 border-[#F59E0B]/40 space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <Users className="text-[#2DD4BF]" size={18} />
-                    <h2 className="text-sm font-bold text-white uppercase tracking-wider">
+                    <Users className="text-[#F59E0B]" size={18} strokeWidth={2} />
+                    <h2 className="text-sm font-display font-bold text-[var(--text-primary)] uppercase tracking-wider">
                       Convites de Grupo ({convitesGrupo.length})
                     </h2>
                   </div>
-                  <span className="text-[11px] text-[#2DD4BF] font-semibold bg-[#2DD4BF]/10 px-2.5 py-0.5 rounded-full">
+                  <span className="text-xs text-[#F59E0B] font-semibold bg-[var(--amber-bg)] border border-[var(--amber-border)] px-2.5 py-0.5 rounded-full">
                     Pendente
                   </span>
                 </div>
-                <p className="text-xs text-gray-400">
+                <p className="text-xs text-[var(--text-secondary)]">
                   Aceite os convites para acessar as despesas dos grupos.
                 </p>
 
@@ -962,10 +957,10 @@ export function Amigos({
                     return (
                       <div
                         key={inv.id}
-                        className="bg-[#121214] p-3 rounded-xl border border-white/5 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                        className="bg-[var(--bg-subtle)] p-3.5 rounded-xl border border-[var(--border-color)] flex flex-col sm:flex-row sm:items-center justify-between gap-3"
                       >
                         <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-2xl overflow-hidden bg-indigo-500 text-white font-bold text-sm flex items-center justify-center shadow shrink-0">
+                          <div className="w-12 h-12 rounded-full overflow-hidden bg-[#0F766E] text-white font-display font-bold text-base flex items-center justify-center shadow-sm shrink-0">
                             {inv.group?.avatar_url ? (
                               <img
                                 src={inv.group.avatar_url}
@@ -977,9 +972,15 @@ export function Amigos({
                             )}
                           </div>
                           <div>
-                            <p className="text-sm font-bold text-white">{inv.group?.name}</p>
-                            <p className="text-xs text-gray-400">
-                              Criado por <span className="text-gray-200">{inv.group?.creator_name}</span> • {inv.group?.members_count || 1} membros
+                            <p className="text-base font-display font-semibold text-[var(--text-primary)]">
+                              {inv.group?.name}
+                            </p>
+                            <p className="text-xs text-[var(--text-secondary)]">
+                              Criado por{' '}
+                              <span className="font-medium text-[var(--text-primary)]">
+                                {inv.group?.creator_name}
+                              </span>{' '}
+                              • {inv.group?.members_count || 1} membros
                             </p>
                           </div>
                         </div>
@@ -988,16 +989,16 @@ export function Amigos({
                           <button
                             disabled={isProcessing}
                             onClick={() => handleRecusarGrupo(inv.id)}
-                            className="px-3 py-1.5 rounded-xl text-xs font-bold text-gray-400 hover:text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-50"
+                            className="px-3.5 py-2 rounded-xl text-xs font-semibold text-[#F43F5E] hover:bg-[var(--rose-bg)] transition-colors disabled:opacity-50"
                           >
                             Recusar
                           </button>
                           <button
                             disabled={isProcessing}
                             onClick={() => handleAceitarGrupo(inv.id)}
-                            className="px-4 py-1.5 rounded-xl text-xs font-bold bg-[#2DD4BF] text-[#05080f] hover:brightness-110 active:scale-95 transition-all shadow-md flex items-center gap-1 disabled:opacity-50"
+                            className="px-4 py-2 rounded-xl text-xs font-semibold bg-[#0F766E] hover:bg-[#115E59] text-white active:scale-95 transition-all shadow-sm flex items-center gap-1.5 disabled:opacity-50"
                           >
-                            <Check size={14} />
+                            <Check size={14} strokeWidth={2} />
                             Aceitar
                           </button>
                         </div>
@@ -1011,32 +1012,36 @@ export function Amigos({
             {/* LISTAGEM DE GRUPOS */}
             <div className="space-y-3 pb-10">
               <div className="flex items-center justify-between">
-                <h2 className="text-lg font-bold text-white">
+                <h2 className="text-h2 text-[var(--text-primary)]">
                   {buscaGrupos
                     ? 'Resultados da busca'
                     : filtroGrupos === 'meus'
                     ? 'Grupos Criados por Mim'
                     : 'Todos os Grupos'}
                 </h2>
-                <span className="text-xs text-gray-500 font-medium">
+                <span className="text-caption text-[var(--text-secondary)]">
                   {gruposFiltrados.length} {gruposFiltrados.length === 1 ? 'grupo' : 'grupos'}
                 </span>
               </div>
 
               {grupos.length === 0 ? (
-                <div className="bg-[#1c1c1e] p-8 rounded-3xl text-center border border-white/5">
-                  <p className="text-gray-400 mb-3">Você ainda não faz parte de nenhum grupo.</p>
+                <div className="ds-card p-8 text-center">
+                  <p className="text-[var(--text-secondary)] mb-3">
+                    Você ainda não faz parte de nenhum grupo.
+                  </p>
                   <button
                     onClick={() => setIsAddGroupOpen(true)}
-                    className="text-[#2DD4BF] font-bold text-sm hover:underline"
+                    className="text-[#0F766E] font-semibold text-sm hover:underline"
                   >
                     + Criar novo grupo
                   </button>
                 </div>
               ) : gruposFiltrados.length === 0 ? (
-                <div className="bg-[#1c1c1e] p-8 rounded-3xl text-center border border-white/5 space-y-3">
-                  <p className="text-gray-400 font-medium">Nenhum grupo encontrado</p>
-                  <p className="text-xs text-gray-500">
+                <div className="ds-card p-8 text-center space-y-3">
+                  <p className="font-display font-semibold text-[var(--text-primary)]">
+                    Nenhum grupo encontrado
+                  </p>
+                  <p className="text-xs text-[var(--text-secondary)]">
                     Tente buscar por outro nome de grupo ou participante.
                   </p>
                   {(buscaGrupos || filtroGrupos !== 'todos') && (
@@ -1046,7 +1051,7 @@ export function Amigos({
                         setBuscaGrupos('');
                         setFiltroGrupos('todos');
                       }}
-                      className="bg-[#2DD4BF]/15 text-[#2DD4BF] hover:bg-[#2DD4BF]/25 px-4 py-2 rounded-xl text-xs font-bold inline-flex items-center gap-1.5 transition-colors"
+                      className="bg-[#CCFBF1] text-[#0F766E] hover:opacity-90 px-4 py-2 rounded-xl text-xs font-semibold inline-flex items-center gap-1.5 transition-colors"
                     >
                       Limpar filtros
                     </button>
@@ -1059,7 +1064,6 @@ export function Amigos({
                   const visibleFriends = friendMembers.slice(0, 3);
                   const extraCount = Math.max(0, friendMembers.length - 3);
 
-                  // Identifica participante correspondente à busca caso a busca coincida com ele
                   const termo = buscaGrupos.trim().toLowerCase();
                   const termoDigits = termo.replace(/\D/g, '');
                   const matchedMember = termo
@@ -1078,10 +1082,10 @@ export function Amigos({
                     <div
                       key={grupo.id}
                       onClick={() => setGrupoSelecionadoId(grupo.id)}
-                      className="bg-[#1c1c1e] rounded-2xl p-3.5 sm:p-4 flex items-center justify-between border border-white/5 cursor-pointer hover:bg-[#2c2c2e] transition-colors gap-2.5"
+                      className="ds-card p-4 flex items-center justify-between cursor-pointer hover:border-[#0F766E]/40 transition-colors gap-3"
                     >
-                      <div className="flex items-start gap-3 flex-1 min-w-0 mr-1 sm:mr-3">
-                        <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl overflow-hidden bg-[#2DD4BF]/15 border border-[#2DD4BF]/30 flex items-center justify-center text-[#2DD4BF] shrink-0 mt-0.5">
+                      <div className="flex items-start gap-3.5 flex-1 min-w-0">
+                        <div className="w-12 h-12 rounded-full overflow-hidden bg-[#CCFBF1] text-[#0F766E] flex items-center justify-center shrink-0 mt-0.5">
                           {grupo.avatar_url ? (
                             <img
                               src={grupo.avatar_url}
@@ -1089,33 +1093,36 @@ export function Amigos({
                               className="w-full h-full object-cover"
                             />
                           ) : (
-                            <Users size={20} />
+                            <Users size={22} strokeWidth={2} />
                           )}
                         </div>
 
                         <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-1.5 min-w-0">
-                            <h3 className="text-white font-bold text-sm sm:text-base truncate">{grupo.name}</h3>
+                          <div className="flex items-center gap-2 min-w-0">
+                            <h3 className="font-display font-semibold text-[var(--text-primary)] text-base sm:text-[18px] truncate">
+                              {grupo.name}
+                            </h3>
                             {currentUserId && grupo.created_by === currentUserId && (
-                              <span className="text-[9px] sm:text-[10px] font-semibold text-[#2DD4BF] bg-[#2DD4BF]/10 px-1.5 sm:px-2 py-0.5 rounded-full shrink-0">
+                              <span className="text-xs font-semibold text-[#0F766E] bg-[#CCFBF1] px-2 py-0.5 rounded-full shrink-0">
                                 Criador
                               </span>
                             )}
                           </div>
 
-                          <p className="text-xs text-gray-500 mt-0.5 mb-2">
+                          <p className="text-xs text-[var(--text-secondary)] mt-0.5 mb-2.5">
                             {totalMembers} {totalMembers === 1 ? 'participante' : 'participantes'}
                           </p>
 
                           {matchedMemberName && (
-                            <div className="mb-2.5 inline-flex items-center gap-1.5 text-[11px] text-[#2DD4BF] bg-[#2DD4BF]/10 px-2.5 py-0.5 rounded-lg font-medium">
-                              <UserCheck size={13} className="shrink-0" />
+                            <div className="mb-2.5 inline-flex items-center gap-1.5 text-xs text-[#0F766E] bg-[#CCFBF1] px-2.5 py-0.5 rounded-lg font-medium">
+                              <UserCheck size={13} strokeWidth={2} className="shrink-0" />
                               <span className="truncate">Participante: {matchedMemberName}</span>
                             </div>
                           )}
 
+                          {/* Pilha de Avatares 32x32px (w-8 h-8) com borda de 2px */}
                           <div className="flex -space-x-2">
-                            <div className="w-7 h-7 rounded-full overflow-hidden bg-[#2DD4BF] text-[#05080f] font-black text-[10px] flex items-center justify-center border-2 border-[#1c1c1e]">
+                            <div className="w-8 h-8 rounded-full overflow-hidden bg-[#0F766E] text-white font-display font-bold text-xs flex items-center justify-center border-2 border-[var(--bg-surface)]">
                               {myAvatarUrl ? (
                                 <img
                                   src={myAvatarUrl}
@@ -1136,7 +1143,7 @@ export function Amigos({
                                       ? undefined
                                       : { backgroundColor: getAvatarColor(m.friend?.color) }
                                   }
-                                  className="w-7 h-7 rounded-full overflow-hidden text-white font-bold text-[10px] flex items-center justify-center border-2 border-[#1c1c1e]"
+                                  className="w-8 h-8 rounded-full overflow-hidden text-white font-display font-bold text-xs flex items-center justify-center border-2 border-[var(--bg-surface)]"
                                 >
                                   {fAvatar ? (
                                     <img
@@ -1151,14 +1158,14 @@ export function Amigos({
                               );
                             })}
                             {extraCount > 0 && (
-                              <div className="w-7 h-7 rounded-full bg-gray-700 text-gray-200 font-bold text-[10px] flex items-center justify-center border-2 border-[#1c1c1e]">
+                              <div className="w-8 h-8 rounded-full bg-[var(--bg-subtle)] text-[var(--text-secondary)] font-semibold text-xs flex items-center justify-center border-2 border-[var(--bg-surface)]">
                                 +{extraCount}
                               </div>
                             )}
                           </div>
                         </div>
                       </div>
-                      <ChevronRight size={20} className="text-gray-500 shrink-0" />
+                      <ChevronRight size={20} strokeWidth={2} className="text-[var(--text-secondary)] shrink-0" />
                     </div>
                   );
                 })

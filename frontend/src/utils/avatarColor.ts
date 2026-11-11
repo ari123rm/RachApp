@@ -20,12 +20,14 @@ export const TAILWIND_COLOR_MAP: Record<string, string> = {
   'bg-lime-500': '#84cc16',
   'bg-[#2DD4BF]': '#2dd4bf',
   'bg-[#2dd4bf]': '#2dd4bf',
+  'bg-[#0F766E]': '#0F766E',
+  'bg-[#0f766e]': '#0F766E',
 };
 
-// 14 cores modernas, vibrantes e com excelente contraste no modo escuro
+// 14 cores modernas e consistentes com o Design System do RachApp
 export const PRESET_AVATAR_COLORS = [
-  '#2DD4BF', // Teal (marca do RachApp)
-  '#06B6D4', // Cyan
+  '#0F766E', // Primary Teal (marca do RachApp)
+  '#10B981', // Emerald
   '#0EA5E9', // Sky
   '#3B82F6', // Blue
   '#6366F1', // Indigo
@@ -36,7 +38,7 @@ export const PRESET_AVATAR_COLORS = [
   '#EF4444', // Red
   '#F97316', // Orange
   '#F59E0B', // Amber
-  '#10B981', // Emerald
+  '#06B6D4', // Cyan
   '#64748B', // Slate
 ];
 

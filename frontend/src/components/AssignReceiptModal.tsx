@@ -77,7 +77,6 @@ export function AssignReceiptModal({
       dbService.amigos
         .getAll()
         .then((todosAmigos) => {
-          // Ordena priorizando quem você deve primeiro, depois quem te deve, depois alfabético
           const ordenados = [...todosAmigos].sort((a, b) => {
             const aVoceDeve = Number(a.voceDeveNumerico || 0);
             const bVoceDeve = Number(b.voceDeveNumerico || 0);
@@ -252,14 +251,14 @@ export function AssignReceiptModal({
         onClick={() => handleChooseFriend(amigo, true)}
         className={`p-3.5 rounded-2xl border transition-all cursor-pointer flex items-center justify-between gap-3 active:scale-[0.99] ${
           isSelected
-            ? 'bg-[#2DD4BF]/15 border-[#2DD4BF] shadow-lg shadow-teal-500/10'
-            : 'bg-[#121622] border-white/5 hover:bg-[#181d2c]'
+            ? 'bg-[#0F766E]/10 border-[#0F766E] shadow-sm'
+            : 'bg-[var(--bg-subtle)] border-[var(--border-color)] hover:border-[#0F766E]/40'
         }`}
       >
         <div className="flex items-center gap-3 min-w-0">
           <div
             style={amigo.avatar_url ? undefined : { backgroundColor: getAvatarColor(corAmigo) }}
-            className="w-11 h-11 rounded-full overflow-hidden flex items-center justify-center text-white font-bold text-sm shrink-0"
+            className="w-12 h-12 rounded-full overflow-hidden flex items-center justify-center text-white font-bold text-body2 shrink-0"
           >
             {amigo.avatar_url ? (
               <img src={amigo.avatar_url} alt={nomeAmigo} className="w-full h-full object-cover" />
@@ -269,12 +268,14 @@ export function AssignReceiptModal({
           </div>
           <div className="min-w-0">
             <div className="flex items-center gap-1.5">
-              <h4 className="text-sm font-bold text-white truncate">{nomeAmigo}</h4>
+              <h4 className="text-body2 font-semibold text-[var(--text-primary)] truncate">
+                {nomeAmigo}
+              </h4>
               {(amigo.has_account || amigo.is_registered) && (
-                <BadgeCheck size={14} className="text-[#2DD4BF] fill-[#2DD4BF]/20 shrink-0" />
+                <BadgeCheck size={15} strokeWidth={2} className="text-[#0F766E] shrink-0" />
               )}
             </div>
-            <p className="text-xs text-gray-400 truncate">
+            <p className="text-caption text-[var(--text-secondary)] truncate">
               {amigo.telefone || amigo.phone || 'Toque para selecionar'}
             </p>
           </div>
@@ -284,23 +285,23 @@ export function AssignReceiptModal({
           <div>
             {voceDeve > 0.01 ? (
               <>
-                <span className="text-[10px] text-amber-300 font-bold block">Você deve</span>
-                <span className="text-sm font-bold text-amber-400">
+                <span className="text-caption text-[#F43F5E] font-semibold block">Você deve</span>
+                <span className="text-body2 font-display font-bold text-[#F43F5E]">
                   R$ {moneyConverter(voceDeve)}
                 </span>
               </>
             ) : eleDeve > 0.01 ? (
               <>
-                <span className="text-[10px] text-[#2DD4BF] font-bold block">Te deve</span>
-                <span className="text-sm font-bold text-[#2DD4BF]">
+                <span className="text-caption text-[#10B981] font-semibold block">Te deve</span>
+                <span className="text-body2 font-display font-bold text-[#10B981]">
                   R$ {moneyConverter(eleDeve)}
                 </span>
               </>
             ) : (
-              <span className="text-xs text-gray-500 font-medium">Quitado</span>
+              <span className="text-caption text-[var(--text-secondary)] font-medium">Quitado</span>
             )}
           </div>
-          <ArrowRight size={15} className="text-gray-500" />
+          <ArrowRight size={16} strokeWidth={2} className="text-[var(--text-secondary)]" />
         </div>
       </div>
     );
@@ -308,18 +309,18 @@ export function AssignReceiptModal({
 
   return createPortal(
     <div
-      className="fixed inset-0 bg-black/85 backdrop-blur-sm z-[90] flex items-end sm:items-center justify-center p-0 sm:p-4 animate-fade-in"
+      className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[90] flex items-end sm:items-center justify-center p-0 sm:p-4 animate-fade-in"
       onClick={handleClose}
     >
       <div
-        className="bg-[#0b0f19] w-full sm:max-w-lg rounded-t-[28px] sm:rounded-3xl border border-white/10 shadow-2xl flex flex-col max-h-[92dvh] sm:max-h-[90vh] overflow-hidden animate-slide-up pb-safe"
+        className="bg-[var(--bg-surface)] w-full sm:max-w-lg rounded-t-2xl sm:rounded-2xl border border-[var(--border-color)] shadow-xl flex flex-col max-h-[92dvh] sm:max-h-[90vh] overflow-hidden animate-slide-up pb-safe"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Handle visual mobile */}
-        <div className="w-12 h-1 bg-white/20 rounded-full mx-auto mt-2.5 mb-1 sm:hidden shrink-0" />
+        <div className="w-12 h-1 bg-[var(--border-color)] rounded-full mx-auto mt-2.5 mb-1 sm:hidden shrink-0" />
 
         {/* Header + Stepper */}
-        <div className="p-5 pb-4 border-b border-white/5 space-y-4">
+        <div className="p-5 pb-4 border-b border-[var(--border-color)] space-y-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               {step > 1 ? (
@@ -329,25 +330,25 @@ export function AssignReceiptModal({
                     setErrorMsg('');
                     setStep((prev) => (prev === 3 ? 2 : 1));
                   }}
-                  className="w-10 h-10 rounded-2xl bg-white/5 hover:bg-white/10 text-white flex items-center justify-center transition-colors"
+                  className="w-10 h-10 rounded-full bg-[var(--bg-subtle)] hover:bg-[var(--border-color)] text-[var(--text-primary)] flex items-center justify-center transition-colors"
                   title="Voltar etapa"
                 >
-                  <ChevronLeft size={22} />
+                  <ChevronLeft size={22} strokeWidth={2} />
                 </button>
               ) : (
-                <div className="w-10 h-10 rounded-2xl bg-[#2DD4BF]/20 text-[#2DD4BF] flex items-center justify-center shadow">
-                  <Sparkles size={20} />
+                <div className="w-10 h-10 rounded-full bg-[#0F766E]/10 text-[#0F766E] flex items-center justify-center">
+                  <Sparkles size={20} strokeWidth={2} />
                 </div>
               )}
               <div>
-                <h2 className="text-white font-bold text-lg leading-tight">
+                <h2 className="text-[var(--text-primary)] text-h2 leading-tight">
                   {step === 1
                     ? '1. Selecione o Amigo'
                     : step === 2
                     ? '2. Valor do Comprovante'
                     : '3. Confirmar Pagamento'}
                 </h2>
-                <p className="text-xs text-gray-400">
+                <p className="text-caption text-[var(--text-secondary)]">
                   {step === 1
                     ? 'Para quem é este comprovante de pagamento?'
                     : step === 2
@@ -358,9 +359,9 @@ export function AssignReceiptModal({
             </div>
             <button
               onClick={handleClose}
-              className="p-2 text-gray-400 hover:text-white rounded-full hover:bg-white/10 transition-colors"
+              className="p-2 text-[var(--text-secondary)] hover:text-[var(--text-primary)] rounded-full hover:bg-[var(--bg-subtle)] transition-colors"
             >
-              <X size={20} />
+              <X size={20} strokeWidth={2} />
             </button>
           </div>
 
@@ -376,15 +377,15 @@ export function AssignReceiptModal({
               return (
                 <div
                   key={item.num}
-                  className={`py-1.5 px-2 rounded-xl text-center text-[11px] font-bold border transition-all flex items-center justify-center gap-1 ${
+                  className={`py-2 px-2 rounded-xl text-center text-caption font-semibold border transition-all flex items-center justify-center gap-1 ${
                     isCurrent
-                      ? 'bg-[#2DD4BF]/20 border-[#2DD4BF] text-[#2DD4BF]'
+                      ? 'bg-[#0F766E] border-[#0F766E] text-white'
                       : isDone
-                      ? 'bg-[#2DD4BF]/10 border-[#2DD4BF]/30 text-[#2DD4BF]/80'
-                      : 'bg-[#121622] border-white/5 text-gray-500'
+                      ? 'bg-[#0F766E]/10 border-[#0F766E]/30 text-[#0F766E]'
+                      : 'bg-[var(--bg-subtle)] border-[var(--border-color)] text-[var(--text-secondary)]'
                   }`}
                 >
-                  {isDone && <Check size={12} strokeWidth={3} />}
+                  {isDone && <Check size={12} strokeWidth={2.5} />}
                   <span>{item.label}</span>
                 </div>
               );
@@ -395,8 +396,8 @@ export function AssignReceiptModal({
         {/* Conteúdo das Etapas */}
         <div className="flex-1 overflow-y-auto p-5 space-y-4 scrollbar-hide">
           {errorMsg && (
-            <div className="bg-red-500/10 border border-red-500/30 p-3 rounded-xl flex items-center gap-2 text-red-400 text-xs">
-              <AlertCircle size={16} className="shrink-0" />
+            <div className="bg-[var(--rose-bg)] border border-[var(--rose-border)] p-3 rounded-xl flex items-center gap-2 text-[#F43F5E] text-caption font-semibold">
+              <AlertCircle size={16} strokeWidth={2} className="shrink-0" />
               <span>{errorMsg}</span>
             </div>
           )}
@@ -407,10 +408,10 @@ export function AssignReceiptModal({
               {/* Mini barra do comprovante */}
               <div
                 onClick={() => setIsPreviewOpen(true)}
-                className="bg-[#121622] rounded-2xl p-3 border border-white/5 flex items-center justify-between gap-3 cursor-pointer hover:border-white/15 transition-colors"
+                className="bg-[var(--bg-subtle)] rounded-2xl p-3 border border-[var(--border-color)] flex items-center justify-between gap-3 cursor-pointer hover:border-[#0F766E]/40 transition-colors"
               >
                 <div className="flex items-center gap-3 min-w-0">
-                  <div className="w-11 h-11 rounded-xl overflow-hidden bg-black/40 border border-white/10 shrink-0">
+                  <div className="w-12 h-12 rounded-xl overflow-hidden bg-slate-950 border border-[var(--border-color)] shrink-0">
                     <img
                       src={receiptDataUrl}
                       alt="Comprovante"
@@ -418,55 +419,55 @@ export function AssignReceiptModal({
                     />
                   </div>
                   <div className="min-w-0">
-                    <p className="text-xs font-bold text-[#2DD4BF] flex items-center gap-1">
-                      <FileCheck2 size={13} /> Comprovante carregado
+                    <p className="text-caption font-semibold text-[#0F766E] flex items-center gap-1">
+                      <FileCheck2 size={14} strokeWidth={2} /> Comprovante carregado
                     </p>
-                    <p className="text-[11px] text-gray-400 truncate">
+                    <p className="text-caption text-[var(--text-secondary)] truncate">
                       Toque aqui se quiser ampliar a imagem
                     </p>
                   </div>
                 </div>
-                <Eye size={16} className="text-gray-400 shrink-0" />
+                <Eye size={18} strokeWidth={2} className="text-[var(--text-secondary)] shrink-0" />
               </div>
 
               {/* Busca de amigos */}
               {amigos.length > 3 && (
-                <div className="bg-[#121622] rounded-xl px-3.5 py-2.5 flex items-center gap-2 border border-white/5">
-                  <Search size={15} className="text-gray-400" />
+                <div className="bg-[var(--bg-subtle)] rounded-xl h-12 px-4 flex items-center gap-2 border border-[var(--border-color)] focus-within:border-[#0F766E]">
+                  <Search size={18} strokeWidth={2} className="text-[var(--text-secondary)]" />
                   <input
                     type="text"
                     value={searchFriend}
                     onChange={(e) => setSearchFriend(e.target.value)}
                     placeholder="Buscar amigo por nome ou telefone..."
-                    className="bg-transparent text-xs text-white outline-none w-full"
+                    className="bg-transparent text-body2 text-[var(--text-primary)] outline-none w-full placeholder:text-[var(--text-secondary)]"
                   />
                   {searchFriend && (
                     <button
                       onClick={() => setSearchFriend('')}
-                      className="text-gray-400 hover:text-white"
+                      className="text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
                     >
-                      <X size={14} />
+                      <X size={16} strokeWidth={2} />
                     </button>
                   )}
                 </div>
               )}
 
               {isLoading ? (
-                <div className="flex items-center justify-center py-10 text-[#2DD4BF]">
-                  <LoaderCircle size={28} className="animate-spin mr-2" />
-                  <span className="text-xs text-gray-400">Carregando amigos...</span>
+                <div className="flex items-center justify-center py-10 text-[#0F766E]">
+                  <LoaderCircle size={28} strokeWidth={2} className="animate-spin mr-2" />
+                  <span className="text-caption text-[var(--text-secondary)]">Carregando amigos...</span>
                 </div>
               ) : amigos.length === 0 ? (
-                <div className="bg-[#121622] p-6 rounded-2xl text-center border border-white/5">
-                  <p className="text-xs text-gray-400">Nenhum amigo cadastrado ainda.</p>
+                <div className="bg-[var(--bg-subtle)] p-6 rounded-2xl text-center border border-[var(--border-color)]">
+                  <p className="text-caption text-[var(--text-secondary)]">Nenhum amigo cadastrado ainda.</p>
                 </div>
               ) : (
                 <div className="space-y-4">
                   {/* Amigos que você está devendo */}
                   {amigosQueVoceDeve.length > 0 && (
                     <div className="space-y-2">
-                      <span className="text-[11px] text-amber-400 uppercase font-bold tracking-wider flex items-center gap-1.5">
-                        <User size={13} /> Amigos que você está devendo ({amigosQueVoceDeve.length})
+                      <span className="text-caption text-[#F43F5E] uppercase font-semibold tracking-wider flex items-center gap-1.5">
+                        <User size={14} strokeWidth={2} /> Amigos que você está devendo ({amigosQueVoceDeve.length})
                       </span>
                       <div className="space-y-2">{amigosQueVoceDeve.map(renderFriendItem)}</div>
                     </div>
@@ -475,7 +476,7 @@ export function AssignReceiptModal({
                   {/* Amigos que te devem */}
                   {amigosQueTeDevem.length > 0 && (
                     <div className="space-y-2">
-                      <span className="text-[11px] text-[#2DD4BF] uppercase font-bold tracking-wider block">
+                      <span className="text-caption text-[#10B981] uppercase font-semibold tracking-wider block">
                         Amigos que te devem ({amigosQueTeDevem.length})
                       </span>
                       <div className="space-y-2">{amigosQueTeDevem.map(renderFriendItem)}</div>
@@ -485,7 +486,7 @@ export function AssignReceiptModal({
                   {/* Outros amigos */}
                   {outrosAmigos.length > 0 && (
                     <div className="space-y-2">
-                      <span className="text-[11px] text-gray-500 uppercase font-bold tracking-wider block">
+                      <span className="text-caption text-[var(--text-secondary)] uppercase font-semibold tracking-wider block">
                         Outros amigos ({outrosAmigos.length})
                       </span>
                       <div className="space-y-2">{outrosAmigos.map(renderFriendItem)}</div>
@@ -500,7 +501,7 @@ export function AssignReceiptModal({
           {step === 2 && selectedFriend && (
             <div className="space-y-4 animate-fade-in">
               {/* Amigo selecionado */}
-              <div className="bg-[#121622] p-3.5 rounded-2xl border border-white/10 flex items-center justify-between gap-3">
+              <div className="bg-[var(--bg-subtle)] p-4 rounded-2xl border border-[var(--border-color)] flex items-center justify-between gap-3">
                 <div className="flex items-center gap-3 min-w-0">
                   <div
                     style={
@@ -508,7 +509,7 @@ export function AssignReceiptModal({
                         ? undefined
                         : { backgroundColor: getAvatarColor(selectedColor) }
                     }
-                    className="w-11 h-11 rounded-full overflow-hidden flex items-center justify-center text-white font-bold text-sm shrink-0"
+                    className="w-12 h-12 rounded-full overflow-hidden flex items-center justify-center text-white font-bold text-body2 shrink-0"
                   >
                     {selectedFriend.avatar_url ? (
                       <img
@@ -521,18 +522,22 @@ export function AssignReceiptModal({
                     )}
                   </div>
                   <div className="min-w-0">
-                    <p className="text-[10px] uppercase font-bold text-gray-400">Amigo selecionado</p>
-                    <h4 className="text-sm font-bold text-white truncate">{selectedName}</h4>
+                    <p className="text-caption uppercase font-semibold text-[var(--text-secondary)]">
+                      Amigo selecionado
+                    </p>
+                    <h4 className="text-body2 font-semibold text-[var(--text-primary)] truncate">
+                      {selectedName}
+                    </h4>
                     {selectedVoceDeve > 0.01 ? (
-                      <p className="text-xs text-amber-400 font-semibold">
+                      <p className="text-caption text-[#F43F5E] font-semibold">
                         Você deve R$ {moneyConverter(selectedVoceDeve)}
                       </p>
                     ) : selectedEleDeve > 0.01 ? (
-                      <p className="text-xs text-[#2DD4BF] font-semibold">
+                      <p className="text-caption text-[#10B981] font-semibold">
                         Te deve R$ {moneyConverter(selectedEleDeve)}
                       </p>
                     ) : (
-                      <p className="text-xs text-gray-500">Sem pendências abertas</p>
+                      <p className="text-caption text-[var(--text-secondary)]">Sem pendências abertas</p>
                     )}
                   </div>
                 </div>
@@ -540,28 +545,28 @@ export function AssignReceiptModal({
                 <button
                   type="button"
                   onClick={() => setStep(1)}
-                  className="text-xs font-bold text-[#2DD4BF] hover:underline px-2.5 py-1.5 rounded-xl bg-[#2DD4BF]/10 shrink-0"
+                  className="text-caption font-semibold text-[#0F766E] hover:underline px-3 py-1.5 rounded-xl bg-[#0F766E]/10 shrink-0"
                 >
                   Trocar
                 </button>
               </div>
 
               {/* Input de Valor em destaque */}
-              <div className="bg-[#121622] rounded-3xl p-5 border border-[#2DD4BF]/30 text-center space-y-3 shadow-inner">
-                <label className="text-xs uppercase font-bold tracking-wider text-gray-400 flex items-center justify-center gap-1">
-                  <DollarSign size={14} className="text-[#2DD4BF]" />
+              <div className="bg-[var(--bg-subtle)] rounded-2xl p-5 border border-[var(--border-color)] text-center space-y-3">
+                <label className="text-caption uppercase font-semibold tracking-wider text-[var(--text-secondary)] flex items-center justify-center gap-1">
+                  <DollarSign size={14} strokeWidth={2} className="text-[#0F766E]" />
                   Qual o valor deste comprovante?
                 </label>
 
                 <div className="flex items-center justify-center gap-1.5">
-                  <span className="text-2xl font-black text-[#2DD4BF]">R$</span>
+                  <span className="text-h1 font-bold text-[#0F766E]">R$</span>
                   <input
                     type="tel"
                     value={amountStr}
                     onChange={handleAmountChange}
                     placeholder="0,00"
                     autoFocus
-                    className="bg-[#05080f] border border-white/10 focus:border-[#2DD4BF] rounded-2xl py-3 px-4 text-3xl font-black text-white text-center w-48 outline-none transition-colors"
+                    className="bg-[var(--bg-surface)] border border-[var(--border-color)] focus:border-[#0F766E] rounded-xl py-2.5 px-4 text-display font-bold text-[var(--text-primary)] text-center w-48 outline-none transition-colors"
                   />
                 </div>
 
@@ -571,7 +576,7 @@ export function AssignReceiptModal({
                     <button
                       type="button"
                       onClick={() => setAmountStr(moneyConverter(selectedSaldoReferencia))}
-                      className="text-[11px] font-bold bg-[#2DD4BF]/15 hover:bg-[#2DD4BF]/25 text-[#2DD4BF] px-3 py-1.5 rounded-full transition-colors"
+                      className="text-caption font-semibold bg-[#0F766E]/10 hover:bg-[#0F766E]/20 text-[#0F766E] px-3 py-1.5 rounded-full transition-colors"
                     >
                       Total (R$ {moneyConverter(selectedSaldoReferencia)})
                     </button>
@@ -583,7 +588,7 @@ export function AssignReceiptModal({
                             moneyConverter(Number((selectedSaldoReferencia / 2).toFixed(2)))
                           )
                         }
-                        className="text-[11px] font-semibold bg-white/5 hover:bg-white/10 text-gray-300 px-3 py-1.5 rounded-full transition-colors"
+                        className="text-caption font-semibold bg-[var(--bg-surface)] hover:bg-[var(--border-color)] text-[var(--text-secondary)] border border-[var(--border-color)] px-3 py-1.5 rounded-full transition-colors"
                       >
                         Metade (R${' '}
                         {moneyConverter(Number((selectedSaldoReferencia / 2).toFixed(2)))})
@@ -596,9 +601,9 @@ export function AssignReceiptModal({
               {/* Preview do comprovante para consulta rápida do valor */}
               <div
                 onClick={() => setIsPreviewOpen(true)}
-                className="bg-[#121622] rounded-2xl p-3 border border-white/5 flex items-center gap-3 cursor-pointer hover:border-white/15 transition-colors"
+                className="bg-[var(--bg-subtle)] rounded-2xl p-3 border border-[var(--border-color)] flex items-center gap-3 cursor-pointer hover:border-[#0F766E]/40 transition-colors"
               >
-                <div className="w-14 h-16 rounded-xl overflow-hidden bg-black/40 border border-white/10 shrink-0">
+                <div className="w-14 h-16 rounded-xl overflow-hidden bg-slate-950 border border-[var(--border-color)] shrink-0">
                   <img
                     src={receiptDataUrl}
                     alt="Comprovante"
@@ -606,10 +611,10 @@ export function AssignReceiptModal({
                   />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs font-bold text-gray-200 flex items-center gap-1.5">
-                    <Eye size={14} className="text-[#2DD4BF]" /> Conferir imagem do comprovante
+                  <p className="text-caption font-semibold text-[var(--text-primary)] flex items-center gap-1.5">
+                    <Eye size={14} strokeWidth={2} className="text-[#0F766E]" /> Conferir imagem do comprovante
                   </p>
-                  <p className="text-[11px] text-gray-400 mt-0.5">
+                  <p className="text-caption text-[var(--text-secondary)] mt-0.5">
                     Toque para abrir o comprovante em tela cheia e verificar o valor exato.
                   </p>
                 </div>
@@ -620,9 +625,9 @@ export function AssignReceiptModal({
           {/* ETAPA 3: CONFIRMAÇÃO */}
           {step === 3 && selectedFriend && (
             <div className="space-y-4 animate-fade-in">
-              <div className="bg-gradient-to-br from-[#121622] to-[#172033] rounded-3xl p-5 border border-[#2DD4BF]/30 space-y-4 shadow-xl">
-                <div className="flex items-center justify-between border-b border-white/10 pb-3">
-                  <span className="text-xs text-gray-400 font-semibold">Amigo</span>
+              <div className="bg-[var(--bg-subtle)] rounded-2xl p-5 border border-[var(--border-color)] space-y-4">
+                <div className="flex items-center justify-between border-b border-[var(--border-color)] pb-3">
+                  <span className="text-caption text-[var(--text-secondary)] font-semibold">Amigo</span>
                   <div className="flex items-center gap-2">
                     <div
                       style={
@@ -630,7 +635,7 @@ export function AssignReceiptModal({
                           ? undefined
                           : { backgroundColor: getAvatarColor(selectedColor) }
                       }
-                      className="w-7 h-7 rounded-full overflow-hidden flex items-center justify-center text-white font-bold text-xs"
+                      className="w-7 h-7 rounded-full overflow-hidden flex items-center justify-center text-white font-bold text-caption"
                     >
                       {selectedFriend.avatar_url ? (
                         <img
@@ -642,28 +647,32 @@ export function AssignReceiptModal({
                         selectedName[0]?.toUpperCase() || '?'
                       )}
                     </div>
-                    <span className="text-sm font-bold text-white">{selectedName}</span>
+                    <span className="text-body2 font-semibold text-[var(--text-primary)]">
+                      {selectedName}
+                    </span>
                   </div>
                 </div>
 
-                <div className="flex items-center justify-between border-b border-white/10 pb-3">
-                  <span className="text-xs text-gray-400 font-semibold">Valor do Comprovante</span>
-                  <span className="text-xl font-black text-[#2DD4BF]">
+                <div className="flex items-center justify-between border-b border-[var(--border-color)] pb-3">
+                  <span className="text-caption text-[var(--text-secondary)] font-semibold">
+                    Valor do Comprovante
+                  </span>
+                  <span className="text-h2 font-display font-bold text-[#0F766E]">
                     R$ {moneyConverter(valorNumerico)}
                   </span>
                 </div>
 
                 {selectedSaldoReferencia > 0.01 && (
-                  <div className="flex items-center justify-between border-b border-white/10 pb-3">
-                    <span className="text-xs text-gray-400 font-semibold">
+                  <div className="flex items-center justify-between border-b border-[var(--border-color)] pb-3">
+                    <span className="text-caption text-[var(--text-secondary)] font-semibold">
                       Saldo após confirmação
                     </span>
                     {restanteAposPagamento <= 0.01 ? (
-                      <span className="text-xs font-bold bg-[#34C759]/20 text-[#34C759] px-2.5 py-1 rounded-full flex items-center gap-1">
-                        <Check size={12} /> Tudo Quitado!
+                      <span className="text-caption font-semibold bg-[var(--emerald-bg)] text-[#10B981] border border-[var(--emerald-border)] px-2.5 py-1 rounded-full flex items-center gap-1">
+                        <Check size={12} strokeWidth={2.5} /> Tudo Quitado!
                       </span>
                     ) : (
-                      <span className="text-xs font-bold text-amber-400">
+                      <span className="text-caption font-semibold text-[#F59E0B]">
                         Restará R$ {moneyConverter(restanteAposPagamento)}
                       </span>
                     )}
@@ -672,31 +681,30 @@ export function AssignReceiptModal({
 
                 {/* Imagem do comprovante */}
                 <div className="pt-1">
-                  <p className="text-[11px] text-gray-400 font-semibold mb-2">
+                  <p className="text-caption text-[var(--text-secondary)] font-semibold mb-2">
                     Comprovante anexado (toque para ampliar):
                   </p>
                   <div
                     onClick={() => setIsPreviewOpen(true)}
-                    className="relative h-36 w-full rounded-2xl overflow-hidden bg-black/50 border border-white/10 cursor-pointer group flex items-center justify-center"
+                    className="relative h-36 w-full rounded-2xl overflow-hidden bg-slate-950 border border-[var(--border-color)] cursor-pointer group flex items-center justify-center"
                   >
                     <img
                       src={receiptDataUrl}
                       alt="Comprovante"
                       className="max-h-full max-w-full object-contain group-hover:scale-105 transition-transform"
                     />
-                    <div className="absolute bottom-2 right-2 bg-black/70 text-white text-[10px] font-semibold px-2.5 py-1 rounded-full flex items-center gap-1">
-                      <Eye size={11} /> Ampliar
+                    <div className="absolute bottom-2 right-2 bg-slate-900/80 text-white text-caption font-semibold px-2.5 py-1 rounded-full flex items-center gap-1">
+                      <Eye size={12} strokeWidth={2} /> Ampliar
                     </div>
                   </div>
                 </div>
               </div>
 
-              <div className="bg-[#2DD4BF]/10 border border-[#2DD4BF]/25 rounded-2xl p-3 flex items-center gap-2.5 text-xs text-gray-200">
-                <ShieldCheck size={18} className="text-[#2DD4BF] shrink-0" />
+              <div className="bg-[#0F766E]/10 border border-[#0F766E]/25 rounded-2xl p-3.5 flex items-center gap-2.5 text-caption text-[var(--text-primary)]">
+                <ShieldCheck size={18} strokeWidth={2} className="text-[#0F766E] shrink-0" />
                 <span>
                   Ao confirmar, o comprovante ficará salvo nos rachas quitados com{' '}
-                  <strong className="text-white">{selectedName.split(' ')[0]}</strong> e você será
-                  direcionado para a Home.
+                  <strong>{selectedName.split(' ')[0]}</strong> e você será direcionado para a Home.
                 </span>
               </div>
             </div>
@@ -704,13 +712,13 @@ export function AssignReceiptModal({
         </div>
 
         {/* Footer com Ações por Etapa */}
-        <div className="p-4 border-t border-white/5 bg-[#0b0f19] flex gap-3">
+        <div className="p-4 border-t border-[var(--border-color)] bg-[var(--bg-surface)] flex gap-3">
           {step === 1 && (
             <>
               <button
                 type="button"
                 onClick={handleClose}
-                className="flex-1 bg-[#1c1c1e] hover:bg-[#2c2c2e] text-gray-300 font-bold py-3 rounded-2xl transition-colors text-sm"
+                className="flex-1 ds-btn-secondary"
               >
                 Cancelar
               </button>
@@ -718,10 +726,10 @@ export function AssignReceiptModal({
                 type="button"
                 onClick={handleGoToStep2}
                 disabled={!selectedFriend}
-                className="flex-1 bg-[#2DD4BF] hover:bg-[#25b5a3] text-[#05080f] font-bold py-3 rounded-2xl transition-all text-sm flex items-center justify-center gap-2 shadow-lg shadow-teal-500/20 active:scale-95 disabled:opacity-50"
+                className="flex-1 ds-btn-primary"
               >
                 <span>Continuar</span>
-                <ArrowRight size={17} strokeWidth={2.5} />
+                <ArrowRight size={18} strokeWidth={2} />
               </button>
             </>
           )}
@@ -734,7 +742,7 @@ export function AssignReceiptModal({
                   setErrorMsg('');
                   setStep(1);
                 }}
-                className="flex-1 bg-[#1c1c1e] hover:bg-[#2c2c2e] text-gray-300 font-bold py-3 rounded-2xl transition-colors text-sm"
+                className="flex-1 ds-btn-secondary"
               >
                 Voltar
               </button>
@@ -742,10 +750,10 @@ export function AssignReceiptModal({
                 type="button"
                 onClick={handleGoToStep3}
                 disabled={valorNumerico <= 0}
-                className="flex-1 bg-[#2DD4BF] hover:bg-[#25b5a3] text-[#05080f] font-bold py-3 rounded-2xl transition-all text-sm flex items-center justify-center gap-2 shadow-lg shadow-teal-500/20 active:scale-95 disabled:opacity-50"
+                className="flex-1 ds-btn-primary"
               >
                 <span>Revisar e Confirmar</span>
-                <ArrowRight size={17} strokeWidth={2.5} />
+                <ArrowRight size={18} strokeWidth={2} />
               </button>
             </>
           )}
@@ -759,7 +767,7 @@ export function AssignReceiptModal({
                   setStep(2);
                 }}
                 disabled={isSubmitting}
-                className="flex-1 bg-[#1c1c1e] hover:bg-[#2c2c2e] text-gray-300 font-bold py-3 rounded-2xl transition-colors text-sm disabled:opacity-50"
+                className="flex-1 ds-btn-secondary"
               >
                 Voltar
               </button>
@@ -767,16 +775,16 @@ export function AssignReceiptModal({
                 type="button"
                 onClick={handleConfirmPayment}
                 disabled={isSubmitting}
-                className="flex-1 bg-[#2DD4BF] hover:bg-[#25b5a3] text-[#05080f] font-bold py-3 rounded-2xl transition-all text-sm flex items-center justify-center gap-2 shadow-lg shadow-teal-500/20 active:scale-95 disabled:opacity-50"
+                className="flex-1 ds-btn-primary"
               >
                 {isSubmitting ? (
                   <>
-                    <LoaderCircle size={18} className="animate-spin" />
+                    <LoaderCircle size={18} strokeWidth={2} className="animate-spin" />
                     <span>Confirmando...</span>
                   </>
                 ) : (
                   <>
-                    <Check size={18} strokeWidth={2.5} />
+                    <Check size={18} strokeWidth={2} />
                     <span>Confirmar Pagamento</span>
                   </>
                 )}

@@ -90,62 +90,69 @@ export function UpdateModal({ isOpen, onClose, updateInfo }: UpdateModalProps) {
 
   return createPortal(
     <div
-      className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[80] flex items-end sm:items-center justify-center p-0 sm:p-4 transition-opacity animate-fade-in"
+      className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[80] flex items-end sm:items-center justify-center p-0 sm:p-4 transition-opacity animate-fade-in"
       onClick={onClose}
     >
       <div
-        className="bg-[#1c1c1e] w-full sm:max-w-md rounded-t-[28px] sm:rounded-3xl p-5 sm:p-6 animate-slide-up relative border border-[#2DD4BF]/30 shadow-2xl overflow-hidden pb-safe"
+        className="bg-[var(--bg-surface)] w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl p-6 animate-slide-up relative border border-[var(--border-color)] shadow-lg overflow-hidden pb-safe"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Handle visual mobile */}
-        <div className="w-12 h-1 bg-white/20 rounded-full mx-auto mb-3 sm:hidden shrink-0" />
-
-        {/* Glow suave no topo */}
-        <div className="absolute -top-14 -right-14 w-32 h-32 bg-[#2DD4BF]/15 rounded-full blur-3xl pointer-events-none" />
+        <div className="w-12 h-1 bg-[var(--border-color)] rounded-full mx-auto mb-3 sm:hidden shrink-0" />
 
         <button
           onClick={onClose}
-          className="absolute top-5 right-5 text-gray-400 hover:text-white p-1 rounded-full hover:bg-white/10 transition-colors z-10"
+          className="absolute top-5 right-5 text-[var(--text-secondary)] hover:text-[var(--text-primary)] p-1.5 rounded-full hover:bg-[var(--bg-subtle)] transition-colors z-10"
         >
-          <X size={22} />
+          <X size={20} strokeWidth={2} />
         </button>
 
         {/* Ícone e Título */}
         <div className="flex items-center gap-3.5 mb-4">
-          <div className="w-12 h-12 rounded-2xl bg-[#2DD4BF]/15 text-[#2DD4BF] flex items-center justify-center shrink-0 border border-[#2DD4BF]/30">
-            <Sparkles size={24} />
+          <div className="w-12 h-12 rounded-full bg-[#CCFBF1] text-[#0F766E] flex items-center justify-center shrink-0">
+            <Sparkles size={22} strokeWidth={2} />
           </div>
           <div>
-            <h2 className="text-xl font-bold text-white">Nova Versão Disponível!</h2>
-            <p className="text-xs text-gray-400">Uma atualização do RachApp está pronta</p>
+            <h2 className="text-h1 text-[var(--text-primary)]">Nova Versão Disponível!</h2>
+            <p className="text-xs text-[var(--text-secondary)]">
+              Uma atualização do RachApp está pronta
+            </p>
           </div>
         </div>
 
         {/* Comparação de Versões */}
-        <div className="bg-[#2c2c2e] p-3 rounded-2xl border border-white/5 flex items-center justify-between mb-4">
+        <div className="bg-[var(--bg-subtle)] p-3.5 rounded-2xl border border-[var(--border-color)] flex items-center justify-between mb-4">
           <div className="text-center flex-1">
-            <span className="text-[10px] text-gray-500 uppercase font-bold block">Sua Versão</span>
-            <span className="text-sm font-semibold text-gray-300">v{updateInfo.currentVersion}</span>
+            <span className="text-xs text-[var(--text-secondary)] uppercase font-semibold block">
+              Sua Versão
+            </span>
+            <span className="text-sm font-display font-semibold text-[var(--text-primary)]">
+              v{updateInfo.currentVersion}
+            </span>
           </div>
 
-          <div className="text-gray-500 px-2">
-            <ArrowRight size={16} />
+          <div className="text-[var(--text-secondary)] px-2">
+            <ArrowRight size={16} strokeWidth={2} />
           </div>
 
           <div className="text-center flex-1">
-            <span className="text-[10px] text-[#2DD4BF] uppercase font-bold block">Mais Recente</span>
-            <span className="text-sm font-bold text-[#2DD4BF]">{updateInfo.tagName}</span>
+            <span className="text-xs text-[#0F766E] uppercase font-semibold block">
+              Mais Recente
+            </span>
+            <span className="text-sm font-display font-bold text-[#0F766E]">
+              {updateInfo.tagName}
+            </span>
           </div>
         </div>
 
         {/* Informações da Versão */}
         <div className="mb-4 space-y-2.5">
-          <p className="text-xs text-gray-300 leading-relaxed">
+          <p className="text-xs text-[var(--text-secondary)] leading-relaxed">
             Esta versão traz melhorias no desempenho, correções de bugs e aprimoramentos para o app.
           </p>
 
-          <div className="flex items-center gap-2 text-[11px] text-gray-400 bg-white/5 p-2.5 rounded-xl border border-white/5">
-            <ShieldCheck size={16} className="text-[#2DD4BF] shrink-0" />
+          <div className="flex items-center gap-2 text-xs text-[var(--text-secondary)] bg-[var(--bg-subtle)] p-3 rounded-xl border border-[var(--border-color)]">
+            <ShieldCheck size={16} strokeWidth={2} className="text-[#0F766E] shrink-0" />
             <span>
               {canUseOta
                 ? 'Atualização OTA rápida e transparente sem precisar reinstalar o APK.'
@@ -156,13 +163,13 @@ export function UpdateModal({ isOpen, onClose, updateInfo }: UpdateModalProps) {
 
         {isDownloading && canUseOta && otaProgress > 0 && otaProgress < 100 && (
           <div className="mb-4 space-y-1.5">
-            <div className="flex justify-between text-[11px] text-gray-400">
+            <div className="flex justify-between text-xs text-[var(--text-secondary)]">
               <span>Baixando atualização OTA...</span>
-              <span className="text-[#2DD4BF] font-bold">{otaProgress}%</span>
+              <span className="text-[#0F766E] font-bold">{otaProgress}%</span>
             </div>
-            <div className="w-full h-2 bg-[#2c2c2e] rounded-full overflow-hidden">
+            <div className="w-full h-2 bg-[var(--bg-subtle)] rounded-full overflow-hidden">
               <div
-                className="h-full bg-[#2DD4BF] transition-all duration-200"
+                className="h-full bg-[#0F766E] transition-all duration-200"
                 style={{ width: `${otaProgress}%` }}
               />
             </div>
@@ -170,8 +177,8 @@ export function UpdateModal({ isOpen, onClose, updateInfo }: UpdateModalProps) {
         )}
 
         {downloadSuccess && (
-          <div className="mb-4 bg-[#2DD4BF]/15 border border-[#2DD4BF]/30 text-[#2DD4BF] text-xs p-3 rounded-2xl flex items-center gap-2 animate-fade-in">
-            <Check size={16} className="shrink-0" />
+          <div className="mb-4 bg-[#CCFBF1] text-[#0F766E] text-xs p-3 rounded-xl flex items-center gap-2 animate-fade-in">
+            <Check size={16} strokeWidth={2} className="shrink-0" />
             <span>
               {statusMessage ||
                 'Download iniciado! Acompanhe o progresso na barra de notificações do seu celular.'}
@@ -184,11 +191,11 @@ export function UpdateModal({ isOpen, onClose, updateInfo }: UpdateModalProps) {
           <button
             onClick={canUseOta ? handleOtaUpdate : handleApkDownload}
             disabled={isDownloading}
-            className="w-full bg-[#2DD4BF] hover:bg-[#25b5a3] text-[#05080f] font-bold py-3.5 rounded-xl text-sm flex items-center justify-center gap-2 transition-all active:scale-95 shadow-lg shadow-[#2DD4BF]/10 disabled:opacity-50"
+            className="w-full ds-btn-primary text-sm"
           >
             {isDownloading ? (
               <>
-                <RefreshCw size={18} className="animate-spin" />
+                <RefreshCw size={18} strokeWidth={2} className="animate-spin" />
                 {canUseOta
                   ? otaProgress > 0
                     ? `Atualizando (${otaProgress}%)...`
@@ -197,12 +204,12 @@ export function UpdateModal({ isOpen, onClose, updateInfo }: UpdateModalProps) {
               </>
             ) : canUseOta ? (
               <>
-                <Zap size={18} />
+                <Zap size={18} strokeWidth={2} />
                 Atualizar Agora (OTA Rápido)
               </>
             ) : (
               <>
-                <Download size={18} />
+                <Download size={18} strokeWidth={2} />
                 Baixar e Atualizar APK
               </>
             )}
@@ -212,9 +219,9 @@ export function UpdateModal({ isOpen, onClose, updateInfo }: UpdateModalProps) {
             <button
               onClick={handleApkDownload}
               disabled={isDownloading}
-              className="w-full bg-[#2c2c2e] hover:bg-white/10 text-gray-300 font-semibold py-2.5 rounded-xl text-xs flex items-center justify-center gap-1.5 transition-colors disabled:opacity-50"
+              className="w-full ds-btn-secondary text-xs"
             >
-              <Download size={14} />
+              <Download size={15} strokeWidth={2} />
               Baixar instalador APK completo
             </button>
           )}
@@ -222,7 +229,7 @@ export function UpdateModal({ isOpen, onClose, updateInfo }: UpdateModalProps) {
           <div className="flex items-center justify-between gap-2 pt-1">
             <button
               onClick={handleDismiss}
-              className="text-xs text-gray-400 hover:text-white px-3 py-1.5 rounded-lg transition-colors"
+              className="text-xs font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] px-3 py-1.5 rounded-lg transition-colors"
             >
               Lembrar mais tarde
             </button>
@@ -232,10 +239,10 @@ export function UpdateModal({ isOpen, onClose, updateInfo }: UpdateModalProps) {
                 href={updateInfo.htmlUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-xs text-[#2DD4BF] hover:underline flex items-center gap-1 px-3 py-1.5"
+                className="text-xs font-semibold text-[#0F766E] hover:underline flex items-center gap-1 px-3 py-1.5"
               >
                 <span>Ver no GitHub</span>
-                <ExternalLink size={12} />
+                <ExternalLink size={12} strokeWidth={2} />
               </a>
             )}
           </div>

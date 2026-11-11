@@ -117,21 +117,21 @@ export function Viagens({
       label: 'A Pagar',
       count: contagens.aPagar,
       icon: TrendingDown,
-      color: 'text-red-400',
+      color: 'text-[#F43F5E]',
     },
     {
       id: 'a_receber',
       label: 'A Receber',
       count: contagens.aReceber,
       icon: TrendingUp,
-      color: 'text-amber-400',
+      color: 'text-[#10B981]',
     },
     {
       id: 'quitados',
       label: 'Quitados',
       count: contagens.quitados,
       icon: CheckCircle2,
-      color: 'text-emerald-400',
+      color: 'text-[#10B981]',
     },
   ];
 
@@ -189,8 +189,8 @@ export function Viagens({
           nome: 'Amigo',
           name: 'Amigo',
           telefone: '',
-          cor: '#0ea5e9',
-          color: '#0ea5e9',
+          cor: '#0F766E',
+          color: '#0F766E',
           favorito: false,
         }
       );
@@ -371,9 +371,9 @@ export function Viagens({
 
   if (isLoading) {
     return (
-      <div className="flex flex-col items-center justify-center h-64 text-[#2DD4BF]">
-        <LoaderCircle size={40} className="animate-spin mb-4" />
-        <p className="text-gray-400">Carregando rachas...</p>
+      <div className="flex flex-col items-center justify-center h-64 text-[#0F766E]">
+        <LoaderCircle size={40} strokeWidth={2} className="animate-spin mb-4" />
+        <p className="text-sm font-medium text-[var(--text-secondary)]">Carregando rachas...</p>
       </div>
     );
   }
@@ -381,34 +381,34 @@ export function Viagens({
   return (
     <div className="space-y-4 relative">
       {/* Cabeçalho */}
-      <header className="flex justify-between items-center mt-1 sm:mt-2 gap-2 min-w-0">
+      <header className="flex justify-between items-center mt-1 gap-2 min-w-0">
         <div className="min-w-0 flex-1 pr-1">
-          <h1 className="text-xl sm:text-2xl font-bold text-white truncate">Histórico de Rachas</h1>
-          <p className="text-xs text-gray-400 mt-0.5 truncate">
+          <h1 className="text-h1 text-[var(--text-primary)] truncate">Histórico de Rachas</h1>
+          <p className="text-body2 text-[var(--text-secondary)] mt-0.5 truncate">
             {corridasFiltradas.length}{' '}
             {corridasFiltradas.length === 1 ? 'racha encontrado' : 'rachas encontrados'}
           </p>
         </div>
 
-        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+        <div className="flex items-center gap-2 shrink-0">
           {/* Botão para abrir/fechar painel de filtros */}
           <button
             onClick={() => setMostrarFiltros(!mostrarFiltros)}
-            className={`p-2 sm:p-2.5 rounded-xl transition-all flex items-center gap-1.5 text-xs font-semibold shrink-0 ${
+            className={`h-10 px-3.5 rounded-xl transition-all flex items-center gap-1.5 text-xs font-semibold shrink-0 border ${
               mostrarFiltros || totalFiltrosAtivos > 0
-                ? 'bg-[#2DD4BF] text-[#05080f] shadow-lg shadow-teal-500/20'
-                : 'bg-[#1c1c1e] text-gray-300 hover:text-white border border-white/5'
+                ? 'bg-[#0F766E] text-white border-[#0F766E] shadow-sm'
+                : 'bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] border-[var(--border-color)]'
             }`}
             title="Filtros avançados"
           >
-            <SlidersHorizontal size={15} />
+            <SlidersHorizontal size={15} strokeWidth={2} />
             <span className="hidden xs:inline">Filtros</span>
             {totalFiltrosAtivos > 0 && (
               <span
-                className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${
-                  mostrarFiltros
-                    ? 'bg-[#05080f] text-[#2DD4BF]'
-                    : 'bg-[#2DD4BF] text-[#05080f]'
+                className={`px-1.5 py-0.5 rounded-full text-xs font-bold ${
+                  mostrarFiltros || totalFiltrosAtivos > 0
+                    ? 'bg-white/20 text-white'
+                    : 'bg-[#CCFBF1] text-[#0F766E]'
                 }`}
               >
                 {totalFiltrosAtivos}
@@ -419,21 +419,21 @@ export function Viagens({
           {/* Botão de Ordenação */}
           <button
             onClick={() => setOrdemCrescente(!ordemCrescente)}
-            className={`p-2 sm:p-2.5 rounded-xl transition-colors flex items-center gap-1 text-xs font-semibold shrink-0 ${
+            className={`h-10 w-10 rounded-xl transition-colors flex items-center justify-center shrink-0 border ${
               ordemCrescente
-                ? 'bg-[#2DD4BF]/20 text-[#2DD4BF] border border-[#2DD4BF]/40'
-                : 'bg-[#1c1c1e] text-gray-300 hover:text-white border border-white/5'
+                ? 'bg-[#CCFBF1] text-[#0F766E] border-[#0F766E]/40'
+                : 'bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] border-[var(--border-color)]'
             }`}
             title={ordemCrescente ? 'Mais antigos primeiro' : 'Mais recentes primeiro'}
           >
-            <ArrowDownUp size={15} />
+            <ArrowDownUp size={16} strokeWidth={2} />
           </button>
         </div>
       </header>
 
-      {/* Barra de Pesquisa por Texto */}
-      <div className="bg-[#1c1c1e] rounded-2xl flex items-center px-3 sm:px-3.5 py-2 sm:py-2.5 text-gray-400 border border-white/5 focus-within:ring-1 focus-within:ring-[#2DD4BF] focus-within:border-[#2DD4BF]/40 transition-all">
-        <Search size={18} className="mr-2.5 text-gray-400 shrink-0" />
+      {/* Barra de Pesquisa por Texto (48px de altura, 12px border-radius) */}
+      <div className="h-12 bg-[var(--bg-surface)] rounded-xl flex items-center px-4 text-[var(--text-secondary)] border border-[var(--border-color)] focus-within:border-[#0F766E] focus-within:ring-2 focus-within:ring-[#0F766E]/15 transition-all shadow-sm">
+        <Search size={18} strokeWidth={2} className="mr-3 text-[var(--text-secondary)] shrink-0" />
         <input
           type="text"
           placeholder="Buscar por nome, tag ou amigo..."
@@ -442,7 +442,7 @@ export function Viagens({
             setBusca(e.target.value);
             setItensVisiveis(8);
           }}
-          className="bg-transparent w-full outline-none text-white placeholder:text-gray-500 text-sm"
+          className="bg-transparent w-full outline-none text-[var(--text-primary)] placeholder:text-[var(--text-secondary)] text-sm"
         />
         {busca && (
           <button
@@ -450,16 +450,16 @@ export function Viagens({
               setBusca('');
               setItensVisiveis(8);
             }}
-            className="text-gray-400 hover:text-white p-1"
+            className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] p-1"
             title="Limpar busca"
           >
-            <X size={16} />
+            <X size={16} strokeWidth={2} />
           </button>
         )}
       </div>
 
       {/* Botões de Filtros Rápidos de Status (Tudo, A Pagar, A Receber, Quitados) */}
-      <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto pb-1 scrollbar-hide pt-0.5">
+      <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-hide pt-0.5">
         {botoesFiltro.map((btn) => {
           const isActive = filtroStatus === btn.id;
           const Icon = btn.icon;
@@ -468,24 +468,25 @@ export function Viagens({
               key={btn.id}
               type="button"
               onClick={() => handleSetFiltroStatus(btn.id)}
-              className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-1.5 shrink-0 ${
+              className={`px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-1.5 shrink-0 border ${
                 isActive
-                  ? 'bg-[#2DD4BF] text-[#05080f] font-bold shadow-sm'
-                  : 'bg-[#1c1c1e] text-gray-400 hover:text-white border border-white/5'
+                  ? 'bg-[#0F766E] text-white border-[#0F766E] shadow-sm'
+                  : 'bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] border-[var(--border-color)]'
               }`}
             >
               {Icon && (
                 <Icon
-                  size={13}
-                  className={isActive ? 'text-[#05080f]' : btn.color}
+                  size={14}
+                  strokeWidth={2}
+                  className={isActive ? 'text-white' : btn.color}
                 />
               )}
               <span>{btn.label}</span>
               <span
-                className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                className={`text-xs px-1.5 py-0.5 rounded-full font-bold ${
                   isActive
-                    ? 'bg-[#05080f]/20 text-[#05080f]'
-                    : 'bg-white/5 text-gray-400'
+                    ? 'bg-white/20 text-white'
+                    : 'bg-[var(--bg-subtle)] text-[var(--text-secondary)]'
                 }`}
               >
                 {btn.count}
@@ -495,56 +496,58 @@ export function Viagens({
         })}
       </div>
 
-      {/* Chips Rápidos de Filtros Ativos (aparecem quando qualquer filtro está ativo) */}
+      {/* Chips Rápidos de Filtros Ativos */}
       {totalFiltrosAtivos > 0 && (
         <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-hide text-xs">
-          <span className="text-[11px] text-gray-500 font-medium shrink-0 mr-1">Filtros:</span>
+          <span className="text-xs text-[var(--text-secondary)] font-medium shrink-0 mr-1">
+            Filtros:
+          </span>
 
           {filtroStatus !== 'tudo' && (
-            <span className="bg-[#2DD4BF]/15 text-[#2DD4BF] border border-[#2DD4BF]/30 px-2.5 py-1 rounded-full flex items-center gap-1.5 shrink-0">
+            <span className="bg-[#CCFBF1] text-[#0F766E] px-2.5 py-1 rounded-full flex items-center gap-1.5 font-medium shrink-0">
               {filtroStatus === 'a_pagar'
                 ? 'A Pagar'
                 : filtroStatus === 'a_receber'
                 ? 'A Receber'
                 : 'Quitados'}
-              <button onClick={() => handleSetFiltroStatus('tudo')} className="hover:text-white">
-                <X size={12} />
+              <button onClick={() => handleSetFiltroStatus('tudo')}>
+                <X size={12} strokeWidth={2} />
               </button>
             </span>
           )}
 
           {busca.trim() && (
-            <span className="bg-[#2DD4BF]/15 text-[#2DD4BF] border border-[#2DD4BF]/30 px-2.5 py-1 rounded-full flex items-center gap-1.5 shrink-0">
+            <span className="bg-[#CCFBF1] text-[#0F766E] px-2.5 py-1 rounded-full flex items-center gap-1.5 font-medium shrink-0">
               "{busca}"
-              <button onClick={() => setBusca('')} className="hover:text-white">
-                <X size={12} />
+              <button onClick={() => setBusca('')}>
+                <X size={12} strokeWidth={2} />
               </button>
             </span>
           )}
 
           {amigoSelecionadoFiltro && (
-            <span className="bg-sky-500/15 text-sky-300 border border-sky-500/30 px-2.5 py-1 rounded-full flex items-center gap-1.5 shrink-0">
-              <User size={11} />
+            <span className="bg-[var(--bg-subtle)] text-[var(--text-primary)] border border-[var(--border-color)] px-2.5 py-1 rounded-full flex items-center gap-1.5 font-medium shrink-0">
+              <User size={12} strokeWidth={2} />
               {amigoSelecionadoFiltro.nome || amigoSelecionadoFiltro.name}
-              <button onClick={() => setFiltroAmigoId('')} className="hover:text-white">
-                <X size={12} />
+              <button onClick={() => setFiltroAmigoId('')}>
+                <X size={12} strokeWidth={2} />
               </button>
             </span>
           )}
 
           {filtroTag && (
-            <span className="bg-amber-500/15 text-amber-300 border border-amber-500/30 px-2.5 py-1 rounded-full flex items-center gap-1.5 shrink-0">
-              <Tag size={11} />
+            <span className="bg-[var(--amber-bg)] text-[#F59E0B] border border-[var(--amber-border)] px-2.5 py-1 rounded-full flex items-center gap-1.5 font-medium shrink-0">
+              <Tag size={12} strokeWidth={2} />
               {filtroTag}
-              <button onClick={() => setFiltroTag('')} className="hover:text-white">
-                <X size={12} />
+              <button onClick={() => setFiltroTag('')}>
+                <X size={12} strokeWidth={2} />
               </button>
             </span>
           )}
 
           {(dataInicio || dataFim) && (
-            <span className="bg-purple-500/15 text-purple-300 border border-purple-500/30 px-2.5 py-1 rounded-full flex items-center gap-1.5 shrink-0">
-              <Calendar size={11} />
+            <span className="bg-[var(--bg-subtle)] text-[var(--text-primary)] border border-[var(--border-color)] px-2.5 py-1 rounded-full flex items-center gap-1.5 font-medium shrink-0">
+              <Calendar size={12} strokeWidth={2} />
               {dataInicio && dataFim
                 ? `${dataInicio.split('-').reverse().slice(0, 2).join('/')} até ${dataFim.split('-').reverse().slice(0, 2).join('/')}`
                 : dataInicio
@@ -555,31 +558,30 @@ export function Viagens({
                   setDataInicio('');
                   setDataFim('');
                 }}
-                className="hover:text-white"
               >
-                <X size={12} />
+                <X size={12} strokeWidth={2} />
               </button>
             </span>
           )}
 
           <button
             onClick={limparFiltros}
-            className="text-gray-400 hover:text-red-400 px-2 py-1 rounded-full transition-colors flex items-center gap-1 shrink-0 ml-auto"
+            className="text-[var(--text-secondary)] hover:text-[#F43F5E] px-2 py-1 rounded-full transition-colors flex items-center gap-1 shrink-0 ml-auto font-medium"
             title="Limpar todos os filtros"
           >
-            <RotateCcw size={11} />
-            <span className="text-[11px]">Limpar</span>
+            <RotateCcw size={12} strokeWidth={2} />
+            <span className="text-xs">Limpar</span>
           </button>
         </div>
       )}
 
       {/* Painel Expansível de Filtros Avançados */}
       {mostrarFiltros && (
-        <div className="bg-[#1c1c1e] p-4 rounded-3xl border border-white/10 space-y-4 shadow-xl">
+        <div className="ds-card p-4 sm:p-5 space-y-4">
           {/* 1. Filtro por Amigo */}
           <div>
-            <label className="text-gray-400 text-xs uppercase font-bold flex items-center gap-1.5 mb-2">
-              <User size={13} className="text-[#2DD4BF]" /> Filtrar por Amigo
+            <label className="text-[var(--text-secondary)] text-xs uppercase font-semibold flex items-center gap-1.5 mb-2">
+              <User size={14} strokeWidth={2} className="text-[#0F766E]" /> Filtrar por Amigo
             </label>
             <select
               value={filtroAmigoId}
@@ -587,7 +589,7 @@ export function Viagens({
                 setFiltroAmigoId(e.target.value);
                 setItensVisiveis(8);
               }}
-              className="w-full bg-[#2c2c2e] text-white text-sm rounded-xl px-3 py-2.5 border border-white/10 outline-none focus:border-[#2DD4BF] transition-colors"
+              className="ds-input"
             >
               <option value="">Todos os amigos</option>
               {amigos.map((a) => (
@@ -600,8 +602,8 @@ export function Viagens({
 
           {/* 2. Filtro por Tag */}
           <div>
-            <label className="text-gray-400 text-xs uppercase font-bold flex items-center gap-1.5 mb-2">
-              <Tag size={13} className="text-[#2DD4BF]" /> Filtrar por Tag
+            <label className="text-[var(--text-secondary)] text-xs uppercase font-semibold flex items-center gap-1.5 mb-2">
+              <Tag size={14} strokeWidth={2} className="text-[#0F766E]" /> Filtrar por Categoria / Tag
             </label>
             <div className="flex flex-wrap gap-1.5">
               <button
@@ -610,10 +612,10 @@ export function Viagens({
                   setFiltroTag('');
                   setItensVisiveis(8);
                 }}
-                className={`px-3 py-1 rounded-lg text-xs font-semibold transition-colors ${
+                className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors border ${
                   filtroTag === ''
-                    ? 'bg-[#2DD4BF] text-[#05080f]'
-                    : 'bg-[#2c2c2e] text-gray-300 hover:bg-[#3a3a3c]'
+                    ? 'bg-[#0F766E] text-white border-[#0F766E]'
+                    : 'bg-[var(--bg-subtle)] text-[var(--text-secondary)] border-[var(--border-color)] hover:text-[var(--text-primary)]'
                 }`}
               >
                 Todas
@@ -626,10 +628,10 @@ export function Viagens({
                     setFiltroTag(filtroTag === t ? '' : t);
                     setItensVisiveis(8);
                   }}
-                  className={`px-3 py-1 rounded-lg text-xs font-semibold transition-colors ${
+                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors border ${
                     filtroTag.toLowerCase() === t.toLowerCase()
-                      ? 'bg-[#2DD4BF] text-[#05080f]'
-                      : 'bg-[#2c2c2e] text-gray-300 hover:bg-[#3a3a3c]'
+                      ? 'bg-[#0F766E] text-white border-[#0F766E]'
+                      : 'bg-[var(--bg-subtle)] text-[var(--text-secondary)] border-[var(--border-color)] hover:text-[var(--text-primary)]'
                   }`}
                 >
                   {t}
@@ -640,8 +642,8 @@ export function Viagens({
 
           {/* 3. Filtro por Data */}
           <div>
-            <label className="text-gray-400 text-xs uppercase font-bold flex items-center gap-1.5 mb-2">
-              <Calendar size={13} className="text-[#2DD4BF]" /> Filtrar por Período
+            <label className="text-[var(--text-secondary)] text-xs uppercase font-semibold flex items-center gap-1.5 mb-2">
+              <Calendar size={14} strokeWidth={2} className="text-[#0F766E]" /> Filtrar por Período
             </label>
 
             {/* Atalhos de Data */}
@@ -649,28 +651,28 @@ export function Viagens({
               <button
                 type="button"
                 onClick={() => aplicarPredefinicaoData('7d')}
-                className="px-2.5 py-1 rounded-lg text-xs bg-[#2c2c2e] hover:bg-[#3a3a3c] text-gray-300 transition-colors"
+                className="px-3 py-1.5 rounded-xl text-xs font-medium bg-[var(--bg-subtle)] border border-[var(--border-color)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
               >
                 Últimos 7 dias
               </button>
               <button
                 type="button"
                 onClick={() => aplicarPredefinicaoData('30d')}
-                className="px-2.5 py-1 rounded-lg text-xs bg-[#2c2c2e] hover:bg-[#3a3a3c] text-gray-300 transition-colors"
+                className="px-3 py-1.5 rounded-xl text-xs font-medium bg-[var(--bg-subtle)] border border-[var(--border-color)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
               >
                 Últimos 30 dias
               </button>
               <button
                 type="button"
                 onClick={() => aplicarPredefinicaoData('mes')}
-                className="px-2.5 py-1 rounded-lg text-xs bg-[#2c2c2e] hover:bg-[#3a3a3c] text-gray-300 transition-colors"
+                className="px-3 py-1.5 rounded-xl text-xs font-medium bg-[var(--bg-subtle)] border border-[var(--border-color)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
               >
                 Este Mês
               </button>
               <button
                 type="button"
                 onClick={() => aplicarPredefinicaoData('ano')}
-                className="px-2.5 py-1 rounded-lg text-xs bg-[#2c2c2e] hover:bg-[#3a3a3c] text-gray-300 transition-colors"
+                className="px-3 py-1.5 rounded-xl text-xs font-medium bg-[var(--bg-subtle)] border border-[var(--border-color)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
               >
                 Este Ano
               </button>
@@ -678,7 +680,7 @@ export function Viagens({
                 <button
                   type="button"
                   onClick={() => aplicarPredefinicaoData('tudo')}
-                  className="px-2.5 py-1 rounded-lg text-xs text-red-400 hover:text-red-300 transition-colors"
+                  className="px-3 py-1.5 rounded-xl text-xs font-medium text-[#F43F5E] hover:opacity-80 transition-colors"
                 >
                   Limpar data
                 </button>
@@ -686,9 +688,11 @@ export function Viagens({
             </div>
 
             {/* Inputs de Data Personalizada */}
-            <div className="grid grid-cols-2 gap-2 sm:gap-2.5">
+            <div className="grid grid-cols-2 gap-3">
               <div className="min-w-0">
-                <span className="text-[10px] text-gray-400 block mb-1">Data Início:</span>
+                <span className="text-xs font-medium text-[var(--text-secondary)] block mb-1">
+                  Data Início:
+                </span>
                 <input
                   type="date"
                   value={dataInicio}
@@ -696,11 +700,13 @@ export function Viagens({
                     setDataInicio(e.target.value);
                     setItensVisiveis(8);
                   }}
-                  className="w-full min-w-0 bg-[#2c2c2e] text-white text-xs rounded-xl p-2 sm:p-2.5 border border-white/10 outline-none focus:border-[#2DD4BF] [color-scheme:dark]"
+                  className="ds-input text-xs"
                 />
               </div>
               <div className="min-w-0">
-                <span className="text-[10px] text-gray-400 block mb-1">Data Fim:</span>
+                <span className="text-xs font-medium text-[var(--text-secondary)] block mb-1">
+                  Data Fim:
+                </span>
                 <input
                   type="date"
                   value={dataFim}
@@ -708,15 +714,15 @@ export function Viagens({
                     setDataFim(e.target.value);
                     setItensVisiveis(8);
                   }}
-                  className="w-full min-w-0 bg-[#2c2c2e] text-white text-xs rounded-xl p-2 sm:p-2.5 border border-white/10 outline-none focus:border-[#2DD4BF] [color-scheme:dark]"
+                  className="ds-input text-xs"
                 />
               </div>
             </div>
           </div>
 
           {/* Rodapé do Painel */}
-          <div className="pt-2 border-t border-white/5 flex items-center justify-between">
-            <span className="text-xs text-gray-400">
+          <div className="pt-3 border-t border-[var(--border-color)] flex items-center justify-between">
+            <span className="text-xs font-medium text-[var(--text-secondary)]">
               {corridasFiltradas.length}{' '}
               {corridasFiltradas.length === 1 ? 'racha filtrado' : 'rachas filtrados'}
             </span>
@@ -725,7 +731,7 @@ export function Viagens({
                 <button
                   type="button"
                   onClick={limparFiltros}
-                  className="px-3 py-1.5 rounded-xl text-xs text-gray-400 hover:text-white transition-colors"
+                  className="px-3 py-2 rounded-xl text-xs font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
                 >
                   Resetar
                 </button>
@@ -733,7 +739,7 @@ export function Viagens({
               <button
                 type="button"
                 onClick={() => setMostrarFiltros(false)}
-                className="bg-[#2DD4BF] hover:bg-[#25b5a3] text-[#05080f] px-4 py-1.5 rounded-xl text-xs font-bold transition-colors"
+                className="bg-[#0F766E] hover:bg-[#115E59] text-white px-4 py-2 rounded-xl text-xs font-semibold transition-colors"
               >
                 Concluir
               </button>
@@ -745,9 +751,11 @@ export function Viagens({
       {/* Lista de Rachas */}
       <div className="mt-4 pb-20">
         {corridasPaginadas.length === 0 ? (
-          <div className="text-center py-12 bg-[#1c1c1e] rounded-3xl border border-white/5 px-4">
-            <p className="text-gray-300 font-medium text-base mb-1">Nenhum racha encontrado</p>
-            <p className="text-gray-500 text-xs mb-4">
+          <div className="text-center py-12 ds-card px-4">
+            <p className="font-display font-semibold text-[var(--text-primary)] text-base mb-1">
+              Nenhum racha encontrado
+            </p>
+            <p className="text-[var(--text-secondary)] text-sm mb-4">
               {totalFiltrosAtivos > 0
                 ? 'Tente ajustar ou limpar os filtros aplicados.'
                 : 'Você ainda não cadastrou nenhum racha.'}
@@ -755,9 +763,9 @@ export function Viagens({
             {totalFiltrosAtivos > 0 && (
               <button
                 onClick={limparFiltros}
-                className="bg-[#2DD4BF]/15 text-[#2DD4BF] hover:bg-[#2DD4BF]/25 px-4 py-2 rounded-xl text-xs font-bold inline-flex items-center gap-1.5 transition-colors"
+                className="bg-[#CCFBF1] text-[#0F766E] hover:opacity-90 px-4 py-2.5 rounded-xl text-xs font-semibold inline-flex items-center gap-1.5 transition-colors"
               >
-                <RotateCcw size={13} />
+                <RotateCcw size={14} strokeWidth={2} />
                 Limpar todos os filtros
               </button>
             )}
@@ -766,11 +774,11 @@ export function Viagens({
           <div className="space-y-6">
             {Object.entries(corridasAgrupadas).map(([mes, corridasDoMes]) => (
               <div key={mes}>
-                <div className="flex items-center gap-2 mb-3.5 px-0.5">
-                  <h3 className="text-xs sm:text-sm font-extrabold tracking-wider text-teal-300 uppercase">
+                <div className="flex items-center gap-2 mb-3 px-0.5">
+                  <h3 className="font-display text-xs sm:text-sm font-bold tracking-wider text-[#0F766E] uppercase">
                     {mes}
                   </h3>
-                  <span className="w-1.5 h-1.5 rounded-full bg-[#2DD4BF] shrink-0" />
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#0F766E] shrink-0" />
                 </div>
 
                 <div className="space-y-3">
@@ -784,12 +792,13 @@ export function Viagens({
                         titulo={corrida.titulo}
                         valorTotal={moneyConverter(corrida.valorTotal)}
                         userStatus={userStatus}
+                        paidByName={corrida.paidByName}
                         participantes={[
-                          { id: 0, nome: 'Você', cor: '#2DD4BF', avatar_url: myAvatarUrl },
+                          { id: 0, nome: 'Você', cor: '#0F766E', avatar_url: myAvatarUrl },
                           ...getParticipantesCompletos(corrida.participantesIds).map((a, idx) => ({
                             id: a.id || idx + 1,
                             nome: a.nome || 'Amigo',
-                            cor: a.cor || '#0ea5e9',
+                            cor: a.cor || '#0F766E',
                             avatar_url: a.avatar_url || null,
                           })),
                         ]}
@@ -804,10 +813,10 @@ export function Viagens({
             {temMaisCorridas && (
               <button
                 onClick={() => setItensVisiveis((prev) => prev + 5)}
-                className="w-full py-4 mt-6 border border-white/10 rounded-xl text-gray-400 hover:text-white hover:bg-white/5 transition-colors flex items-center justify-center gap-2 text-sm font-semibold active:scale-[0.99]"
+                className="w-full h-12 mt-6 bg-[var(--bg-surface)] border border-[var(--border-color)] rounded-xl text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[#0F766E]/40 transition-colors flex items-center justify-center gap-2 text-sm font-semibold active:scale-[0.99] shadow-sm"
               >
                 Ver mais rachas ({corridasOrdenadas.length - itensVisiveis} restantes)
-                <ChevronDown size={18} />
+                <ChevronDown size={18} strokeWidth={2} />
               </button>
             )}
           </div>

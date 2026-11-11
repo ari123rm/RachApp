@@ -613,20 +613,20 @@ function App() {
   // Toast suave de Atualização OTA Pronta (Blue-Green)
   const otaReadyToast =
     (otaStatus === 'ready' || otaStatus === 'applying') && readyBundle ? (
-      <div className="fixed bottom-[calc(5.25rem+env(safe-area-inset-bottom,0px))] left-3 right-3 sm:left-4 sm:right-4 max-w-md mx-auto z-[95] bg-[#141a23]/95 border border-[#2DD4BF]/50 rounded-2xl p-3.5 sm:p-4 shadow-2xl animate-fade-in backdrop-blur-md">
+      <div className="fixed bottom-[calc(5.25rem+env(safe-area-inset-bottom,0px))] left-4 right-4 max-w-md mx-auto z-[95] bg-[var(--bg-surface)] border border-[var(--border-color)] rounded-2xl p-4 shadow-lg animate-fade-in">
         <div className="flex items-start gap-3">
-          <div className="w-9 h-9 rounded-xl bg-[#2DD4BF]/20 text-[#2DD4BF] flex items-center justify-center shrink-0 border border-[#2DD4BF]/30">
+          <div className="w-10 h-10 rounded-full bg-[#CCFBF1] text-[#0F766E] flex items-center justify-center shrink-0">
             {otaStatus === 'applying' ? (
-              <RefreshCw size={18} className="animate-spin" />
+              <RefreshCw size={18} strokeWidth={2} className="animate-spin" />
             ) : (
-              <Sparkles size={18} />
+              <Sparkles size={18} strokeWidth={2} />
             )}
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-xs font-bold text-white">
+            <p className="text-sm font-semibold text-[var(--text-primary)] font-display">
               Nova atualização pronta! ({readyBundle.tagName})
             </p>
-            <p className="text-xs text-gray-300 mt-0.5 leading-relaxed">
+            <p className="text-xs text-[var(--text-secondary)] mt-1 leading-relaxed">
               {otaStatus === 'applying'
                 ? 'Aplicando atualização e recarregando o app...'
                 : `Nova atualização pronta! O app será recarregado em ${countdown ?? 3} segundo${
@@ -638,16 +638,16 @@ function App() {
               <div className="flex items-center gap-2 mt-3">
                 <button
                   onClick={applyNow}
-                  className="bg-[#2DD4BF] hover:bg-[#25b5a3] text-[#05080f] text-xs font-bold px-3 py-1.5 rounded-xl flex items-center gap-1.5 transition-transform active:scale-95"
+                  className="bg-[#0F766E] hover:bg-[#115E59] text-white text-xs font-semibold px-3.5 py-2 rounded-xl flex items-center gap-1.5 transition-transform active:scale-95"
                 >
-                  <RefreshCw size={12} />
+                  <RefreshCw size={13} strokeWidth={2} />
                   Recarregar agora
                 </button>
                 <button
                   onClick={applyOnNextBoot}
-                  className="bg-white/10 hover:bg-white/15 text-gray-300 hover:text-white text-xs font-medium px-3 py-1.5 rounded-xl flex items-center gap-1 transition-colors"
+                  className="bg-[var(--bg-subtle)] hover:opacity-80 text-[var(--text-secondary)] text-xs font-medium px-3.5 py-2 rounded-xl flex items-center gap-1.5 transition-colors border border-[var(--border-color)]"
                 >
-                  <Clock size={12} />
+                  <Clock size={13} strokeWidth={2} />
                   No próximo boot
                 </button>
               </div>
@@ -658,9 +658,9 @@ function App() {
             <button
               onClick={applyOnNextBoot}
               title="Aplicar no próximo boot"
-              className="text-gray-400 hover:text-white p-1 rounded-lg hover:bg-gray-800/40"
+              className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] p-1 rounded-lg hover:bg-[var(--bg-subtle)]"
             >
-              <X size={16} />
+              <X size={16} strokeWidth={2} />
             </button>
           )}
         </div>
@@ -669,9 +669,9 @@ function App() {
 
   if (isInitializing) {
     return (
-      <div className="min-h-screen bg-[#05080f] flex flex-col items-center justify-center text-[#2DD4BF]">
-        <LoaderCircle size={44} className="animate-spin mb-3" />
-        <p className="text-sm text-gray-400">Carregando seus dados...</p>
+      <div className="min-h-screen bg-[var(--bg-app)] flex flex-col items-center justify-center text-[#0F766E]">
+        <LoaderCircle size={40} strokeWidth={2} className="animate-spin mb-3" />
+        <p className="text-sm font-medium text-[var(--text-secondary)]">Carregando seus dados...</p>
       </div>
     );
   }
@@ -691,7 +691,7 @@ function App() {
   }
 
   return (
-    <div className="h-[100dvh] bg-[#05080f] text-white font-sans relative overflow-hidden flex flex-col">
+    <div className="h-[100dvh] bg-[var(--bg-app)] text-[var(--text-primary)] font-sans relative overflow-hidden flex flex-col">
       {/* Indicador de Pull-to-Refresh: ícone circular flutuante centralizado com rotação suave */}
       <div
         className="fixed top-0 left-0 right-0 flex justify-center z-[60] pointer-events-none"
@@ -700,10 +700,10 @@ function App() {
         }}
       >
         <div
-          className={`w-10 h-10 rounded-full flex items-center justify-center border shadow-xl backdrop-blur-md transition-colors ${
+          className={`w-10 h-10 rounded-full flex items-center justify-center border shadow-md transition-colors ${
             pullDistance >= PULL_THRESHOLD || isPullRefreshing
-              ? 'bg-[#141a23]/95 border-[#2DD4BF]/60 text-[#2DD4BF] shadow-[#2DD4BF]/25'
-              : 'bg-[#141a23]/90 border-white/15 text-gray-300 shadow-black/60'
+              ? 'bg-[var(--bg-surface)] border-[#0F766E] text-[#0F766E]'
+              : 'bg-[var(--bg-surface)] border-[var(--border-color)] text-[var(--text-secondary)]'
           }`}
           style={{
             transform: `translate3d(0, ${
@@ -721,7 +721,8 @@ function App() {
         >
           <RefreshCw
             size={18}
-            className={`stroke-[2.5px] ${isPullRefreshing ? 'animate-spin' : ''}`}
+            strokeWidth={2}
+            className={isPullRefreshing ? 'animate-spin' : ''}
             style={{
               transform: isPullRefreshing
                 ? 'none'
@@ -759,7 +760,7 @@ function App() {
               ref={(el) => {
                 tabScrollRefs.current.home = el;
               }}
-              className="w-full h-full overflow-y-auto px-3.5 sm:px-5 md:px-6 pt-[max(0.75rem,env(safe-area-inset-top,0px))] pb-[calc(5.75rem+env(safe-area-inset-bottom,0px))] max-w-lg md:max-w-xl lg:max-w-2xl mx-auto scrollbar-hide touch-pan-y overscroll-y-contain"
+              className="w-full h-full overflow-y-auto px-4 sm:px-6 pt-[max(1rem,env(safe-area-inset-top,0px))] pb-[calc(6rem+env(safe-area-inset-bottom,0px))] max-w-lg md:max-w-xl lg:max-w-2xl mx-auto scrollbar-hide touch-pan-y overscroll-y-contain"
             >
               <Home
                 dataVersion={dataVersion}
@@ -783,7 +784,7 @@ function App() {
               ref={(el) => {
                 tabScrollRefs.current.viagens = el;
               }}
-              className="w-full h-full overflow-y-auto px-3.5 sm:px-5 md:px-6 pt-[max(0.75rem,env(safe-area-inset-top,0px))] pb-[calc(5.75rem+env(safe-area-inset-bottom,0px))] max-w-lg md:max-w-xl lg:max-w-2xl mx-auto scrollbar-hide touch-pan-y overscroll-y-contain"
+              className="w-full h-full overflow-y-auto px-4 sm:px-6 pt-[max(1rem,env(safe-area-inset-top,0px))] pb-[calc(6rem+env(safe-area-inset-bottom,0px))] max-w-lg md:max-w-xl lg:max-w-2xl mx-auto scrollbar-hide touch-pan-y overscroll-y-contain"
             >
               <Viagens
                 dataVersion={dataVersion}
@@ -804,7 +805,7 @@ function App() {
               ref={(el) => {
                 tabScrollRefs.current.amigos = el;
               }}
-              className="w-full h-full overflow-y-auto px-3.5 sm:px-5 md:px-6 pt-[max(0.75rem,env(safe-area-inset-top,0px))] pb-[calc(5.75rem+env(safe-area-inset-bottom,0px))] max-w-lg md:max-w-xl lg:max-w-2xl mx-auto scrollbar-hide touch-pan-y overscroll-y-contain"
+              className="w-full h-full overflow-y-auto px-4 sm:px-6 pt-[max(1rem,env(safe-area-inset-top,0px))] pb-[calc(6rem+env(safe-area-inset-bottom,0px))] max-w-lg md:max-w-xl lg:max-w-2xl mx-auto scrollbar-hide touch-pan-y overscroll-y-contain"
             >
               <Amigos
                 dataVersion={dataVersion}
@@ -825,7 +826,7 @@ function App() {
               ref={(el) => {
                 tabScrollRefs.current.perfil = el;
               }}
-              className="w-full h-full overflow-y-auto px-3.5 sm:px-5 md:px-6 pt-[max(0.75rem,env(safe-area-inset-top,0px))] pb-[calc(5.75rem+env(safe-area-inset-bottom,0px))] max-w-lg md:max-w-xl lg:max-w-2xl mx-auto scrollbar-hide touch-pan-y overscroll-y-contain"
+              className="w-full h-full overflow-y-auto px-4 sm:px-6 pt-[max(1rem,env(safe-area-inset-top,0px))] pb-[calc(6rem+env(safe-area-inset-bottom,0px))] max-w-lg md:max-w-xl lg:max-w-2xl mx-auto scrollbar-hide touch-pan-y overscroll-y-contain"
             >
               <Perfil
                 dataVersion={dataVersion}
@@ -855,19 +856,19 @@ function App() {
                 : 'Adicionar Amigo'
               : 'Novo Racha'
           }
-          className="fixed bottom-[calc(4.75rem+env(safe-area-inset-bottom,0px))] right-4 sm:right-6 md:right-[max(1.5rem,calc(50%-22rem))] w-14 h-14 bg-[#2DD4BF] hover:bg-[#25b5a3] rounded-full flex items-center justify-center shadow-lg shadow-teal-500/30 transition-transform active:scale-90 z-40"
+          className="fixed bottom-[calc(4.75rem+env(safe-area-inset-bottom,0px))] right-4 sm:right-6 md:right-[max(1.5rem,calc(50%-22rem))] w-14 h-14 bg-[#0F766E] hover:bg-[#115E59] text-white rounded-full flex items-center justify-center shadow-lg transition-all active:scale-95 z-40"
         >
           {activeTab === 'amigos' ? (
             amigosSubTab === 'grupos' ? (
               <div className="relative flex items-center justify-center">
-                <Users size={24} className="text-[#05080f] stroke-[2.5px]" />
-                <Plus size={14} className="text-[#05080f] stroke-[3px] -ml-1 -mt-3" />
+                <Users size={22} strokeWidth={2} className="text-white" />
+                <Plus size={14} strokeWidth={2.5} className="text-white -ml-1 -mt-3" />
               </div>
             ) : (
-              <UserPlus size={26} className="text-[#05080f] stroke-[2.5px]" />
+              <UserPlus size={24} strokeWidth={2} className="text-white" />
             )
           ) : (
-            <Plus size={32} className="text-[#05080f] stroke-[2.5px]" />
+            <Plus size={28} strokeWidth={2} className="text-white" />
           )}
         </button>
       )}
@@ -941,14 +942,16 @@ function App() {
               setIsNotificationModalOpen(true);
             }
           }}
-          className="fixed top-[max(0.75rem,env(safe-area-inset-top,0px))] left-3 right-3 sm:left-4 sm:right-4 max-w-md mx-auto z-50 bg-[#141a23]/95 border border-[#2DD4BF]/50 rounded-2xl p-3 sm:p-3.5 shadow-2xl flex items-start gap-3 cursor-pointer animate-fade-in backdrop-blur-md"
+          className="fixed top-[max(0.75rem,env(safe-area-inset-top,0px))] left-4 right-4 max-w-md mx-auto z-50 bg-[var(--bg-surface)] border border-[var(--border-color)] rounded-2xl p-4 shadow-lg flex items-start gap-3 cursor-pointer animate-fade-in"
         >
-          <div className="w-8 h-8 rounded-xl bg-[#2DD4BF]/20 text-[#2DD4BF] flex items-center justify-center shrink-0 mt-0.5 border border-[#2DD4BF]/30">
-            <Bell size={18} />
+          <div className="w-10 h-10 rounded-full bg-[#CCFBF1] text-[#0F766E] flex items-center justify-center shrink-0">
+            <Bell size={18} strokeWidth={2} />
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-xs font-bold text-white truncate">{inAppToast.title}</p>
-            <p className="text-xs text-gray-300 line-clamp-2 mt-0.5 leading-relaxed">
+            <p className="text-sm font-semibold text-[var(--text-primary)] font-display truncate">
+              {inAppToast.title}
+            </p>
+            <p className="text-xs text-[var(--text-secondary)] line-clamp-2 mt-0.5 leading-relaxed">
               {inAppToast.message}
             </p>
           </div>
@@ -957,9 +960,9 @@ function App() {
               e.stopPropagation();
               setInAppToast(null);
             }}
-            className="text-gray-400 hover:text-white p-1 rounded-lg hover:bg-gray-800/40"
+            className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] p-1 rounded-lg hover:bg-[var(--bg-subtle)]"
           >
-            <X size={16} />
+            <X size={16} strokeWidth={2} />
           </button>
         </div>
       )}

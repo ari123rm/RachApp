@@ -1,5 +1,15 @@
 // src/components/RideCard.tsx
-import { Check, CheckCircle2, Clock } from 'lucide-react';
+import {
+  Check,
+  CheckCircle2,
+  Clock,
+  Car,
+  Utensils,
+  ShoppingCart,
+  Home,
+  Briefcase,
+  Receipt,
+} from 'lucide-react';
 import { getAvatarColor } from '../utils/avatarColor';
 import moneyConverter from '../utils/moneyConverter';
 import type { RideUserStatus } from '../utils/rideStatus';
@@ -11,6 +21,7 @@ interface RideProps {
   valorTotal: string;
   participantes: { id: number | string; nome: string; cor: string; avatar_url?: string | null }[];
   userStatus?: RideUserStatus;
+  paidByName?: string | null;
   onClick?: () => void;
 }
 
@@ -38,6 +49,51 @@ export function formatRideDate(dateStr: string): string {
   return `${parseInt(day, 10)} de ${mName}, ${year}`;
 }
 
+export function getCategoryIcon(tag: string) {
+  const lower = (tag || '').toLowerCase();
+  if (
+    lower.includes('transporte') ||
+    lower.includes('uber') ||
+    lower.includes('99') ||
+    lower.includes('carro') ||
+    lower.includes('gasolina') ||
+    lower.includes('viagem')
+  ) {
+    return Car;
+  }
+  if (
+    lower.includes('comida') ||
+    lower.includes('jantar') ||
+    lower.includes('almoço') ||
+    lower.includes('almoco') ||
+    lower.includes('lanche') ||
+    lower.includes('pizza') ||
+    lower.includes('restaurante') ||
+    lower.includes('bar') ||
+    lower.includes('ifood')
+  ) {
+    return Utensils;
+  }
+  if (lower.includes('mercado') || lower.includes('compra') || lower.includes('supermercado')) {
+    return ShoppingCart;
+  }
+  if (
+    lower.includes('casa') ||
+    lower.includes('aluguel') ||
+    lower.includes('luz') ||
+    lower.includes('agua') ||
+    lower.includes('água') ||
+    lower.includes('internet') ||
+    lower.includes('energia')
+  ) {
+    return Home;
+  }
+  if (lower.includes('trabalho') || lower.includes('escritorio') || lower.includes('escritório')) {
+    return Briefcase;
+  }
+  return Receipt;
+}
+
 export function RideStatusView({
   userStatus,
   valorTotal,
@@ -47,7 +103,7 @@ export function RideStatusView({
 }) {
   if (!userStatus) {
     return (
-      <div className="bg-[#2DD4BF]/20 text-[#2DD4BF] px-2.5 py-1 rounded-lg font-bold text-xs tabular-nums">
+      <div className="bg-[#CCFBF1] text-[#0F766E] px-3 py-1 rounded-xl font-bold font-display text-xs tabular-nums">
         R$ {valorTotal}
       </div>
     );
@@ -55,17 +111,17 @@ export function RideStatusView({
 
   if (userStatus.status === 'pagante') {
     return (
-      <div className="text-right flex flex-col items-end shrink-0 max-w-[135px] sm:max-w-[165px]">
-        <span className="inline-flex items-center gap-1.5 text-[11px] bg-[#2DD4BF]/15 text-[#2DD4BF] border border-[#2DD4BF]/30 px-2.5 py-0.5 rounded-full font-bold shrink-0">
-          <CheckCircle2 size={12} strokeWidth={2.5} /> Pagante
+      <div className="text-right flex flex-col items-end shrink-0 max-w-[140px] sm:max-w-[170px]">
+        <span className="inline-flex items-center gap-1.5 text-xs bg-[var(--emerald-bg)] text-[#10B981] border border-[var(--emerald-border)] px-2.5 py-0.5 rounded-full font-medium shrink-0">
+          <CheckCircle2 size={12} strokeWidth={2} /> Pagante
         </span>
         {userStatus.amountOwedToYou > 0.01 ? (
-          <span className="text-[11px] font-bold text-[#2DD4BF] mt-1 truncate max-w-full tabular-nums">
-            Te devem R$ {moneyConverter(userStatus.amountOwedToYou)}
+          <span className="text-xs font-bold font-display text-[#10B981] mt-1 truncate max-w-full tabular-nums">
+            + R$ {moneyConverter(userStatus.amountOwedToYou)}
           </span>
         ) : (
-          <span className="text-[11px] font-semibold text-emerald-400 mt-1 flex items-center gap-1 shrink-0">
-            <Check size={12} strokeWidth={2.5} /> Quitado
+          <span className="text-xs font-medium text-[#10B981] mt-1 flex items-center gap-1 shrink-0">
+            <Check size={12} strokeWidth={2} /> Quitado
           </span>
         )}
       </div>
@@ -74,23 +130,23 @@ export function RideStatusView({
 
   if (userStatus.status === 'pendente') {
     return (
-      <div className="text-right flex flex-col items-end shrink-0 max-w-[135px] sm:max-w-[165px]">
-        <span className="inline-flex items-center gap-1.5 text-[11px] bg-amber-500/15 text-amber-400 border border-amber-500/30 px-2.5 py-0.5 rounded-full font-bold shrink-0">
-          <Clock size={12} strokeWidth={2.5} /> Pendente
+      <div className="text-right flex flex-col items-end shrink-0 max-w-[140px] sm:max-w-[170px]">
+        <span className="inline-flex items-center gap-1.5 text-xs bg-[var(--rose-bg)] text-[#F43F5E] border border-[var(--rose-border)] px-2.5 py-0.5 rounded-full font-medium shrink-0">
+          <Clock size={12} strokeWidth={2} /> Pendente
         </span>
-        <span className="text-[11px] font-bold text-amber-400 mt-1 truncate max-w-full tabular-nums">
-          Deve R$ {moneyConverter(userStatus.amountYouOwe)}
+        <span className="text-xs font-bold font-display text-[#F43F5E] mt-1 truncate max-w-full tabular-nums">
+          - R$ {moneyConverter(userStatus.amountYouOwe)}
         </span>
       </div>
     );
   }
 
   return (
-    <div className="text-right flex flex-col items-end shrink-0 max-w-[135px] sm:max-w-[165px]">
-      <span className="inline-flex items-center gap-1.5 text-[11px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 px-2.5 py-0.5 rounded-full font-bold shrink-0">
-        <Check size={12} strokeWidth={2.5} /> Quitado
+    <div className="text-right flex flex-col items-end shrink-0 max-w-[140px] sm:max-w-[170px]">
+      <span className="inline-flex items-center gap-1.5 text-xs bg-[var(--emerald-bg)] text-[#10B981] border border-[var(--emerald-border)] px-2.5 py-0.5 rounded-full font-medium shrink-0">
+        <Check size={12} strokeWidth={2} /> Pago
       </span>
-      <span className="text-[11px] text-gray-500 font-medium mt-1 truncate max-w-full tabular-nums">
+      <span className="text-xs text-[var(--text-secondary)] font-medium mt-1 truncate max-w-full tabular-nums">
         Sua parte: R$ {moneyConverter(userStatus.myShare)}
       </span>
     </div>
@@ -104,6 +160,7 @@ export function RideCard({
   valorTotal,
   participantes,
   userStatus,
+  paidByName,
   onClick,
 }: RideProps) {
   const cleanTag = (tag || '').trim();
@@ -115,17 +172,14 @@ export function RideCard({
   }
 
   const formattedDate = formatRideDate(data);
-  const displayCategory = cleanTag || 'Transporte';
+  const CategoryIcon = getCategoryIcon(cleanTag || displayTitle);
 
   // Ordena para que os amigos apareçam primeiro nos avatares e 'Você' fique por último
   const amigos = participantes.filter((p) => p.nome !== 'Você');
   const voce = participantes.find((p) => p.nome === 'Você');
   const orderedParticipants = voce ? [...amigos, voce] : amigos;
 
-  const nomesAmigos = amigos.map((p) => p.nome);
-  const textoParticipantes = nomesAmigos.length > 0 ? nomesAmigos.join(', ') : 'Você';
-
-  // Mostra até 3 avatares e contador (+N) se houver mais de 3
+  // Mostra até 3 avatares e contador (+N) se houver mais de 3 (Pilha de Avatares 32x32px)
   const visibleAvatars = orderedParticipants.slice(0, 3);
   const extraCount = orderedParticipants.length - 3;
 
@@ -133,53 +187,40 @@ export function RideCard({
   const hasTeDevem = isPagante && (userStatus?.amountOwedToYou || 0) > 0.01;
   const isPendente = userStatus?.status === 'pendente' && (userStatus?.amountYouOwe || 0) > 0.01;
 
+  const payerLabel = isPagante
+    ? 'Pago por você'
+    : paidByName
+    ? `Pago por ${paidByName}`
+    : cleanTag || 'Despesa';
+
   return (
     <div
       onClick={onClick}
-      className={`rounded-2xl p-4 sm:p-4.5 space-y-3.5 transition-all cursor-pointer active:scale-[0.99] ${
-        hasTeDevem
-          ? 'bg-[#131b26] border border-[#2DD4BF]/50 shadow-lg shadow-teal-500/5'
-          : 'bg-[#131b26] border border-white/5 hover:border-white/10'
-      }`}
+      className="ds-card p-4 flex items-center justify-between gap-4 transition-all cursor-pointer hover:border-[#0F766E]/40 active:scale-[0.99]"
     >
-      {/* Linha 1: Título / Subtítulo e Badge de Status */}
-      <div className="flex items-start justify-between gap-3 min-w-0">
-        <div className="min-w-0 flex-1">
-          <h4 className="text-base font-bold text-white tracking-tight truncate leading-snug">
-            {displayTitle}
-          </h4>
-          <p className="text-xs text-gray-400 font-medium mt-0.5 truncate">
-            {formattedDate} • {displayCategory}
-          </p>
-        </div>
-
-        {/* Badge de Status no canto superior direito */}
-        <div className="shrink-0">
-          {hasTeDevem ? (
-            <span className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1 rounded-full text-xs font-semibold bg-[#2DD4BF]/15 text-[#2DD4BF] border border-[#2DD4BF]/30">
-              <CheckCircle2 size={13} strokeWidth={2.5} /> Pagante
-            </span>
-          ) : isPendente ? (
-            <span className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/30">
-              <Clock size={13} strokeWidth={2.5} /> Pendente
-            </span>
-          ) : (
-            <span className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
-              <Check size={13} strokeWidth={2.5} /> Quitado
-            </span>
-          )}
-        </div>
+      {/* Esquerda: Ícone da categoria da despesa em círculo com fundo cinza claro */}
+      <div className="w-12 h-12 rounded-full bg-[var(--bg-subtle)] text-[#0F766E] flex items-center justify-center shrink-0 border border-[var(--border-color)]">
+        <CategoryIcon size={22} strokeWidth={2} />
       </div>
 
-      {/* Linha 2: Avatares sobrepostos + Lista de Participantes + Total */}
-      <div className="flex items-center justify-between gap-3 min-w-0">
-        <div className="flex items-center gap-2 min-w-0 flex-1">
-          <div className="flex -space-x-1.5 shrink-0">
+      {/* Meio: Título da despesa (H2) + Quem pagou e a data (Body 2) + Pilha de avatares 32x32px */}
+      <div className="min-w-0 flex-1">
+        <h4 className="font-display font-semibold text-[17px] sm:text-[18px] text-[var(--text-primary)] tracking-tight truncate leading-snug">
+          {displayTitle}
+        </h4>
+        <p className="text-sm text-[var(--text-secondary)] mt-0.5 truncate">
+          {payerLabel} • {formattedDate}
+        </p>
+
+        {/* Pilha de Avatares (Avatar Stack 32x32px com borda de 2px na cor da superfície) */}
+        <div className="flex items-center gap-2 mt-2 min-w-0">
+          <div className="flex -space-x-2 shrink-0">
             {visibleAvatars.map((p) => (
               <div
                 key={p.id}
                 style={p.avatar_url ? undefined : { backgroundColor: getAvatarColor(p.cor) }}
-                className="w-6 h-6 rounded-full overflow-hidden flex items-center justify-center border-2 border-[#131b26] text-[10px] font-bold text-white shrink-0 shadow-sm"
+                className="w-8 h-8 rounded-full overflow-hidden flex items-center justify-center border-2 border-[var(--bg-surface)] text-xs font-semibold text-white shrink-0 shadow-sm"
+                title={p.nome}
               >
                 {p.avatar_url ? (
                   <img src={p.avatar_url} alt={p.nome} className="w-full h-full object-cover" />
@@ -189,51 +230,48 @@ export function RideCard({
               </div>
             ))}
             {extraCount > 0 && (
-              <div className="w-6 h-6 rounded-full bg-slate-800 text-gray-300 font-bold text-[10px] flex items-center justify-center border-2 border-[#131b26] shrink-0">
+              <div className="w-8 h-8 rounded-full bg-[var(--bg-subtle)] text-[var(--text-secondary)] font-semibold text-xs flex items-center justify-center border-2 border-[var(--bg-surface)] shrink-0">
                 +{extraCount}
               </div>
             )}
           </div>
-
-          <span className="text-xs text-gray-300 font-medium truncate">
-            Com: {textoParticipantes}
+          <span className="text-xs font-medium text-[var(--text-secondary)] truncate">
+            Total R$ {valorTotal}
           </span>
-        </div>
-
-        <div className="shrink-0 text-xs text-gray-400 font-normal">
-          Total: <span className="font-bold text-white tabular-nums ml-1">R$ {valorTotal}</span>
         </div>
       </div>
 
-      {/* Linha 3: Card interno inferior (Sua parte / Te devem no total / Você deve) */}
-      {hasTeDevem ? (
-        <div className="bg-[#2DD4BF]/10 border border-[#2DD4BF]/20 rounded-xl px-3.5 py-2.5 sm:py-3 flex items-center justify-between">
-          <div className="flex items-center gap-2 text-xs font-bold text-[#2DD4BF]">
-            <span className="w-2 h-2 rounded-full bg-[#2DD4BF] animate-pulse shrink-0" />
-            <span>Te devem no total</span>
-          </div>
-          <span className="text-sm sm:text-base font-extrabold text-[#2DD4BF] tabular-nums">
-            R$ {moneyConverter(userStatus?.amountOwedToYou || 0)}
-          </span>
-        </div>
-      ) : isPendente ? (
-        <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl px-3.5 py-2.5 sm:py-3 flex items-center justify-between">
-          <div className="flex items-center gap-2 text-xs font-bold text-amber-400">
-            <span className="w-2 h-2 rounded-full bg-amber-400 shrink-0" />
-            <span>Você deve</span>
-          </div>
-          <span className="text-sm sm:text-base font-extrabold text-amber-400 tabular-nums">
-            R$ {moneyConverter(userStatus?.amountYouOwe || 0)}
-          </span>
-        </div>
-      ) : (
-        <div className="bg-[#0c121e]/80 border border-white/[0.04] rounded-xl px-3.5 py-2.5 sm:py-3 flex items-center justify-between">
-          <span className="text-xs text-gray-400 font-medium">Sua parte</span>
-          <span className="text-sm sm:text-base font-bold text-[#2DD4BF] tabular-nums">
-            R$ {moneyConverter(userStatus?.myShare || 0)}
-          </span>
-        </div>
-      )}
+      {/* Direita: Valor monetário (Plus Jakarta Sans, Bold) + Status Semântico */}
+      <div className="text-right flex flex-col items-end justify-center shrink-0">
+        {hasTeDevem ? (
+          <>
+            <span className="font-display font-bold text-base sm:text-lg text-[#10B981] tabular-nums">
+              + R$ {moneyConverter(userStatus?.amountOwedToYou || 0)}
+            </span>
+            <span className="inline-flex items-center gap-1 mt-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-[var(--emerald-bg)] text-[#10B981] border border-[var(--emerald-border)]">
+              <CheckCircle2 size={12} strokeWidth={2} /> A receber
+            </span>
+          </>
+        ) : isPendente ? (
+          <>
+            <span className="font-display font-bold text-base sm:text-lg text-[#F43F5E] tabular-nums">
+              - R$ {moneyConverter(userStatus?.amountYouOwe || 0)}
+            </span>
+            <span className="inline-flex items-center gap-1 mt-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-[var(--rose-bg)] text-[#F43F5E] border border-[var(--rose-border)]">
+              <Clock size={12} strokeWidth={2} /> Você deve
+            </span>
+          </>
+        ) : (
+          <>
+            <span className="font-display font-bold text-base sm:text-lg text-[#10B981] tabular-nums">
+              R$ {moneyConverter(userStatus?.myShare || 0)}
+            </span>
+            <span className="inline-flex items-center gap-1 mt-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-[var(--emerald-bg)] text-[#10B981] border border-[var(--emerald-border)]">
+              <Check size={12} strokeWidth={2} /> Pago
+            </span>
+          </>
+        )}
+      </div>
     </div>
   );
 }

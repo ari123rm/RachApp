@@ -1,5 +1,5 @@
-import { createPortal } from 'react-dom';
 // src/components/RideDetailsModal.tsx
+import { createPortal } from 'react-dom';
 import { useState, useEffect, useCallback } from 'react';
 import {
   ChevronLeft,
@@ -65,12 +65,10 @@ export function RideDetailsModal({
 
   useModalBackHandler(isOpen, onClose);
 
-  // Mantém currentRide atualizado com o prop ride
   useEffect(() => {
     setCurrentRide(ride || null);
   }, [ride]);
 
-  // Limpa feedback toast após alguns segundos
   useEffect(() => {
     if (!feedbackMsg) return;
     const timer = setTimeout(() => {
@@ -175,7 +173,6 @@ export function RideDetailsModal({
     pagadorAmigo?.pix?.trim() ||
     '';
 
-  // Apenas o pagador (credor/"lesado") pode marcar/desmarcar diretamente sem comprovante
   const handleCreditorTogglePaid = async (
     amigoId: string,
     jaPago: boolean,
@@ -189,7 +186,6 @@ export function RideDetailsModal({
 
     setUpdatingFriendId(amigoId);
 
-    // 1. Atualização Otimista Imediata para a UI mudar no mesmo milissegundo
     setCurrentRide((prev) => {
       const base = prev || activeRide;
       if (!base) return base;
@@ -206,17 +202,14 @@ export function RideDetailsModal({
     });
 
     try {
-      // 2. Persiste a alteração no SQLite local e enfileira sincronização
       await dbService.financeiro.definirPagamentoParticipante(
         activeRide.id,
         amigoId,
         novoValor
       );
 
-      // 3. Recarrega os dados reais do banco e atualiza netting e pendências
       await atualizarNettingEModal(activeRide);
 
-      // 4. Exibe mensagem de feedback visual ao usuário
       if (jaPago) {
         setFeedbackMsg({
           text: `Pagamento de ${amigoNome} desfeito (marcado como pendente).`,
@@ -229,7 +222,6 @@ export function RideDetailsModal({
         });
       }
 
-      // 5. Notifica telas pai
       if (onUpdated) onUpdated();
     } catch (err) {
       console.error('Erro ao atualizar pagamento:', err);
@@ -240,7 +232,6 @@ export function RideDetailsModal({
     }
   };
 
-  // Devedor ("Você", quando um amigo pagou a conta) envia o comprovante para dar baixa na sua parte
   const handleDebtorConfirmSelfPayment = async (amount: number, receiptBase64: string) => {
     const novoTotalPago = Math.min(minhaParte, Number((meuValorPago + amount).toFixed(2)));
     try {
@@ -268,35 +259,35 @@ export function RideDetailsModal({
 
   return createPortal(
     <div
-      className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 animate-fade-in"
+      className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 animate-fade-in"
       onClick={onClose}
     >
       <div
-        className="bg-[#0b0f19] w-full sm:max-w-md rounded-t-[28px] sm:rounded-3xl border border-white/10 shadow-2xl flex flex-col max-h-[92dvh] sm:max-h-[90vh] overflow-hidden animate-slide-up pb-safe"
+        className="bg-[var(--bg-app)] w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl border border-[var(--border-color)] shadow-xl flex flex-col max-h-[92dvh] sm:max-h-[90vh] overflow-hidden animate-slide-up pb-safe"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Handle visual mobile */}
-        <div className="w-12 h-1 bg-white/20 rounded-full mx-auto mt-2.5 mb-1 sm:hidden shrink-0" />
+        <div className="w-12 h-1 bg-[var(--border-color)] rounded-full mx-auto mt-2.5 mb-1 sm:hidden shrink-0" />
 
         {/* Cabeçalho com Editar e Excluir */}
-        <div className="flex items-center justify-between p-4 border-b border-white/10 bg-[#0b0f19]/95 backdrop-blur-md shrink-0">
+        <div className="flex items-center justify-between p-4 border-b border-[var(--border-color)] bg-[var(--bg-surface)] shrink-0">
           <button
             onClick={onClose}
-            className="p-2 text-white hover:bg-gray-800 rounded-full transition-colors active:scale-95"
+            className="p-2 text-[var(--text-primary)] hover:bg-[var(--bg-subtle)] rounded-full transition-colors active:scale-95"
           >
-            <ChevronLeft size={26} />
+            <ChevronLeft size={24} strokeWidth={2} />
           </button>
 
-          <h2 className="text-base font-semibold text-white">Detalhes do Racha</h2>
+          <h2 className="text-h2 text-[var(--text-primary)]">Detalhes do Racha</h2>
 
           {activeRide.isCreator !== false ? (
             <div className="flex items-center gap-1">
               <button
                 onClick={() => setIsEditOpen(true)}
-                className="p-2 text-gray-300 hover:bg-white/10 hover:text-white rounded-full transition-colors active:scale-95"
+                className="p-2 text-[var(--text-secondary)] hover:bg-[var(--bg-subtle)] hover:text-[var(--text-primary)] rounded-full transition-colors active:scale-95"
                 title="Editar Racha"
               >
-                <Pencil size={18} />
+                <Pencil size={18} strokeWidth={2} />
               </button>
               <button
                 onClick={() => {
@@ -307,14 +298,14 @@ export function RideDetailsModal({
                   onDelete(activeRide.id);
                   onClose();
                 }}
-                className="p-2 text-red-500 hover:bg-red-500/20 hover:text-red-400 rounded-full transition-colors active:scale-95"
+                className="p-2 text-[#F43F5E] hover:bg-[var(--rose-bg)] rounded-full transition-colors active:scale-95"
                 title="Excluir Racha"
               >
-                <Trash2 size={20} />
+                <Trash2 size={18} strokeWidth={2} />
               </button>
             </div>
           ) : (
-            <span className="text-[11px] text-gray-400 bg-white/5 border border-white/10 px-2.5 py-1 rounded-full font-medium">
+            <span className="text-caption text-[var(--text-secondary)] bg-[var(--bg-subtle)] border border-[var(--border-color)] px-2.5 py-1 rounded-full font-medium">
               Criado por amigo
             </span>
           )}
@@ -322,36 +313,38 @@ export function RideDetailsModal({
 
         <div className="p-5 space-y-5 overflow-y-auto flex-1">
           {/* Card de Resumo (Valor e Título) */}
-          <div className="bg-gradient-to-br from-[#1c1c1e] to-[#2c2c2e] p-5 rounded-3xl text-center shadow-lg border border-white/5">
-            <p className="text-gray-400 text-xs uppercase font-bold tracking-wider mb-1">
+          <div className="ds-card text-center">
+            <p className="text-[var(--text-secondary)] text-caption uppercase font-semibold tracking-wider mb-1">
               {activeRide.tag || 'UBER'}
             </p>
-            <h3 className="text-xl font-bold text-white mb-2">{activeRide.titulo}</h3>
+            <h3 className="text-h1 text-[var(--text-primary)] mb-2">{activeRide.titulo}</h3>
 
             {activeRide.groupName && (
-              <div className="inline-flex items-center gap-1.5 bg-blue-500/20 text-blue-400 text-xs font-semibold px-3 py-1 rounded-full mb-2">
-                <UsersRound size={13} /> {activeRide.groupName}
+              <div className="inline-flex items-center gap-1.5 bg-[#0F766E]/10 text-[#0F766E] text-caption font-semibold px-3 py-1 rounded-full mb-3">
+                <UsersRound size={13} strokeWidth={2} /> {activeRide.groupName}
               </div>
             )}
 
-            <p className="text-gray-500 text-xs uppercase font-bold">Valor Total</p>
-            <div className="text-3xl font-black text-[#2DD4BF] mt-1">
+            <p className="text-[var(--text-secondary)] text-caption uppercase font-semibold">
+              Valor Total
+            </p>
+            <div className="text-display text-[#0F766E] mt-1">
               R$ {moneyConverter(valorNumerico)}
             </div>
           </div>
 
           {/* Informações Extras */}
-          <div className="bg-[#1c1c1e] rounded-2xl p-4 space-y-3 border border-white/5">
-            <div className="flex items-center text-gray-300">
-              <Calendar size={17} className="text-gray-500 mr-3" />
-              <span className="text-sm">
-                Data: <strong className="text-white ml-1">{formatarDataBR(activeRide.data)}</strong>
+          <div className="ds-card-sm space-y-3">
+            <div className="flex items-center text-[var(--text-secondary)]">
+              <Calendar size={17} strokeWidth={2} className="text-[#0F766E] mr-3" />
+              <span className="text-body2">
+                Data: <strong className="text-[var(--text-primary)] ml-1">{formatarDataBR(activeRide.data)}</strong>
               </span>
             </div>
-            <div className="flex items-center text-gray-300">
-              <Receipt size={17} className="text-gray-500 mr-3" />
-              <span className="text-sm">
-                Categoria: <strong className="text-white ml-1">{activeRide.tag || 'Uber'}</strong>
+            <div className="flex items-center text-[var(--text-secondary)]">
+              <Receipt size={17} strokeWidth={2} className="text-[#0F766E] mr-3" />
+              <span className="text-body2">
+                Categoria: <strong className="text-[var(--text-primary)] ml-1">{activeRide.tag || 'Uber'}</strong>
               </span>
             </div>
           </div>
@@ -359,33 +352,33 @@ export function RideDetailsModal({
           {/* Mensagem de Feedback em Tempo Real de Pagamento */}
           {feedbackMsg && (
             <div
-              className={`p-3 rounded-2xl border text-xs font-semibold flex items-center justify-between animate-fade-in shadow-lg transition-all ${
+              className={`p-3.5 rounded-2xl border text-caption font-semibold flex items-center justify-between animate-fade-in shadow-sm transition-all ${
                 feedbackMsg.type === 'success'
-                  ? 'bg-[#2DD4BF]/15 border-[#2DD4BF]/40 text-[#2DD4BF]'
-                  : 'bg-amber-500/15 border-amber-500/40 text-amber-300'
+                  ? 'bg-[var(--emerald-bg)] border-[var(--emerald-border)] text-[#10B981]'
+                  : 'bg-[var(--amber-bg)] border-[var(--amber-border)] text-[#F59E0B]'
               }`}
             >
               <div className="flex items-center gap-2">
-                <CheckCircle2 size={16} className="shrink-0" />
+                <CheckCircle2 size={16} strokeWidth={2} className="shrink-0" />
                 <span>{feedbackMsg.text}</span>
               </div>
               <button
                 type="button"
                 onClick={() => setFeedbackMsg(null)}
-                className="p-1 text-gray-400 hover:text-white rounded-lg transition-colors"
+                className="p-1 text-[var(--text-secondary)] hover:text-[var(--text-primary)] rounded-lg transition-colors"
                 title="Fechar aviso"
               >
-                <X size={14} />
+                <X size={14} strokeWidth={2} />
               </button>
             </div>
           )}
 
           {/* Divisão da Conta */}
           <div>
-            <div className="flex items-center justify-between mb-3 text-gray-300">
+            <div className="flex items-center justify-between mb-3 text-[var(--text-primary)]">
               <div className="flex items-center">
-                <Users size={17} className="text-gray-500 mr-2" />
-                <h3 className="font-semibold text-sm">Divisão ({totalPessoas} pessoas)</h3>
+                <Users size={18} strokeWidth={2} className="text-[#0F766E] mr-2" />
+                <h3 className="text-h2">Divisão ({totalPessoas} pessoas)</h3>
               </div>
             </div>
 
@@ -424,13 +417,13 @@ export function RideDetailsModal({
                         });
                       }
                     }}
-                    className={`flex justify-between items-center bg-[#1c1c1e] p-3 sm:p-3.5 rounded-xl border transition-all gap-2.5 ${
+                    className={`flex justify-between items-center bg-[var(--bg-surface)] p-3.5 rounded-2xl border transition-all gap-2.5 ${
                       receiptDoAmigo
-                        ? 'border-sky-500/30 hover:border-[#2DD4BF]/50 cursor-pointer active:scale-[0.99]'
-                        : 'border-white/5'
+                        ? 'border-[#0F766E]/40 hover:border-[#0F766E] cursor-pointer active:scale-[0.99]'
+                        : 'border-[var(--border-color)]'
                     }`}
                   >
-                    <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1">
+                    <div className="flex items-center gap-3 min-w-0 flex-1">
                       <div
                         style={p.avatar_url ? undefined : { backgroundColor: getAvatarColor(cor) }}
                         className="w-10 h-10 rounded-full overflow-hidden flex items-center justify-center font-bold text-white shrink-0"
@@ -447,12 +440,14 @@ export function RideDetailsModal({
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-1.5 flex-wrap">
-                          <span className="font-medium text-white text-sm truncate max-w-[140px] sm:max-w-none">{nome}</span>
+                          <span className="font-semibold text-[var(--text-primary)] text-body2 truncate max-w-[140px] sm:max-w-none">
+                            {nome}
+                          </span>
                           {(p.has_account || p.is_registered) && (
-                            <BadgeCheck size={14} className="text-[#2DD4BF] fill-[#2DD4BF]/20 shrink-0" />
+                            <BadgeCheck size={14} strokeWidth={2} className="text-[#0F766E] shrink-0" />
                           )}
                           {isFriendPayer && (
-                            <span className="text-[10px] bg-[#2DD4BF]/20 text-[#2DD4BF] px-2 py-0.5 rounded-md font-bold shrink-0">
+                            <span className="text-caption bg-[#0F766E]/10 text-[#0F766E] px-2 py-0.5 rounded-full font-semibold shrink-0">
                               Pagador
                             </span>
                           )}
@@ -468,9 +463,9 @@ export function RideDetailsModal({
                                   initialIndex: 0,
                                 });
                               }}
-                              className="text-[10px] bg-sky-500/20 text-sky-300 hover:bg-sky-500/30 px-2 py-0.5 rounded-md font-semibold flex items-center gap-1 shrink-0"
+                              className="text-caption bg-[#0F766E]/10 text-[#0F766E] hover:bg-[#0F766E]/20 px-2 py-0.5 rounded-lg font-semibold flex items-center gap-1 shrink-0"
                             >
-                              <FileCheck2 size={11} /> Ver Comprovante
+                              <FileCheck2 size={12} strokeWidth={2} /> Ver Comprovante
                             </button>
                           )}
                           {receiptsDoAmigo.length > 1 &&
@@ -487,9 +482,9 @@ export function RideDetailsModal({
                                     initialIndex: rIdx,
                                   });
                                 }}
-                                className="text-[10px] bg-sky-500/20 text-sky-300 hover:bg-sky-500/30 px-2 py-0.5 rounded-md font-semibold flex items-center gap-1 shrink-0"
+                                className="text-caption bg-[#0F766E]/10 text-[#0F766E] hover:bg-[#0F766E]/20 px-2 py-0.5 rounded-lg font-semibold flex items-center gap-1 shrink-0"
                               >
-                                <FileCheck2 size={11} /> Comprovante {rIdx + 1}
+                                <FileCheck2 size={12} strokeWidth={2} /> Comprovante {rIdx + 1}
                               </button>
                             ))}
                         </div>
@@ -497,14 +492,14 @@ export function RideDetailsModal({
                         {!isFriendPayer &&
                           (voceEhPagador ? (
                             isUpdatingThisFriend ? (
-                              <span className="text-[11px] text-gray-400 flex items-center gap-1 mt-0.5 animate-pulse">
-                                <LoaderCircle size={12} className="animate-spin text-[#2DD4BF]" />
+                              <span className="text-caption text-[var(--text-secondary)] flex items-center gap-1 mt-0.5 animate-pulse">
+                                <LoaderCircle size={12} strokeWidth={2} className="animate-spin text-[#0F766E]" />
                                 <span>Atualizando...</span>
                               </span>
                             ) : isQuitado && receiptDoAmigo ? (
                               <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                                <span className="text-[11px] font-semibold text-[#34C759] flex items-center gap-1">
-                                  <Check size={12} /> Pago (toque p/ ver)
+                                <span className="text-caption font-semibold text-[#10B981] flex items-center gap-1">
+                                  <Check size={12} strokeWidth={2.5} /> Pago (toque p/ ver)
                                 </span>
                                 <button
                                   type="button"
@@ -513,7 +508,7 @@ export function RideDetailsModal({
                                     e.stopPropagation();
                                     handleCreditorTogglePaid(p.id, isQuitado, valorParte);
                                   }}
-                                  className="text-[10px] text-gray-400 hover:text-red-400 underline active:scale-95 transition-transform disabled:opacity-50"
+                                  className="text-caption text-[var(--text-secondary)] hover:text-[#F43F5E] underline active:scale-95 transition-transform disabled:opacity-50"
                                 >
                                   Desfazer
                                 </button>
@@ -526,13 +521,13 @@ export function RideDetailsModal({
                                   e.stopPropagation();
                                   handleCreditorTogglePaid(p.id, isQuitado, valorParte);
                                 }}
-                                className={`text-[11px] font-semibold mt-0.5 flex items-center gap-1 active:scale-95 transition-all disabled:opacity-50 ${
-                                  isQuitado ? 'text-[#34C759] hover:underline' : 'text-amber-400 hover:underline'
+                                className={`text-caption font-semibold mt-0.5 flex items-center gap-1 active:scale-95 transition-all disabled:opacity-50 ${
+                                  isQuitado ? 'text-[#10B981] hover:underline' : 'text-[#F59E0B] hover:underline'
                                 }`}
                               >
                                 {isQuitado ? (
                                   <>
-                                    <Check size={12} /> Pago (desfazer)
+                                    <Check size={12} strokeWidth={2.5} /> Pago (desfazer)
                                   </>
                                 ) : (
                                   '• Pendente (clique p/ quitar)'
@@ -541,13 +536,14 @@ export function RideDetailsModal({
                             )
                           ) : (
                             <span
-                              className={`text-[11px] font-semibold mt-0.5 flex items-center gap-1 ${
-                                isQuitado ? 'text-[#34C759]' : 'text-amber-400'
+                              className={`text-caption font-semibold mt-0.5 flex items-center gap-1 ${
+                                isQuitado ? 'text-[#10B981]' : 'text-[#F59E0B]'
                               }`}
                             >
                               {isQuitado ? (
                                 <>
-                                  <Check size={12} /> {receiptDoAmigo ? 'Pago (toque p/ ver)' : 'Pago'}
+                                  <Check size={12} strokeWidth={2.5} />{' '}
+                                  {receiptDoAmigo ? 'Pago (toque p/ ver)' : 'Pago'}
                                 </>
                               ) : (
                                 '• Pendente'
@@ -557,10 +553,10 @@ export function RideDetailsModal({
                       </div>
                     </div>
                     <div className="text-right shrink-0">
-                      <p className="text-[11px] text-gray-500 mb-0.5">
+                      <p className="text-caption text-[var(--text-secondary)] mb-0.5">
                         Parte dele(a) ({pctParte}%)
                       </p>
-                      <p className="font-bold text-white text-sm tabular-nums">
+                      <p className="font-display font-bold text-[var(--text-primary)] text-body2 tabular-nums">
                         R$ {moneyConverter(valorParte)}
                       </p>
                     </div>
@@ -584,14 +580,14 @@ export function RideDetailsModal({
                         });
                       }
                     }}
-                    className={`flex justify-between items-center bg-[#1c1c1e] p-3 sm:p-3.5 rounded-xl border transition-all gap-2.5 ${
+                    className={`flex justify-between items-center bg-[var(--bg-surface)] p-3.5 rounded-2xl border transition-all gap-2.5 ${
                       selfReceiptUrl
-                        ? 'border-sky-500/30 hover:border-[#2DD4BF]/50 cursor-pointer active:scale-[0.99]'
-                        : 'border-white/5'
+                        ? 'border-[#0F766E]/40 hover:border-[#0F766E] cursor-pointer active:scale-[0.99]'
+                        : 'border-[var(--border-color)]'
                     }`}
                   >
-                    <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1">
-                      <div className="w-10 h-10 rounded-full overflow-hidden bg-[#2DD4BF] flex items-center justify-center font-bold text-[#05080f] shrink-0">
+                    <div className="flex items-center gap-3 min-w-0 flex-1">
+                      <div className="w-10 h-10 rounded-full overflow-hidden bg-[#0F766E] flex items-center justify-center font-bold text-white shrink-0">
                         {myAvatarUrl ? (
                           <img src={myAvatarUrl} alt="Você" className="w-full h-full object-cover" />
                         ) : (
@@ -600,9 +596,9 @@ export function RideDetailsModal({
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-1.5 flex-wrap">
-                          <span className="font-medium text-white text-sm">Você</span>
+                          <span className="font-semibold text-[var(--text-primary)] text-body2">Você</span>
                           {voceEhPagador && (
-                            <span className="text-[10px] bg-[#2DD4BF]/20 text-[#2DD4BF] px-2 py-0.5 rounded-md font-bold shrink-0">
+                            <span className="text-caption bg-[#0F766E]/10 text-[#0F766E] px-2 py-0.5 rounded-full font-semibold shrink-0">
                               Pagador
                             </span>
                           )}
@@ -618,9 +614,9 @@ export function RideDetailsModal({
                                   initialIndex: 0,
                                 });
                               }}
-                              className="text-[10px] bg-sky-500/20 text-sky-300 hover:bg-sky-500/30 px-2 py-0.5 rounded-md font-semibold flex items-center gap-1 shrink-0"
+                              className="text-caption bg-[#0F766E]/10 text-[#0F766E] hover:bg-[#0F766E]/20 px-2 py-0.5 rounded-lg font-semibold flex items-center gap-1 shrink-0"
                             >
-                              <FileCheck2 size={11} /> Ver Comprovante
+                              <FileCheck2 size={12} strokeWidth={2} /> Ver Comprovante
                             </button>
                           )}
                           {selfReceipts.length > 1 &&
@@ -637,17 +633,17 @@ export function RideDetailsModal({
                                     initialIndex: rIdx,
                                   });
                                 }}
-                                className="text-[10px] bg-sky-500/20 text-sky-300 hover:bg-sky-500/30 px-2 py-0.5 rounded-md font-semibold flex items-center gap-1 shrink-0"
+                                className="text-caption bg-[#0F766E]/10 text-[#0F766E] hover:bg-[#0F766E]/20 px-2 py-0.5 rounded-lg font-semibold flex items-center gap-1 shrink-0"
                               >
-                                <FileCheck2 size={11} /> Comprovante {rIdx + 1}
+                                <FileCheck2 size={12} strokeWidth={2} /> Comprovante {rIdx + 1}
                               </button>
                             ))}
                         </div>
                         {!voceEhPagador &&
                           (isSelfQuitado ? (
                             <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                              <span className="text-[11px] font-semibold flex items-center gap-1 text-[#34C759]">
-                                <Check size={12} />{' '}
+                              <span className="text-caption font-semibold flex items-center gap-1 text-[#10B981]">
+                                <Check size={12} strokeWidth={2.5} />{' '}
                                 {selfReceiptUrl ? 'Pago (toque p/ ver)' : 'Pago'}
                               </span>
                               <button
@@ -656,7 +652,7 @@ export function RideDetailsModal({
                                   e.stopPropagation();
                                   setIsPaySelfOpen(true);
                                 }}
-                                className="text-[10px] bg-white/5 hover:bg-white/10 text-gray-300 px-2 py-0.5 rounded-md font-semibold"
+                                className="text-caption bg-[var(--bg-subtle)] hover:bg-[var(--border-color)] text-[var(--text-secondary)] border border-[var(--border-color)] px-2 py-0.5 rounded-lg font-semibold"
                               >
                                 + Comprovante
                               </button>
@@ -664,7 +660,7 @@ export function RideDetailsModal({
                           ) : (
                             <div className="mt-1 space-y-1">
                               {meuValorPago > 0.005 && (
-                                <p className="text-[10px] text-[#2DD4BF] font-semibold">
+                                <p className="text-caption text-[#0F766E] font-semibold">
                                   Já pago: R$ {moneyConverter(meuValorPago)} • Falta: R${' '}
                                   {moneyConverter(Math.max(0, minhaParte - meuValorPago))}
                                 </p>
@@ -675,9 +671,9 @@ export function RideDetailsModal({
                                   e.stopPropagation();
                                   setIsPaySelfOpen(true);
                                 }}
-                                className="text-[11px] bg-amber-500/20 text-amber-300 hover:bg-amber-500/30 px-2.5 py-1 rounded-lg font-bold flex items-center gap-1 transition-colors"
+                                className="text-caption bg-[var(--amber-bg)] text-[#F59E0B] border border-[var(--amber-border)] hover:opacity-90 px-2.5 py-1 rounded-xl font-semibold flex items-center gap-1 transition-colors"
                               >
-                                <Upload size={11} />{' '}
+                                <Upload size={12} strokeWidth={2} />{' '}
                                 {meuValorPago > 0.005
                                   ? 'Pagar Restante c/ Comprovante'
                                   : 'Pagar c/ Comprovante'}
@@ -687,11 +683,13 @@ export function RideDetailsModal({
                       </div>
                     </div>
                     <div className="text-right shrink-0">
-                      <p className="text-[11px] text-gray-500 mb-0.5">
+                      <p className="text-caption text-[var(--text-secondary)] mb-0.5">
                         Sua parte (
                         {valorNumerico > 0 ? ((minhaParte / valorNumerico) * 100).toFixed(1) : '0'}%)
                       </p>
-                      <p className="font-bold text-white text-sm tabular-nums">R$ {moneyConverter(minhaParte)}</p>
+                      <p className="font-display font-bold text-[var(--text-primary)] text-body2 tabular-nums">
+                        R$ {moneyConverter(minhaParte)}
+                      </p>
                     </div>
                   </div>
                 );

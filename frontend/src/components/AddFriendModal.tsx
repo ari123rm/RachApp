@@ -115,24 +115,24 @@ export function AddFriendModal({ isOpen, onClose, onSuccess, friendToEdit }: Add
 
   return createPortal(
     <div
-      className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[70] flex items-end sm:items-center justify-center p-0 sm:p-4 transition-opacity animate-fade-in"
+      className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[70] flex items-end sm:items-center justify-center p-0 sm:p-4 transition-opacity animate-fade-in"
       onClick={onClose}
     >
       <div
-        className="bg-[#1c1c1e] w-full sm:max-w-md rounded-t-[28px] sm:rounded-3xl p-5 sm:p-6 animate-slide-up relative overflow-y-auto max-h-[92dvh] sm:max-h-[90vh] border border-white/10 shadow-2xl pb-safe"
+        className="bg-[var(--bg-surface)] w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl p-6 animate-slide-up relative overflow-y-auto max-h-[92dvh] sm:max-h-[90vh] border border-[var(--border-color)] shadow-lg pb-safe"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Handle visual mobile */}
-        <div className="w-12 h-1 bg-white/20 rounded-full mx-auto mb-3.5 sm:hidden shrink-0" />
+        <div className="w-12 h-1 bg-[var(--border-color)] rounded-full mx-auto mb-3.5 sm:hidden shrink-0" />
 
         <button
           onClick={onClose}
-          className="absolute top-5 right-5 text-gray-400 hover:text-white p-1 rounded-full hover:bg-white/10 transition-colors active:scale-95"
+          className="absolute top-5 right-5 text-[var(--text-secondary)] hover:text-[var(--text-primary)] p-1.5 rounded-full hover:bg-[var(--bg-subtle)] transition-colors active:scale-95"
         >
-          <X size={24} />
+          <X size={22} strokeWidth={2} />
         </button>
 
-        <h2 className="text-xl font-bold text-white mb-4 pr-8">
+        <h2 className="text-h1 text-[var(--text-primary)] mb-4 pr-8">
           {isEditing ? 'Editar Amigo' : 'Adicionar Amigo'}
         </h2>
 
@@ -141,36 +141,42 @@ export function AddFriendModal({ isOpen, onClose, onSuccess, friendToEdit }: Add
             <button
               type="button"
               onClick={() => setIsImportContactsOpen(true)}
-              className="w-full bg-[#2DD4BF]/15 hover:bg-[#2DD4BF]/25 border border-[#2DD4BF]/40 text-[#2DD4BF] font-bold py-3 px-4 rounded-2xl text-xs flex items-center justify-center gap-2 transition-all active:scale-95 shadow-sm"
+              className="w-full ds-btn-secondary text-xs"
             >
-              <BookUser size={17} />
+              <BookUser size={17} strokeWidth={2} />
               <span>Adicionar da Lista de Contatos do Celular</span>
             </button>
           </div>
         )}
 
         {erro && (
-          <div className="mb-4 bg-red-500/15 border border-red-500/30 text-red-400 text-xs font-medium p-3 rounded-xl">
+          <div className="mb-4 bg-[var(--rose-bg)] border border-[var(--rose-border)] text-[#F43F5E] text-xs font-medium p-3 rounded-xl">
             {erro}
           </div>
         )}
 
-        {/* Preview do Avatar */}
+        {/* Preview do Avatar (Circular) */}
         <div className="flex flex-col items-center justify-center mb-6 gap-2">
-          <p className="text-gray-500 text-xs uppercase font-bold tracking-wider">Visual do Amigo</p>
+          <p className="text-[var(--text-secondary)] text-xs uppercase font-semibold tracking-wider">
+            Visual do Amigo
+          </p>
           <div
             style={{ backgroundColor: getAvatarColor(corSelecionada) }}
-            className="w-20 h-20 rounded-full flex items-center justify-center shadow-xl border-4 border-white/10 transition-colors duration-300"
+            className="w-20 h-20 rounded-full flex items-center justify-center shadow-md border-4 border-[var(--bg-subtle)] transition-colors duration-300"
           >
-            <span className="text-4xl font-black text-white tracking-tighter">{inicial}</span>
+            <span className="text-3xl font-display font-bold text-white tracking-tight">
+              {inicial}
+            </span>
           </div>
         </div>
 
-        {/* Campo: Nome */}
+        {/* Campo: Nome (48px height, 12px radius) */}
         <div className="mb-4">
-          <label className="block text-gray-400 text-xs uppercase font-bold mb-2">Nome do Amigo</label>
-          <div className="bg-[#2c2c2e] rounded-xl p-3.5 flex items-center text-white focus-within:ring-2 focus-within:ring-[#2DD4BF]">
-            <User size={18} className="text-gray-400 mr-3 shrink-0" />
+          <label className="block text-[var(--text-secondary)] text-xs uppercase font-semibold mb-2">
+            Nome do Amigo
+          </label>
+          <div className="h-12 bg-[var(--bg-subtle)] rounded-xl px-4 flex items-center border border-[var(--border-color)] focus-within:border-[#0F766E] focus-within:bg-[var(--bg-surface)] focus-within:ring-2 focus-within:ring-[#0F766E]/15 transition-all">
+            <User size={18} strokeWidth={2} className="text-[var(--text-secondary)] mr-3 shrink-0" />
             <input
               type="text"
               placeholder="Ex: Pimenta, Ryan, Bia..."
@@ -180,42 +186,42 @@ export function AddFriendModal({ isOpen, onClose, onSuccess, friendToEdit }: Add
                 setNome(e.target.value);
               }}
               maxLength={30}
-              className="bg-transparent w-full outline-none text-white placeholder:text-gray-600"
+              className="bg-transparent w-full outline-none text-[var(--text-primary)] placeholder:text-[var(--text-secondary)] text-sm"
             />
           </div>
         </div>
 
         {/* Campo: WhatsApp formatado */}
         <div className="mb-4">
-          <label className="block text-gray-400 text-xs uppercase font-bold mb-2">
+          <label className="block text-[var(--text-secondary)] text-xs uppercase font-semibold mb-2">
             WhatsApp com DDD (Opcional)
           </label>
-          <div className="bg-[#2c2c2e] rounded-xl p-3.5 flex items-center text-white focus-within:ring-2 focus-within:ring-[#2DD4BF]">
-            <Phone size={18} className="text-gray-400 mr-3 shrink-0" />
+          <div className="h-12 bg-[var(--bg-subtle)] rounded-xl px-4 flex items-center border border-[var(--border-color)] focus-within:border-[#0F766E] focus-within:bg-[var(--bg-surface)] focus-within:ring-2 focus-within:ring-[#0F766E]/15 transition-all">
+            <Phone size={18} strokeWidth={2} className="text-[var(--text-secondary)] mr-3 shrink-0" />
             <input
               type="tel"
               placeholder="(85) 99999-8888"
               value={telefone}
               onChange={handlePhoneChange}
               maxLength={15}
-              className="bg-transparent w-full outline-none text-white placeholder:text-gray-600"
+              className="bg-transparent w-full outline-none text-[var(--text-primary)] placeholder:text-[var(--text-secondary)] text-sm"
             />
           </div>
         </div>
 
         {/* Campo: Pix */}
         <div className="mb-4">
-          <label className="block text-gray-400 text-xs uppercase font-bold mb-2">
+          <label className="block text-[var(--text-secondary)] text-xs uppercase font-semibold mb-2">
             Chave Pix do Amigo (Opcional)
           </label>
-          <div className="bg-[#2c2c2e] rounded-xl p-3.5 flex items-center text-white focus-within:ring-2 focus-within:ring-[#2DD4BF]">
-            <QrCode size={18} className="text-gray-400 mr-3 shrink-0" />
+          <div className="h-12 bg-[var(--bg-subtle)] rounded-xl px-4 flex items-center border border-[var(--border-color)] focus-within:border-[#0F766E] focus-within:bg-[var(--bg-surface)] focus-within:ring-2 focus-within:ring-[#0F766E]/15 transition-all">
+            <QrCode size={18} strokeWidth={2} className="text-[var(--text-secondary)] mr-3 shrink-0" />
             <input
               type="text"
               placeholder="CPF, E-mail, Telefone ou Chave Aleatória"
               value={pixKey}
               onChange={(e) => setPixKey(e.target.value)}
-              className="bg-transparent w-full outline-none text-white placeholder:text-gray-600"
+              className="bg-transparent w-full outline-none text-[var(--text-primary)] placeholder:text-[var(--text-secondary)] text-sm"
             />
           </div>
         </div>
@@ -223,7 +229,7 @@ export function AddFriendModal({ isOpen, onClose, onSuccess, friendToEdit }: Add
         {/* Escolha de Cor */}
         <div className="mb-6">
           <div className="flex justify-between items-center mb-2.5">
-            <label className="text-gray-400 text-xs uppercase font-bold tracking-wider">
+            <label className="text-[var(--text-secondary)] text-xs uppercase font-semibold tracking-wider">
               Cor do Avatar
             </label>
             <button
@@ -237,19 +243,19 @@ export function AddFriendModal({ isOpen, onClose, onSuccess, friendToEdit }: Add
                   setHue(hexToHsl(currentHex).h);
                 }
               }}
-              className={`text-xs px-2.5 py-1 rounded-full font-semibold transition-all flex items-center gap-1.5 active:scale-95 ${
+              className={`text-xs px-3 py-1 rounded-full font-semibold transition-all flex items-center gap-1.5 active:scale-95 border ${
                 isCustomMode
-                  ? 'bg-[#2DD4BF]/20 text-[#2DD4BF] border border-[#2DD4BF]/40'
-                  : 'bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white border border-white/5'
+                  ? 'bg-[#CCFBF1] text-[#0F766E] border-[#0F766E]/30'
+                  : 'bg-[var(--bg-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] border-[var(--border-color)]'
               }`}
             >
-              <Palette size={13} />
+              <Palette size={13} strokeWidth={2} />
               {isCustomMode ? 'Cores Rápidas' : 'Personalizar'}
             </button>
           </div>
 
           {/* Grid de 14 Cores Rápidas */}
-          <div className="bg-[#2c2c2e] p-3 rounded-2xl border border-white/5">
+          <div className="bg-[var(--bg-subtle)] p-3 rounded-2xl border border-[var(--border-color)]">
             <div className="grid grid-cols-7 gap-2.5">
               {PRESET_AVATAR_COLORS.map((cor) => {
                 const isActive =
@@ -268,12 +274,12 @@ export function AddFriendModal({ isOpen, onClose, onSuccess, friendToEdit }: Add
                     }}
                     className={`aspect-square w-full rounded-full transition-all duration-150 relative flex items-center justify-center active:scale-90 shadow-sm ${
                       isActive
-                        ? 'scale-110 ring-2 ring-white ring-offset-2 ring-offset-[#2c2c2e] shadow-md z-10'
+                        ? 'scale-110 ring-2 ring-[#0F766E] ring-offset-2 ring-offset-[var(--bg-subtle)] shadow-md z-10'
                         : 'opacity-85 hover:opacity-100 hover:scale-105'
                     }`}
                   >
                     {isActive && (
-                      <Check size={14} className="text-white drop-shadow stroke-[3]" />
+                      <Check size={14} strokeWidth={2.5} className="text-white drop-shadow" />
                     )}
                   </button>
                 );
@@ -283,10 +289,9 @@ export function AddFriendModal({ isOpen, onClose, onSuccess, friendToEdit }: Add
 
           {/* Painel Avançado / Personalizado */}
           {isCustomMode && (
-            <div className="mt-3 bg-[#2c2c2e] p-3.5 rounded-2xl border border-white/10 space-y-3.5 animate-slide-up">
-              {/* Slider de Matiz / Hue */}
+            <div className="mt-3 bg-[var(--bg-subtle)] p-3.5 rounded-2xl border border-[var(--border-color)] space-y-3.5 animate-slide-up">
               <div>
-                <div className="flex justify-between items-center text-xs text-gray-400 mb-2 font-medium">
+                <div className="flex justify-between items-center text-xs text-[var(--text-secondary)] mb-2 font-medium">
                   <span className="flex items-center gap-1.5">
                     <span
                       style={{ backgroundColor: getAvatarColor(corSelecionada) }}
@@ -294,7 +299,7 @@ export function AddFriendModal({ isOpen, onClose, onSuccess, friendToEdit }: Add
                     />
                     Ajustar Tom
                   </span>
-                  <span className="text-gray-500 font-mono text-[11px]">{hue}°</span>
+                  <span className="text-[var(--text-secondary)] font-mono text-xs">{hue}°</span>
                 </div>
                 <input
                   type="range"
@@ -316,14 +321,13 @@ export function AddFriendModal({ isOpen, onClose, onSuccess, friendToEdit }: Add
                 />
               </div>
 
-              {/* Input Hexadecimal e Conta-Gotas */}
               <div className="flex items-center gap-2 pt-0.5">
                 <div
                   style={{ backgroundColor: getAvatarColor(corSelecionada) }}
-                  className="w-10 h-10 rounded-xl border border-white/20 shrink-0 shadow-inner transition-colors duration-200"
+                  className="w-10 h-10 rounded-full border border-[var(--border-color)] shrink-0 shadow-sm transition-colors duration-200"
                 />
-                <div className="flex-1 bg-[#1c1c1e] rounded-xl px-3 py-2 flex items-center border border-white/10 focus-within:border-[#2DD4BF] transition-colors">
-                  <span className="text-gray-500 text-sm font-mono mr-1">#</span>
+                <div className="flex-1 bg-[var(--bg-surface)] rounded-xl px-3 py-2 flex items-center border border-[var(--border-color)] focus-within:border-[#0F766E] transition-colors">
+                  <span className="text-[var(--text-secondary)] text-sm font-mono mr-1">#</span>
                   <input
                     type="text"
                     value={hexInput.replace(/^#/, '')}
@@ -337,12 +341,11 @@ export function AddFriendModal({ isOpen, onClose, onSuccess, friendToEdit }: Add
                         setHue(hexToHsl(fullHex).h);
                       }
                     }}
-                    placeholder="2DD4BF"
-                    className="bg-transparent w-full outline-none text-white font-mono text-sm uppercase placeholder:text-gray-600"
+                    placeholder="0F766E"
+                    className="bg-transparent w-full outline-none text-[var(--text-primary)] font-mono text-sm uppercase placeholder:text-[var(--text-secondary)]"
                   />
                 </div>
 
-                {/* Seletor do Sistema (opcional para quem quiser o contagotas nativo) */}
                 <input
                   ref={colorInputRef}
                   type="color"
@@ -360,9 +363,9 @@ export function AddFriendModal({ isOpen, onClose, onSuccess, friendToEdit }: Add
                   type="button"
                   onClick={() => colorInputRef.current?.click()}
                   title="Abrir seletor do sistema / conta-gotas"
-                  className="bg-[#1c1c1e] hover:bg-[#333] text-gray-400 hover:text-white p-2.5 rounded-xl border border-white/10 transition-colors shrink-0 active:scale-95 flex items-center justify-center"
+                  className="bg-[var(--bg-surface)] hover:bg-[var(--bg-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] p-2.5 rounded-xl border border-[var(--border-color)] transition-colors shrink-0 active:scale-95 flex items-center justify-center"
                 >
-                  <Palette size={18} />
+                  <Palette size={18} strokeWidth={2} />
                 </button>
               </div>
             </div>
@@ -372,7 +375,7 @@ export function AddFriendModal({ isOpen, onClose, onSuccess, friendToEdit }: Add
         <button
           onClick={handleSalvar}
           disabled={isLoading}
-          className="w-full bg-[#2DD4BF] hover:bg-[#25b5a3] disabled:opacity-50 text-[#05080f] font-bold py-4 rounded-xl text-base transition-all active:scale-95"
+          className="w-full ds-btn-primary"
         >
           {isLoading ? 'Salvando...' : isEditing ? 'Salvar Alterações' : 'Salvar Amigo'}
         </button>

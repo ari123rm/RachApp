@@ -1,5 +1,5 @@
-import { createPortal } from 'react-dom';
 // src/components/PixModal.tsx
+import { createPortal } from 'react-dom';
 import React, { useState, useEffect } from 'react';
 import { X, Copy, Check, QrCode, Share2, Lightbulb } from 'lucide-react';
 import { generatePixCopiaECola, generatePixQRCodeDataUrl } from '../utils/pixGenerator';
@@ -162,56 +162,58 @@ export function PixModal({
 
   return createPortal(
     <div
-      className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[70] flex items-end sm:items-center justify-center p-0 sm:p-4 animate-fade-in"
+      className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[70] flex items-end sm:items-center justify-center p-0 sm:p-4 animate-fade-in"
       onClick={onClose}
     >
       <div
-        className="bg-[#1c1c1e] w-full sm:max-w-md rounded-t-[28px] sm:rounded-3xl p-5 sm:p-6 border border-white/10 shadow-2xl relative max-h-[92dvh] sm:max-h-[90vh] overflow-y-auto animate-slide-up pb-safe"
+        className="bg-[var(--bg-surface)] w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl p-6 border border-[var(--border-color)] shadow-lg relative max-h-[92dvh] sm:max-h-[90vh] overflow-y-auto animate-slide-up pb-safe"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Handle visual mobile */}
-        <div className="w-12 h-1 bg-white/20 rounded-full mx-auto mb-3.5 sm:hidden shrink-0" />
+        <div className="w-12 h-1 bg-[var(--border-color)] rounded-full mx-auto mb-3.5 sm:hidden shrink-0" />
 
         <button
           onClick={onClose}
-          className="absolute top-5 right-5 text-gray-400 hover:text-white p-1 rounded-full hover:bg-white/10 transition-colors active:scale-95"
+          className="absolute top-5 right-5 text-[var(--text-secondary)] hover:text-[var(--text-primary)] p-1.5 rounded-full hover:bg-[var(--bg-subtle)] transition-colors active:scale-95"
         >
-          <X size={24} />
+          <X size={22} strokeWidth={2} />
         </button>
 
         <div className="flex items-center gap-3 mb-4 pr-8">
-          <div className="w-10 h-10 rounded-2xl bg-[#2DD4BF]/20 text-[#2DD4BF] flex items-center justify-center shrink-0">
-            <QrCode size={22} />
+          <div className="w-11 h-11 rounded-full bg-[#CCFBF1] text-[#0F766E] flex items-center justify-center shrink-0">
+            <QrCode size={22} strokeWidth={2} />
           </div>
           <div className="min-w-0 flex-1">
-            <h3 className="text-white font-bold text-lg truncate">
+            <h3 className="text-h2 text-[var(--text-primary)] truncate">
               {allowEditAmount ? 'Teste de QR Code Pix' : 'Pagamento via Pix'}
             </h3>
-            <p className="text-xs text-gray-400 truncate">Recebedor: {recipientName}</p>
+            <p className="text-xs text-[var(--text-secondary)] truncate">
+              Recebedor: {recipientName}
+            </p>
           </div>
         </div>
 
         {/* Bloco de Valor */}
         {allowEditAmount ? (
-          <div className="bg-[#05080f] rounded-2xl p-4 text-center mb-4 border border-[#2DD4BF]/30 relative shadow-inner">
+          <div className="bg-[var(--bg-subtle)] rounded-2xl p-4 text-center mb-4 border border-[var(--border-color)] relative">
             <div className="flex items-center justify-between mb-1.5">
-              <span className="text-[11px] text-gray-400 uppercase font-bold tracking-wider">
+              <span className="text-xs text-[var(--text-secondary)] uppercase font-semibold tracking-wider">
                 Valor para Teste
               </span>
-              <span className="text-[10px] text-[#2DD4BF] font-semibold bg-[#2DD4BF]/15 px-2 py-0.5 rounded-full border border-[#2DD4BF]/30">
+              <span className="text-xs text-[#0F766E] font-semibold bg-[#CCFBF1] px-2.5 py-0.5 rounded-full">
                 Editável
               </span>
             </div>
 
             <div className="flex items-center justify-center gap-1.5 py-1">
-              <span className="text-2xl font-black text-[#2DD4BF]">R$</span>
+              <span className="text-2xl font-display font-bold text-[#0F766E]">R$</span>
               <input
                 type="text"
                 inputMode="numeric"
                 value={amountInput}
                 onChange={handleAmountChange}
                 placeholder="0,00"
-                className="bg-transparent text-3xl font-black text-white outline-none w-44 text-center border-b border-dashed border-gray-600 focus:border-[#2DD4BF] focus:text-[#2DD4BF] transition-all"
+                className="bg-transparent text-display text-[var(--text-primary)] outline-none w-44 text-center border-b border-dashed border-[var(--border-color)] focus:border-[#0F766E] focus:text-[#0F766E] transition-all"
                 autoFocus
               />
             </div>
@@ -223,10 +225,10 @@ export function PixModal({
                   key={preset}
                   type="button"
                   onClick={() => handleSelectPreset(preset)}
-                  className={`text-[11px] px-2.5 py-1 rounded-lg font-bold transition-all active:scale-95 ${
+                  className={`text-xs px-3 py-1.5 rounded-xl font-semibold transition-all active:scale-95 border ${
                     currentAmount === preset
-                      ? 'bg-[#2DD4BF] text-[#05080f] shadow-sm shadow-[#2DD4BF]/20'
-                      : 'bg-[#2c2c2e] text-gray-300 hover:bg-gray-700 hover:text-white'
+                      ? 'bg-[#0F766E] text-white border-[#0F766E]'
+                      : 'bg-[var(--bg-surface)] text-[var(--text-secondary)] border-[var(--border-color)] hover:text-[var(--text-primary)]'
                   }`}
                 >
                   R$ {preset}
@@ -235,10 +237,10 @@ export function PixModal({
               <button
                 type="button"
                 onClick={() => handleSelectPreset(0)}
-                className={`text-[11px] px-2.5 py-1 rounded-lg font-bold transition-all active:scale-95 ${
+                className={`text-xs px-3 py-1.5 rounded-xl font-semibold transition-all active:scale-95 border ${
                   currentAmount === 0
-                    ? 'bg-[#2DD4BF] text-[#05080f] shadow-sm shadow-[#2DD4BF]/20'
-                    : 'bg-[#2c2c2e] text-gray-400 hover:bg-gray-700 hover:text-white'
+                    ? 'bg-[#0F766E] text-white border-[#0F766E]'
+                    : 'bg-[var(--bg-surface)] text-[var(--text-secondary)] border-[var(--border-color)] hover:text-[var(--text-primary)]'
                 }`}
                 title="Sem valor pré-definido no QR Code"
               >
@@ -247,68 +249,78 @@ export function PixModal({
             </div>
 
             {currentAmount === 0 ? (
-              <p className="text-[11px] text-amber-300/80 mt-2 flex items-center justify-center gap-1.5">
-                <Lightbulb size={13} className="shrink-0 text-amber-300" />
+              <p className="text-xs text-[#F59E0B] mt-2 flex items-center justify-center gap-1.5">
+                <Lightbulb size={14} strokeWidth={2} className="shrink-0 text-[#F59E0B]" />
                 <span>QR Code aberto: o valor será digitado no app do banco.</span>
               </p>
             ) : (
-              <p className="text-[10px] text-gray-400 mt-2">
+              <p className="text-xs text-[var(--text-secondary)] mt-2">
                 QR Code e Copia e Cola atualizados em tempo real.
               </p>
             )}
           </div>
         ) : (
-          <div className="bg-[#05080f] rounded-2xl p-4 text-center mb-4 border border-white/5">
-            <p className="text-xs text-gray-400 uppercase font-semibold">Valor do Acerto</p>
-            <p className="text-3xl font-black text-[#2DD4BF] mt-1">
+          <div className="bg-[var(--bg-subtle)] rounded-2xl p-4 text-center mb-4 border border-[var(--border-color)]">
+            <p className="text-xs text-[var(--text-secondary)] uppercase font-semibold">
+              Valor do Acerto
+            </p>
+            <p className="text-display text-[#0F766E] mt-1 tabular-nums">
               R$ {moneyConverter(amount)}
             </p>
           </div>
         )}
 
         {!pixKey ? (
-          <div className="bg-amber-500/10 border border-amber-500/30 text-amber-300 rounded-2xl p-4 text-sm text-center mb-4">
+          <div className="bg-[var(--amber-bg)] border border-[var(--amber-border)] text-[#F59E0B] rounded-2xl p-4 text-sm text-center mb-4">
             Nenhuma chave Pix cadastrada para <strong>{recipientName}</strong>. Cadastre a chave na aba Perfil ou nos detalhes do amigo!
           </div>
         ) : (
           <>
             {qrCodeUrl && (
               <div className="flex flex-col items-center justify-center mb-4">
-                <div className="bg-white p-3 rounded-2xl shadow-lg">
+                <div className="bg-white p-3.5 rounded-2xl shadow-sm border border-[var(--border-color)]">
                   <img src={qrCodeUrl} alt="QR Code Pix" className="w-48 h-48" />
                 </div>
-                <p className="text-[11px] text-gray-400 mt-2">
+                <p className="text-xs text-[var(--text-secondary)] mt-2">
                   Escaneie o QR Code no aplicativo do seu banco
                 </p>
               </div>
             )}
 
             <div className="space-y-3 mb-5">
-              <div className="bg-[#2c2c2e] rounded-xl p-3 flex items-center justify-between gap-2.5">
+              <div className="bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-xl p-3.5 flex items-center justify-between gap-2.5">
                 <div className="min-w-0 flex-1 overflow-hidden">
-                  <p className="text-[10px] text-gray-400 uppercase font-bold">Chave Pix</p>
-                  <p className="text-sm text-white font-medium truncate">{pixKey}</p>
+                  <p className="text-xs text-[var(--text-secondary)] uppercase font-semibold">
+                    Chave Pix
+                  </p>
+                  <p className="text-sm text-[var(--text-primary)] font-medium truncate">
+                    {pixKey}
+                  </p>
                 </div>
                 <button
                   onClick={handleCopyKey}
-                  className="bg-[#2DD4BF]/20 text-[#2DD4BF] hover:bg-[#2DD4BF]/30 px-3 py-2 rounded-lg text-xs font-bold flex items-center gap-1.5 shrink-0 active:scale-95"
+                  className="bg-[#CCFBF1] text-[#0F766E] hover:opacity-90 px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 shrink-0 active:scale-95"
                 >
-                  {copiedKey ? <Check size={14} /> : <Copy size={14} />}
+                  {copiedKey ? <Check size={14} strokeWidth={2} /> : <Copy size={14} strokeWidth={2} />}
                   {copiedKey ? 'Copiada!' : 'Copiar'}
                 </button>
               </div>
 
               {copiaECola && (
-                <div className="bg-[#2c2c2e] rounded-xl p-3 flex items-center justify-between gap-2.5">
+                <div className="bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-xl p-3.5 flex items-center justify-between gap-2.5">
                   <div className="min-w-0 flex-1 overflow-hidden">
-                    <p className="text-[10px] text-gray-400 uppercase font-bold">Pix Copia e Cola</p>
-                    <p className="text-xs text-gray-300 font-mono truncate">{copiaECola}</p>
+                    <p className="text-xs text-[var(--text-secondary)] uppercase font-semibold">
+                      Pix Copia e Cola
+                    </p>
+                    <p className="text-xs text-[var(--text-secondary)] font-mono truncate">
+                      {copiaECola}
+                    </p>
                   </div>
                   <button
                     onClick={handleCopyCode}
-                    className="bg-[#2DD4BF] text-[#05080f] hover:bg-[#25b5a3] px-3 py-2 rounded-lg text-xs font-bold flex items-center gap-1.5 shrink-0 active:scale-95"
+                    className="bg-[#0F766E] text-white hover:bg-[#115E59] px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 shrink-0 active:scale-95"
                   >
-                    {copiedCode ? <Check size={14} /> : <Copy size={14} />}
+                    {copiedCode ? <Check size={14} strokeWidth={2} /> : <Copy size={14} strokeWidth={2} />}
                     {copiedCode ? 'Copiado!' : 'Copiar'}
                   </button>
                 </div>
@@ -319,9 +331,9 @@ export function PixModal({
 
         <button
           onClick={handleSendWhatsApp}
-          className="w-full bg-[#25D366] hover:bg-[#1ebd5a] text-white font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 transition-transform active:scale-95"
+          className="w-full h-12 bg-[#10B981] hover:opacity-95 text-white font-semibold rounded-xl flex items-center justify-center gap-2 transition-transform active:scale-95 shadow-sm"
         >
-          <Share2 size={18} />
+          <Share2 size={18} strokeWidth={2} />
           {allowEditAmount ? 'Compartilhar no WhatsApp' : 'Enviar Cobrança no WhatsApp'}
         </button>
       </div>
