@@ -108,13 +108,15 @@ export function UpdateModal({ isOpen, onClose, updateInfo }: UpdateModalProps) {
         </button>
 
         {/* Ícone e Título */}
-        <div className="flex items-center gap-3.5 mb-4">
-          <div className="w-12 h-12 rounded-full bg-[#CCFBF1] text-[#0F766E] flex items-center justify-center shrink-0">
+        <div className="flex items-center gap-3.5 mb-4 pr-6">
+          <div className="w-12 h-12 rounded-full bg-[var(--primary-light)] text-[var(--primary)] flex items-center justify-center shrink-0">
             <Sparkles size={22} strokeWidth={2} />
           </div>
-          <div>
-            <h2 className="text-h1 text-[var(--text-primary)]">Nova Versão Disponível!</h2>
-            <p className="text-xs text-[var(--text-secondary)]">
+          <div className="min-w-0">
+            <h2 className="text-lg sm:text-xl font-display font-bold text-[var(--text-primary)] truncate">
+              Nova Versão Disponível!
+            </h2>
+            <p className="text-xs text-[var(--text-secondary)] truncate">
               Uma atualização do RachApp está pronta
             </p>
           </div>
@@ -136,10 +138,10 @@ export function UpdateModal({ isOpen, onClose, updateInfo }: UpdateModalProps) {
           </div>
 
           <div className="text-center flex-1">
-            <span className="text-xs text-[#0F766E] uppercase font-semibold block">
+            <span className="text-xs text-[var(--primary)] uppercase font-semibold block">
               Mais Recente
             </span>
-            <span className="text-sm font-display font-bold text-[#0F766E]">
+            <span className="text-sm font-display font-bold text-[var(--primary)]">
               {updateInfo.tagName}
             </span>
           </div>
@@ -152,7 +154,7 @@ export function UpdateModal({ isOpen, onClose, updateInfo }: UpdateModalProps) {
           </p>
 
           <div className="flex items-center gap-2 text-xs text-[var(--text-secondary)] bg-[var(--bg-subtle)] p-3 rounded-xl border border-[var(--border-color)]">
-            <ShieldCheck size={16} strokeWidth={2} className="text-[#0F766E] shrink-0" />
+            <ShieldCheck size={16} strokeWidth={2} className="text-[var(--primary)] shrink-0" />
             <span>
               {canUseOta
                 ? 'Atualização OTA rápida e transparente sem precisar reinstalar o APK.'
@@ -165,11 +167,11 @@ export function UpdateModal({ isOpen, onClose, updateInfo }: UpdateModalProps) {
           <div className="mb-4 space-y-1.5">
             <div className="flex justify-between text-xs text-[var(--text-secondary)]">
               <span>Baixando atualização OTA...</span>
-              <span className="text-[#0F766E] font-bold">{otaProgress}%</span>
+              <span className="text-[var(--primary)] font-bold">{otaProgress}%</span>
             </div>
             <div className="w-full h-2 bg-[var(--bg-subtle)] rounded-full overflow-hidden">
               <div
-                className="h-full bg-[#0F766E] transition-all duration-200"
+                className="h-full bg-[var(--primary)] transition-all duration-200"
                 style={{ width: `${otaProgress}%` }}
               />
             </div>
@@ -177,7 +179,7 @@ export function UpdateModal({ isOpen, onClose, updateInfo }: UpdateModalProps) {
         )}
 
         {downloadSuccess && (
-          <div className="mb-4 bg-[#CCFBF1] text-[#0F766E] text-xs p-3 rounded-xl flex items-center gap-2 animate-fade-in">
+          <div className="mb-4 bg-[var(--primary-light)] text-[var(--primary)] text-xs p-3 rounded-xl flex items-center gap-2 animate-fade-in">
             <Check size={16} strokeWidth={2} className="shrink-0" />
             <span>
               {statusMessage ||
@@ -196,21 +198,23 @@ export function UpdateModal({ isOpen, onClose, updateInfo }: UpdateModalProps) {
             {isDownloading ? (
               <>
                 <RefreshCw size={18} strokeWidth={2} className="animate-spin" />
-                {canUseOta
-                  ? otaProgress > 0
-                    ? `Atualizando (${otaProgress}%)...`
-                    : 'Preparando atualização...'
-                  : 'Iniciando download...'}
+                <span>
+                  {canUseOta
+                    ? otaProgress > 0
+                      ? `Atualizando (${otaProgress}%)...`
+                      : 'Preparando atualização...'
+                    : 'Iniciando download...'}
+                </span>
               </>
             ) : canUseOta ? (
               <>
                 <Zap size={18} strokeWidth={2} />
-                Atualizar Agora (OTA Rápido)
+                <span>Atualizar Agora (OTA Rápido)</span>
               </>
             ) : (
               <>
                 <Download size={18} strokeWidth={2} />
-                Baixar e Atualizar APK
+                <span>Baixar e Atualizar APK</span>
               </>
             )}
           </button>
@@ -222,7 +226,7 @@ export function UpdateModal({ isOpen, onClose, updateInfo }: UpdateModalProps) {
               className="w-full ds-btn-secondary text-xs"
             >
               <Download size={15} strokeWidth={2} />
-              Baixar instalador APK completo
+              <span>Baixar instalador APK completo</span>
             </button>
           )}
 
@@ -239,7 +243,7 @@ export function UpdateModal({ isOpen, onClose, updateInfo }: UpdateModalProps) {
                 href={updateInfo.htmlUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-xs font-semibold text-[#0F766E] hover:underline flex items-center gap-1 px-3 py-1.5"
+                className="text-xs font-semibold text-[var(--primary)] hover:underline flex items-center gap-1 px-3 py-1.5"
               >
                 <span>Ver no GitHub</span>
                 <ExternalLink size={12} strokeWidth={2} />

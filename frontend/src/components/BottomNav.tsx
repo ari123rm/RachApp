@@ -28,7 +28,7 @@ export function BottomNav({ activeTab, setActiveTab }: BottomNavProps) {
               onClick={() => setActiveTab(item.id)}
               className={`flex flex-col items-center justify-center flex-1 h-full py-1 min-h-[48px] space-y-1 transition-all active:scale-95 ${
                 isActive
-                  ? 'text-[#0F766E]'
+                  ? 'text-[var(--primary)]'
                   : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
               }`}
             >

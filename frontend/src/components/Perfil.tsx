@@ -2,40 +2,27 @@
 import { useState, useEffect } from 'react';
 import {
   User,
-  Sparkles,
-  Download,
   QrCode,
-  Lock,
   Trash2,
   Save,
   LoaderCircle,
   ShieldCheck,
   Phone,
-  CloudCheck,
-  RefreshCw,
   ChevronRight,
-  Check,
   Pencil,
   X,
-  Sun,
-  Moon,
+  Settings,
+  Palette,
 } from 'lucide-react';
-import { Capacitor } from '@capacitor/core';
 import { dbService } from '../services/database';
 import { PixModal } from './PixModal';
 import { ChangePasswordScreen } from './ChangePasswordScreen';
+import { SettingsModal } from './SettingsModal';
 import { formatPhoneBR, isValidPhoneBR } from '../utils/phoneFormatter';
 import { AvatarEditModal } from './AvatarEditModal';
 import { useTheme } from '../utils/theme';
 import type { SyncStatus } from '../types';
-import {
-  getCurrentAppVersion,
-  checkAppUpdate,
-  triggerApkDownload,
-  downloadAndStageOtaUpdate,
-  applyOtaUpdateNow,
-  type AppReleaseInfo,
-} from '../services/updateService';
+import type { AppReleaseInfo } from '../services/updateService';
 
 interface PerfilProps {
   dataVersion?: number;
@@ -54,12 +41,7 @@ export function Perfil({
   onOpenUpdateModal,
   onUpdateDetected,
 }: PerfilProps) {
-  const { theme, setTheme } = useTheme();
-  const [currentVersion, setCurrentVersion] = useState('');
-  const [manualUpdateInfo, setManualUpdateInfo] = useState<AppReleaseInfo | null>(updateInfo || null);
-  const [isCheckingUpdate, setIsCheckingUpdate] = useState(false);
-  const [isDownloadingApk, setIsDownloadingApk] = useState(false);
-  const [downloadMsg, setDownloadMsg] = useState('');
+  const { preset: currentPreset } = useTheme();
 
   const [nome, setNome] = useState('');
   const [telefone, setTelefone] = useState('');
@@ -77,6 +59,7 @@ export function Perfil({
   const [isPixPreviewOpen, setIsPixPreviewOpen] = useState(false);
   const [testPixAmount, setTestPixAmount] = useState(10);
   const [isPasswordScreenOpen, setIsPasswordScreenOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [syncStatus, setSyncStatus] = useState<SyncStatus>({
     state: 'synced',
     pendingCount: 0,
@@ -86,7 +69,6 @@ export function Perfil({
   useEffect(() => {
     const carregarPerfil = async () => {
       try {
-        getCurrentAppVersion().then((v) => setCurrentVersion(v)).catch(() => {});
         const user = await dbService.settings.get();
         const loadedNome = user.name || user.nome || '';
         const loadedTel = formatPhoneBR(user.phone || user.telefone || '');
@@ -184,7 +166,7 @@ export function Perfil({
   if (isLoading) {
     return (
       <div className="flex justify-center items-center h-64">
-        <LoaderCircle size={40} strokeWidth={2} className="animate-spin text-[#0F766E]" />
+        <LoaderCircle size={40} strokeWidth={2} className="animate-spin text-[var(--primary)]" />
       </div>
     );
   }
@@ -192,13 +174,38 @@ export function Perfil({
   const userInitial = (nome || 'U').trim().charAt(0).toUpperCase();
 
   return (
-    <div className="space-y-6 pb-20">
-      {/* Cabeçalho com Foto de Perfil Grande Centralizada (Circular) e Nome */}
-      <div className="flex flex-col items-center pt-4 pb-2">
+    <div className="space-y-5 pb-20">
+      {/* Barra Superior do Perfil com Botão de Configurações */}
+      <header className="flex items-center justify-between gap-2 pt-1">
+        <div>
+          <h1 className="text-xl sm:text-h1 font-display font-bold text-[var(--text-primary)]">
+            Meu Perfil
+          </h1>
+          <p className="text-xs text-[var(--text-secondary)] mt-0.5">
+            Seus dados públicos e chave Pix
+          </p>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => setIsSettingsOpen(true)}
+          className="h-10 px-3.5 rounded-xl bg-[var(--bg-surface)] border border-[var(--border-color)] hover:border-[var(--primary)] text-[var(--text-primary)] font-semibold text-xs flex items-center gap-2 shadow-sm transition-all active:scale-95 relative shrink-0"
+          title="Abrir Configurações"
+        >
+          <Settings size={16} strokeWidth={2} className="text-[var(--primary)]" />
+          <span>Configurações</span>
+          {updateInfo?.isNewer && (
+            <span className="w-2 h-2 rounded-full bg-[#F59E0B] animate-pulse" />
+          )}
+        </button>
+      </header>
+
+      {/* Card Principal do Usuário com Avatar Grande Centralizado */}
+      <section className="ds-card p-5 flex flex-col items-center text-center">
         <div className="relative">
           <div
             onClick={() => setIsAvatarModalOpen(true)}
-            className="w-24 h-24 rounded-full overflow-hidden bg-[var(--bg-surface)] border-2 border-[#0F766E]/30 hover:border-[#0F766E] shadow-md flex items-center justify-center cursor-pointer relative group transition-colors"
+            className="w-24 h-24 rounded-full overflow-hidden bg-[var(--bg-surface)] border-2 border-[var(--primary)]/30 hover:border-[var(--primary)] shadow-md flex items-center justify-center cursor-pointer relative group transition-colors"
           >
             {avatarUrl ? (
               <img
@@ -207,7 +214,7 @@ export function Perfil({
                 className="w-full h-full object-cover"
               />
             ) : (
-              <div className="w-full h-full bg-[#CCFBF1] flex items-center justify-center text-[#0F766E] text-3xl font-display font-bold select-none">
+              <div className="w-full h-full bg-[var(--primary-light)] flex items-center justify-center text-[var(--primary)] text-3xl font-display font-bold select-none">
                 {userInitial}
               </div>
             )}
@@ -219,94 +226,62 @@ export function Perfil({
             )}
           </div>
 
-          {/* Botão de editar foto */}
           <button
             type="button"
             onClick={() => setIsAvatarModalOpen(true)}
             title="Editar foto de perfil"
-            className="absolute bottom-0 right-0 w-9 h-9 rounded-full bg-[#0F766E] hover:bg-[#115E59] text-white shadow-md flex items-center justify-center border-2 border-[var(--bg-app)] transition-transform active:scale-90"
+            className="absolute bottom-0 right-0 w-9 h-9 rounded-full bg-[var(--primary)] hover:bg-[var(--primary-dark)] text-white shadow-md flex items-center justify-center border-2 border-[var(--bg-surface)] transition-transform active:scale-90"
           >
             <Pencil size={14} strokeWidth={2} />
           </button>
         </div>
 
-        <h1 className="text-h1 text-[var(--text-primary)] mt-3 text-center break-words max-w-xs">
+        <h2 className="text-lg sm:text-xl font-display font-bold text-[var(--text-primary)] mt-3 break-words max-w-xs">
           {nome || 'Seu Perfil'}
-        </h1>
-        {email && <p className="text-caption text-[var(--text-secondary)] mt-1">{email}</p>}
-      </div>
+        </h2>
+        {email && <p className="text-xs text-[var(--text-secondary)] mt-0.5">{email}</p>}
 
-      {/* Aparência do App (Modo Claro Padrão / Modo Escuro) */}
-      <section className="ds-card p-5 space-y-3">
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-h2 text-[var(--text-primary)]">Aparência</h2>
-            <p className="text-xs text-[var(--text-secondary)] mt-0.5">
-              Escolha entre o tema claro padrão ou escuro
-            </p>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 gap-3 pt-1">
+        {pix && (
           <button
             type="button"
-            onClick={() => setTheme('light')}
-            className={`h-12 rounded-xl border font-semibold text-sm flex items-center justify-center gap-2 transition-all ${
-              theme === 'light'
-                ? 'bg-[#CCFBF1] text-[#0F766E] border-[#0F766E]'
-                : 'bg-[var(--bg-subtle)] text-[var(--text-secondary)] border-[var(--border-color)] hover:text-[var(--text-primary)]'
-            }`}
+            onClick={() => setIsPixPreviewOpen(true)}
+            className="mt-4 h-10 px-4 rounded-xl bg-[var(--primary-light)] text-[var(--primary)] hover:opacity-90 font-semibold text-xs inline-flex items-center gap-2 transition-all active:scale-95"
           >
-            <Sun size={18} strokeWidth={2} />
-            <span>Modo Claro</span>
+            <QrCode size={15} strokeWidth={2} />
+            <span>Testar Meu QR Code Pix</span>
           </button>
-          <button
-            type="button"
-            onClick={() => setTheme('dark')}
-            className={`h-12 rounded-xl border font-semibold text-sm flex items-center justify-center gap-2 transition-all ${
-              theme === 'dark'
-                ? 'bg-[#0F766E] text-white border-[#0F766E]'
-                : 'bg-[var(--bg-subtle)] text-[var(--text-secondary)] border-[var(--border-color)] hover:text-[var(--text-primary)]'
-            }`}
-          >
-            <Moon size={18} strokeWidth={2} />
-            <span>Modo Escuro</span>
-          </button>
-        </div>
+        )}
       </section>
 
       {/* Dados Públicos e Chave Pix */}
       <section className="ds-card p-5 space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-h2 text-[var(--text-primary)] flex items-center gap-2">
-            <ShieldCheck size={20} strokeWidth={2} className="text-[#0F766E] shrink-0" />
-            Dados Públicos e Pix
+        <div className="flex items-center justify-between gap-2">
+          <h2 className="text-base font-display font-semibold text-[var(--text-primary)] flex items-center gap-2 min-w-0">
+            <ShieldCheck size={19} strokeWidth={2} className="text-[var(--primary)] shrink-0" />
+            <span className="truncate">Dados Públicos e Pix</span>
           </h2>
-          <div className="flex items-center gap-2 shrink-0">
-            {pix && (
-              <button
-                type="button"
-                onClick={() => setIsPixPreviewOpen(true)}
-                className="text-xs bg-[#CCFBF1] text-[#0F766E] hover:opacity-90 px-3 py-1.5 rounded-xl font-semibold flex items-center gap-1.5"
-              >
-                <QrCode size={14} strokeWidth={2} />
-                <span className="hidden xs:inline">Testar QR Pix</span>
-                <span className="xs:hidden">QR Pix</span>
-              </button>
+          <button
+            type="button"
+            onClick={handleToggleEditDados}
+            title={isEditingDados ? 'Cancelar edição' : 'Editar dados públicos'}
+            className={`h-9 px-3 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors border shrink-0 ${
+              isEditingDados
+                ? 'bg-[var(--primary)] text-white border-[var(--primary)]'
+                : 'bg-[var(--bg-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] border-[var(--border-color)]'
+            }`}
+          >
+            {isEditingDados ? (
+              <>
+                <X size={14} strokeWidth={2} />
+                <span>Cancelar</span>
+              </>
+            ) : (
+              <>
+                <Pencil size={14} strokeWidth={2} />
+                <span>Editar</span>
+              </>
             )}
-            <button
-              type="button"
-              onClick={handleToggleEditDados}
-              title={isEditingDados ? 'Cancelar edição' : 'Editar dados públicos'}
-              className={`w-9 h-9 rounded-full flex items-center justify-center transition-colors border ${
-                isEditingDados
-                  ? 'bg-[#0F766E] text-white border-[#0F766E]'
-                  : 'bg-[var(--bg-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] border-[var(--border-color)]'
-              }`}
-            >
-              {isEditingDados ? <X size={16} strokeWidth={2} /> : <Pencil size={15} strokeWidth={2} />}
-            </button>
-          </div>
+          </button>
         </div>
 
         <div>
@@ -316,8 +291,8 @@ export function Perfil({
           <div
             className={`h-12 bg-[var(--bg-subtle)] rounded-xl px-4 flex items-center border transition-all ${
               isEditingDados
-                ? 'border-[#0F766E] ring-2 ring-[#0F766E]/15 bg-[var(--bg-surface)]'
-                : 'border-[var(--border-color)] opacity-80'
+                ? 'border-[var(--primary)] ring-2 ring-[var(--primary-focus-ring)] bg-[var(--bg-surface)]'
+                : 'border-[var(--border-color)] opacity-85'
             }`}
           >
             <User size={18} strokeWidth={2} className="text-[var(--text-secondary)] mr-3 shrink-0" />
@@ -339,8 +314,8 @@ export function Perfil({
           <div
             className={`h-12 bg-[var(--bg-subtle)] rounded-xl px-4 flex items-center border transition-all ${
               isEditingDados
-                ? 'border-[#0F766E] ring-2 ring-[#0F766E]/15 bg-[var(--bg-surface)]'
-                : 'border-[var(--border-color)] opacity-80'
+                ? 'border-[var(--primary)] ring-2 ring-[var(--primary-focus-ring)] bg-[var(--bg-surface)]'
+                : 'border-[var(--border-color)] opacity-85'
             }`}
           >
             <Phone size={18} strokeWidth={2} className="text-[var(--text-secondary)] mr-3 shrink-0" />
@@ -363,8 +338,8 @@ export function Perfil({
           <div
             className={`h-12 bg-[var(--bg-subtle)] rounded-xl px-4 flex items-center border transition-all ${
               isEditingDados
-                ? 'border-[#0F766E] ring-2 ring-[#0F766E]/15 bg-[var(--bg-surface)]'
-                : 'border-[var(--border-color)] opacity-80'
+                ? 'border-[var(--primary)] ring-2 ring-[var(--primary-focus-ring)] bg-[var(--bg-surface)]'
+                : 'border-[var(--border-color)] opacity-85'
             }`}
           >
             <QrCode size={18} strokeWidth={2} className="text-[var(--text-secondary)] mr-3 shrink-0" />
@@ -386,7 +361,7 @@ export function Perfil({
               type="button"
               onClick={handleToggleEditDados}
               disabled={isSavingProfile}
-              className="flex-1 h-12 bg-[var(--bg-subtle)] border border-[var(--border-color)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] font-semibold rounded-xl transition-colors"
+              className="flex-1 h-12 bg-[var(--bg-subtle)] border border-[var(--border-color)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] font-semibold rounded-xl transition-colors text-sm"
             >
               Cancelar
             </button>
@@ -394,7 +369,7 @@ export function Perfil({
               type="button"
               onClick={handleSalvarPerfil}
               disabled={isSavingProfile}
-              className="flex-[2] ds-btn-primary"
+              className="flex-[2] ds-btn-primary text-sm"
             >
               {isSavingProfile ? (
                 <LoaderCircle className="animate-spin" size={18} strokeWidth={2} />
@@ -407,213 +382,64 @@ export function Perfil({
         )}
       </section>
 
-      {/* Status de Sincronização na Nuvem */}
-      <section className="ds-card p-5 space-y-2">
-        <div className="flex justify-between items-center">
-          <h2 className="text-h2 text-[var(--text-primary)] flex items-center gap-2">
-            <CloudCheck size={20} strokeWidth={2} className="text-[#0F766E]" />
-            Sincronização da Conta
-          </h2>
-          <span
-            className={`text-xs px-2.5 py-1 rounded-full font-semibold border ${
-              syncStatus.state === 'synced'
-                ? 'bg-[var(--emerald-bg)] text-[#10B981] border-[var(--emerald-border)]'
-                : syncStatus.state === 'syncing'
-                ? 'bg-[#CCFBF1] text-[#0F766E] border-[#0F766E]/20'
-                : 'bg-[var(--amber-bg)] text-[#F59E0B] border-[var(--amber-border)]'
-            }`}
-          >
-            {syncStatus.state === 'synced'
-              ? 'Atualizado'
-              : syncStatus.state === 'syncing'
-              ? 'Sincronizando...'
-              : `Pendente (${syncStatus.pendingCount})`}
-          </span>
-        </div>
-        <p className="text-xs text-[var(--text-secondary)] leading-relaxed">
-          Seus rachas, amigos e grupos ficam salvos no aparelho e sincronizados automaticamente. Para atualizar manualmente, basta puxar a tela para baixo no topo.
-        </p>
-      </section>
-
-      {/* Segurança */}
-      <section className="ds-card p-5">
+      {/* Atalho para abrir a Tela de Configurações (Temas Scalar, Sincronização, Senha e Atualizações) */}
+      <section className="ds-card p-4 sm:p-5">
         <button
-          onClick={() => setIsPasswordScreenOpen(true)}
-          className="w-full flex items-center justify-between text-left group"
+          type="button"
+          onClick={() => setIsSettingsOpen(true)}
+          className="w-full flex items-center justify-between gap-3 text-left group"
         >
-          <div className="flex items-center gap-3.5">
-            <div className="w-11 h-11 rounded-full bg-[#CCFBF1] text-[#0F766E] flex items-center justify-center shrink-0">
-              <Lock size={18} strokeWidth={2} />
+          <div className="flex items-center gap-3.5 min-w-0">
+            <div className="w-11 h-11 rounded-full bg-[var(--primary-light)] text-[var(--primary)] flex items-center justify-center shrink-0">
+              <Settings size={20} strokeWidth={2} />
             </div>
-            <div>
-              <h2 className="text-h2 text-[var(--text-primary)]">Alterar ou Redefinir Senha</h2>
-              <p className="text-xs text-[var(--text-secondary)] mt-0.5">
-                Abra a tela exclusiva para trocar ou recuperar sua senha
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <h2 className="text-base font-display font-semibold text-[var(--text-primary)] truncate">
+                  Configurações do Aplicativo
+                </h2>
+                {updateInfo?.isNewer && (
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[var(--amber-bg)] text-[#F59E0B] border border-[var(--amber-border)] shrink-0">
+                    Atualização
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-[var(--text-secondary)] mt-0.5 truncate flex items-center gap-1.5">
+                <Palette size={12} className="text-[var(--primary)] shrink-0" />
+                <span>Tema {currentPreset.name} • Sincronização, Senha e Versão</span>
               </p>
             </div>
           </div>
           <ChevronRight
             size={20}
             strokeWidth={2}
-            className="text-[var(--text-secondary)] group-hover:text-[var(--text-primary)] transition-colors"
+            className="text-[var(--text-secondary)] group-hover:text-[var(--text-primary)] transition-colors shrink-0"
           />
         </button>
-      </section>
-
-      {/* Versão e Atualizações do Aplicativo */}
-      <section className="ds-card p-5 space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="w-11 h-11 rounded-full bg-[#CCFBF1] text-[#0F766E] flex items-center justify-center shrink-0">
-              <Sparkles size={18} strokeWidth={2} />
-            </div>
-            <div className="min-w-0">
-              <h2 className="text-h2 text-[var(--text-primary)] truncate">Versão do Aplicativo</h2>
-              <p className="text-xs text-[var(--text-secondary)] truncate mt-0.5">
-                {currentVersion ? `Versão instalada: v${currentVersion}` : 'RachApp'}
-              </p>
-            </div>
-          </div>
-          <span
-            className={`text-xs px-2.5 py-1 rounded-full font-semibold border flex items-center gap-1 shrink-0 ${
-              manualUpdateInfo?.isNewer || updateInfo?.isNewer
-                ? 'bg-[var(--amber-bg)] text-[#F59E0B] border-[var(--amber-border)]'
-                : 'bg-[#CCFBF1] text-[#0F766E] border-[#0F766E]/20'
-            }`}
-          >
-            {manualUpdateInfo?.isNewer || updateInfo?.isNewer ? 'Atualização disponível' : 'Mais recente'}
-          </span>
-        </div>
-
-        {manualUpdateInfo?.isNewer || updateInfo?.isNewer ? (
-          <div className="bg-[var(--bg-subtle)] p-4 rounded-2xl border border-[var(--amber-border)] space-y-3">
-            <div className="flex items-center justify-between gap-2">
-              <div>
-                <p className="text-sm font-display font-bold text-[var(--text-primary)] flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-[#F59E0B] animate-pulse" />
-                  Nova versão disponível: {(manualUpdateInfo || updateInfo)?.tagName}
-                </p>
-                <p className="text-xs text-[var(--text-secondary)] mt-0.5">
-                  {(manualUpdateInfo || updateInfo)?.otaZipUrl && Capacitor.isNativePlatform()
-                    ? 'Atualize instantaneamente (OTA) sem precisar reinstalar o APK.'
-                    : 'Baixe o APK para atualizar sem perder nenhum dado.'}
-                </p>
-              </div>
-            </div>
-
-            {downloadMsg && (
-              <div className="bg-[#CCFBF1] text-[#0F766E] text-xs p-3 rounded-xl flex items-center gap-2 animate-fade-in">
-                <Check size={15} strokeWidth={2} className="shrink-0" />
-                <span>{downloadMsg}</span>
-              </div>
-            )}
-
-            <div className="flex flex-col xs:flex-row items-stretch xs:items-center gap-2 pt-1">
-              <button
-                onClick={async () => {
-                  const targetInfo = manualUpdateInfo || updateInfo;
-                  if (!targetInfo) return;
-
-                  setIsDownloadingApk(true);
-                  setDownloadMsg('');
-                  try {
-                    if (Capacitor.isNativePlatform() && targetInfo.otaZipUrl) {
-                      setDownloadMsg('Baixando pacote OTA em segundo plano...');
-                      const staged = await downloadAndStageOtaUpdate(targetInfo, (pct) => {
-                        setDownloadMsg(`Baixando atualização OTA (${pct}%)...`);
-                      });
-                      if (staged) {
-                        setDownloadMsg(
-                          'Nova atualização pronta! O app será recarregado em 3 segundos...'
-                        );
-                        setTimeout(() => {
-                          applyOtaUpdateNow(staged);
-                        }, 3000);
-                        return;
-                      }
-                      setDownloadMsg(
-                        'Não foi possível concluir o download OTA. Verifique sua conexão e tente novamente, ou toque em "Ver Detalhes" para baixar o APK.'
-                      );
-                      return;
-                    }
-
-                    if (targetInfo.apkDownloadUrl) {
-                      await triggerApkDownload(targetInfo.apkDownloadUrl);
-                      setDownloadMsg(
-                        'Download iniciado! Verifique a barra de notificações do seu celular.'
-                      );
-                    }
-                  } catch {
-                    alert('Não foi possível iniciar a atualização automaticamente.');
-                  } finally {
-                    setTimeout(() => setIsDownloadingApk(false), 2500);
-                  }
-                }}
-                disabled={isDownloadingApk}
-                className="flex-1 ds-btn-primary text-xs"
-              >
-                {isDownloadingApk ? (
-                  <>
-                    <RefreshCw size={15} strokeWidth={2} className="animate-spin" />
-                    Atualizando...
-                  </>
-                ) : (
-                  <>
-                    <Download size={15} strokeWidth={2} />
-                    {(manualUpdateInfo || updateInfo)?.otaZipUrl && Capacitor.isNativePlatform()
-                      ? 'Atualizar Agora (OTA)'
-                      : 'Baixar e Atualizar APK'}
-                  </>
-                )}
-              </button>
-
-              {onOpenUpdateModal && (
-                <button
-                  onClick={() => onOpenUpdateModal()}
-                  className="h-12 bg-[var(--bg-surface)] border border-[var(--border-color)] hover:border-[#0F766E]/40 text-[var(--text-primary)] font-semibold px-4 rounded-xl text-xs transition-colors shrink-0"
-                  title="Ver detalhes da versão"
-                >
-                  Ver Detalhes
-                </button>
-              )}
-            </div>
-          </div>
-        ) : (
-          <button
-            onClick={async () => {
-              setIsCheckingUpdate(true);
-              try {
-                const info = await checkAppUpdate(true);
-                setManualUpdateInfo(info);
-                if (info?.isNewer) {
-                  onUpdateDetected?.(info);
-                } else {
-                  alert('Você já está usando a versão mais recente do RachApp!');
-                }
-              } catch {
-                alert('Não foi possível verificar atualizações no momento.');
-              } finally {
-                setIsCheckingUpdate(false);
-              }
-            }}
-            disabled={isCheckingUpdate}
-            className="w-full ds-btn-secondary text-sm"
-          >
-            <RefreshCw size={16} strokeWidth={2} className={isCheckingUpdate ? 'animate-spin' : ''} />
-            {isCheckingUpdate ? 'Verificando atualizações...' : 'Verificar Atualizações'}
-          </button>
-        )}
       </section>
 
       {/* Logout (Alerta / Pagar Rose #F43F5E) */}
       <section className="pt-1">
         <button
+          type="button"
           onClick={handleSairApp}
-          className="w-full h-12 border border-[var(--rose-border)] bg-[var(--rose-bg)] text-[#F43F5E] hover:opacity-90 font-semibold rounded-xl flex items-center justify-center gap-2 transition-all active:scale-[0.99]"
+          className="w-full h-12 border border-[var(--rose-border)] bg-[var(--rose-bg)] text-[#F43F5E] hover:opacity-90 font-semibold rounded-xl flex items-center justify-center gap-2 transition-all active:scale-[0.99] text-sm"
         >
-          <Trash2 size={18} strokeWidth={2} /> Sair da Conta
+          <Trash2 size={18} strokeWidth={2} />
+          <span>Sair da Conta</span>
         </button>
       </section>
+
+      {/* Tela 2: Configurações */}
+      <SettingsModal
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
+        syncStatus={syncStatus}
+        updateInfo={updateInfo}
+        onOpenUpdateModal={onOpenUpdateModal}
+        onUpdateDetected={onUpdateDetected}
+        onOpenPasswordScreen={() => setIsPasswordScreenOpen(true)}
+      />
 
       <PixModal
         isOpen={isPixPreviewOpen}

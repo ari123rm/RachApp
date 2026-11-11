@@ -123,7 +123,7 @@ export function AuthScreen({ onLogin }: { onLogin: () => void }) {
 
           <div className="ds-card p-6 sm:p-8">
             <div className="mb-6 text-center">
-              <div className="w-16 h-16 bg-[#CCFBF1] text-[#0F766E] rounded-full mx-auto mb-4 flex items-center justify-center">
+              <div className="w-16 h-16 bg-[var(--primary-light)] text-[var(--primary)] rounded-full mx-auto mb-4 flex items-center justify-center">
                 <KeyRound size={28} strokeWidth={2} />
               </div>
               <h1 className="text-h1 text-[var(--text-primary)]">Redefinir Senha</h1>
@@ -147,7 +147,7 @@ export function AuthScreen({ onLogin }: { onLogin: () => void }) {
             )}
 
             <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="h-12 bg-[var(--bg-subtle)] rounded-xl px-4 flex items-center border border-[var(--border-color)] focus-within:border-[#0F766E] focus-within:bg-[var(--bg-surface)] transition-all">
+              <div className="h-12 bg-[var(--bg-subtle)] rounded-xl px-4 flex items-center border border-[var(--border-color)] focus-within:border-[var(--primary)] focus-within:bg-[var(--bg-surface)] transition-all">
                 <Mail size={18} strokeWidth={2} className="text-[var(--text-secondary)] mr-3 shrink-0" />
                 <input
                   type="text"
@@ -159,7 +159,7 @@ export function AuthScreen({ onLogin }: { onLogin: () => void }) {
                 />
               </div>
 
-              <div className="h-12 bg-[var(--bg-subtle)] rounded-xl px-4 flex items-center border border-[var(--border-color)] focus-within:border-[#0F766E] focus-within:bg-[var(--bg-surface)] transition-all">
+              <div className="h-12 bg-[var(--bg-subtle)] rounded-xl px-4 flex items-center border border-[var(--border-color)] focus-within:border-[var(--primary)] focus-within:bg-[var(--bg-surface)] transition-all">
                 <Lock size={18} strokeWidth={2} className="text-[var(--text-secondary)] mr-3 shrink-0" />
                 <input
                   type="password"
@@ -171,7 +171,7 @@ export function AuthScreen({ onLogin }: { onLogin: () => void }) {
                 />
               </div>
 
-              <div className="h-12 bg-[var(--bg-subtle)] rounded-xl px-4 flex items-center border border-[var(--border-color)] focus-within:border-[#0F766E] focus-within:bg-[var(--bg-surface)] transition-all">
+              <div className="h-12 bg-[var(--bg-subtle)] rounded-xl px-4 flex items-center border border-[var(--border-color)] focus-within:border-[var(--primary)] focus-within:bg-[var(--bg-surface)] transition-all">
                 <Lock size={18} strokeWidth={2} className="text-[var(--text-secondary)] mr-3 shrink-0" />
                 <input
                   type="password"
@@ -229,7 +229,7 @@ export function AuthScreen({ onLogin }: { onLogin: () => void }) {
                 <button
                   type="button"
                   onClick={() => setShowServerConfig(true)}
-                  className="text-xs text-[#0F766E] underline font-semibold block"
+                  className="text-xs text-[var(--primary)] underline font-semibold block"
                 >
                   Configurar endereço do servidor
                 </button>
@@ -240,7 +240,7 @@ export function AuthScreen({ onLogin }: { onLogin: () => void }) {
           {showServerConfig && (
             <div className="mb-4 bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-xl p-3.5 space-y-2.5">
               <label className="text-xs text-[var(--text-secondary)] font-semibold uppercase flex items-center gap-1.5">
-                <Server size={13} strokeWidth={2} className="text-[#0F766E]" /> URL da API do Servidor
+                <Server size={13} strokeWidth={2} className="text-[var(--primary)]" /> URL da API do Servidor
               </label>
               <div className="flex gap-2">
                 <input
@@ -248,7 +248,7 @@ export function AuthScreen({ onLogin }: { onLogin: () => void }) {
                   value={serverUrlInput}
                   onChange={(e) => setServerUrlInput(e.target.value)}
                   placeholder="http://SEU_IP_VPS:5000/api"
-                  className="flex-1 bg-[var(--bg-surface)] text-[var(--text-primary)] text-xs rounded-lg px-3 py-2 outline-none border border-[var(--border-color)] focus:border-[#0F766E]"
+                  className="flex-1 bg-[var(--bg-surface)] text-[var(--text-primary)] text-xs rounded-lg px-3 py-2 outline-none border border-[var(--border-color)] focus:border-[var(--primary)]"
                 />
                 <button
                   type="button"
@@ -258,7 +258,7 @@ export function AuthScreen({ onLogin }: { onLogin: () => void }) {
                     setShowServerConfig(false);
                     setErrorMsg('');
                   }}
-                  className="bg-[#0F766E] text-white text-xs font-semibold px-3 py-2 rounded-lg"
+                  className="bg-[var(--primary)] text-white text-xs font-semibold px-3 py-2 rounded-lg"
                 >
                   Salvar
                 </button>
@@ -271,7 +271,7 @@ export function AuthScreen({ onLogin }: { onLogin: () => void }) {
               <>
                 {step === 'register' && (
                   <>
-                    <div className="h-12 bg-[var(--bg-subtle)] rounded-xl px-4 flex items-center border border-[var(--border-color)] focus-within:border-[#0F766E] focus-within:bg-[var(--bg-surface)] transition-all">
+                    <div className="h-12 bg-[var(--bg-subtle)] rounded-xl px-4 flex items-center border border-[var(--border-color)] focus-within:border-[var(--primary)] focus-within:bg-[var(--bg-surface)] transition-all">
                       <User size={18} strokeWidth={2} className="text-[var(--text-secondary)] mr-3 shrink-0" />
                       <input
                         type="text"
@@ -282,7 +282,7 @@ export function AuthScreen({ onLogin }: { onLogin: () => void }) {
                         className="bg-transparent w-full outline-none text-[var(--text-primary)] placeholder:text-[var(--text-secondary)] text-sm"
                       />
                     </div>
-                    <div className="h-12 bg-[var(--bg-subtle)] rounded-xl px-4 flex items-center border border-[var(--border-color)] focus-within:border-[#0F766E] focus-within:bg-[var(--bg-surface)] transition-all">
+                    <div className="h-12 bg-[var(--bg-subtle)] rounded-xl px-4 flex items-center border border-[var(--border-color)] focus-within:border-[var(--primary)] focus-within:bg-[var(--bg-surface)] transition-all">
                       <Phone size={18} strokeWidth={2} className="text-[var(--text-secondary)] mr-3 shrink-0" />
                       <input
                         type="tel"
@@ -298,7 +298,7 @@ export function AuthScreen({ onLogin }: { onLogin: () => void }) {
                   </>
                 )}
 
-                <div className="h-12 bg-[var(--bg-subtle)] rounded-xl px-4 flex items-center border border-[var(--border-color)] focus-within:border-[#0F766E] focus-within:bg-[var(--bg-surface)] transition-all">
+                <div className="h-12 bg-[var(--bg-subtle)] rounded-xl px-4 flex items-center border border-[var(--border-color)] focus-within:border-[var(--primary)] focus-within:bg-[var(--bg-surface)] transition-all">
                   <Mail size={18} strokeWidth={2} className="text-[var(--text-secondary)] mr-3 shrink-0" />
                   <input
                     type="text"
@@ -311,7 +311,7 @@ export function AuthScreen({ onLogin }: { onLogin: () => void }) {
                 </div>
 
                 <div>
-                  <div className="h-12 bg-[var(--bg-subtle)] rounded-xl px-4 flex items-center border border-[var(--border-color)] focus-within:border-[#0F766E] focus-within:bg-[var(--bg-surface)] transition-all">
+                  <div className="h-12 bg-[var(--bg-subtle)] rounded-xl px-4 flex items-center border border-[var(--border-color)] focus-within:border-[var(--primary)] focus-within:bg-[var(--bg-surface)] transition-all">
                     <Lock size={18} strokeWidth={2} className="text-[var(--text-secondary)] mr-3 shrink-0" />
                     <input
                       type="password"
@@ -330,7 +330,7 @@ export function AuthScreen({ onLogin }: { onLogin: () => void }) {
                           setErrorMsg('');
                           setStep('reset');
                         }}
-                        className="text-xs text-[#0F766E] hover:underline font-medium"
+                        className="text-xs text-[var(--primary)] hover:underline font-medium"
                       >
                         Esqueceu sua senha?
                       </button>
@@ -339,7 +339,7 @@ export function AuthScreen({ onLogin }: { onLogin: () => void }) {
                 </div>
 
                 {step === 'register' && (
-                  <div className="h-12 bg-[var(--bg-subtle)] rounded-xl px-4 flex items-center border border-[var(--border-color)] focus-within:border-[#0F766E] focus-within:bg-[var(--bg-surface)] transition-all">
+                  <div className="h-12 bg-[var(--bg-subtle)] rounded-xl px-4 flex items-center border border-[var(--border-color)] focus-within:border-[var(--primary)] focus-within:bg-[var(--bg-surface)] transition-all">
                     <QrCode size={18} strokeWidth={2} className="text-[var(--text-secondary)] mr-3 shrink-0" />
                     <input
                       type="text"
@@ -356,13 +356,13 @@ export function AuthScreen({ onLogin }: { onLogin: () => void }) {
             {step === 'verify' && (
               <div className="space-y-4">
                 {simulatedCode && (
-                  <div className="bg-[#CCFBF1] text-[#0F766E] rounded-xl p-3 text-xs flex items-center justify-center gap-1.5">
+                  <div className="bg-[var(--primary-light)] text-[var(--primary)] rounded-xl p-3 text-xs flex items-center justify-center gap-1.5">
                     <Phone size={14} strokeWidth={2} className="shrink-0" />
                     <strong>Código de Verificação:</strong>{' '}
                     <span className="font-mono font-bold text-sm underline">{simulatedCode}</span>
                   </div>
                 )}
-                <div className="h-12 bg-[var(--bg-subtle)] rounded-xl px-4 flex items-center border border-[var(--border-color)] focus-within:border-[#0F766E] focus-within:bg-[var(--bg-surface)] transition-all">
+                <div className="h-12 bg-[var(--bg-subtle)] rounded-xl px-4 flex items-center border border-[var(--border-color)] focus-within:border-[var(--primary)] focus-within:bg-[var(--bg-surface)] transition-all">
                   <CheckCircle size={18} strokeWidth={2} className="text-[var(--text-secondary)] mr-3 shrink-0" />
                   <input
                     type="text"
@@ -404,7 +404,7 @@ export function AuthScreen({ onLogin }: { onLogin: () => void }) {
                 setErrorMsg('');
                 setStep(step === 'login' ? 'register' : 'login');
               }}
-              className="text-[#0F766E] font-semibold ml-2 hover:underline"
+              className="text-[var(--primary)] font-semibold ml-2 hover:underline"
             >
               {step === 'login' ? 'Criar Conta' : 'Fazer Login'}
             </button>

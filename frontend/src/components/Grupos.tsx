@@ -36,7 +36,7 @@ export function Grupos({ onDataChange }: { onDataChange?: () => void }) {
 
   if (isLoading) {
     return (
-      <div className="flex flex-col items-center justify-center h-64 text-[#0F766E]">
+      <div className="flex flex-col items-center justify-center h-64 text-[var(--primary)]">
         <LoaderCircle size={40} strokeWidth={2} className="animate-spin mb-4" />
         <p className="text-sm font-medium text-[var(--text-secondary)]">Carregando grupos...</p>
       </div>
@@ -49,7 +49,7 @@ export function Grupos({ onDataChange }: { onDataChange?: () => void }) {
         <h1 className="text-h1 text-[var(--text-primary)]">Grupos</h1>
         <button
           onClick={() => setIsModalOpen(true)}
-          className="bg-[#CCFBF1] hover:opacity-90 text-[#0F766E] px-4 py-2.5 rounded-xl font-semibold flex items-center gap-2 text-sm transition-colors"
+          className="bg-[var(--primary-light)] hover:opacity-90 text-[var(--primary)] px-4 py-2.5 rounded-xl font-semibold flex items-center gap-2 text-sm transition-colors"
         >
           <Plus size={16} strokeWidth={2} /> Novo Grupo
         </button>
@@ -60,7 +60,7 @@ export function Grupos({ onDataChange }: { onDataChange?: () => void }) {
           <p className="text-[var(--text-secondary)] mb-3">Você ainda não criou nenhum grupo.</p>
           <button
             onClick={() => setIsModalOpen(true)}
-            className="text-[#0F766E] font-semibold text-sm hover:underline"
+            className="text-[var(--primary)] font-semibold text-sm hover:underline"
           >
             + Criar meu primeiro grupo
           </button>
@@ -77,10 +77,10 @@ export function Grupos({ onDataChange }: { onDataChange?: () => void }) {
               <div
                 key={grupo.id}
                 onClick={() => setGrupoSelecionadoId(grupo.id)}
-                className="ds-card p-4 flex items-center justify-between cursor-pointer hover:border-[#0F766E]/40 transition-colors"
+                className="ds-card p-4 flex items-center justify-between cursor-pointer hover:border-[var(--primary)]/40 transition-colors"
               >
                 <div className="flex items-start gap-3.5 min-w-0">
-                  <div className="w-12 h-12 rounded-full overflow-hidden bg-[#CCFBF1] text-[#0F766E] flex items-center justify-center shrink-0 mt-0.5">
+                  <div className="w-12 h-12 rounded-full overflow-hidden bg-[var(--primary-light)] text-[var(--primary)] flex items-center justify-center shrink-0 mt-0.5">
                     {grupo.avatar_url ? (
                       <img
                         src={grupo.avatar_url}
@@ -102,7 +102,7 @@ export function Grupos({ onDataChange }: { onDataChange?: () => void }) {
 
                     {/* Pilha de Avatares 32x32px (w-8 h-8) */}
                     <div className="flex -space-x-2">
-                      <div className="w-8 h-8 rounded-full overflow-hidden bg-[#0F766E] text-white font-display font-bold text-xs flex items-center justify-center border-2 border-[var(--bg-surface)]">
+                      <div className="w-8 h-8 rounded-full overflow-hidden bg-[var(--primary)] text-white font-display font-bold text-xs flex items-center justify-center border-2 border-[var(--bg-surface)]">
                         {myAvatarUrl ? (
                           <img
                             src={myAvatarUrl}

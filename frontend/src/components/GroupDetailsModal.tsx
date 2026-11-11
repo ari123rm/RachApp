@@ -378,7 +378,7 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
       label: 'Quitados',
       count: contagensGrupo.quitados,
       icon: CheckCircle2,
-      color: 'text-[#0F766E]',
+      color: 'text-[var(--primary)]',
     },
   ];
 
@@ -464,7 +464,7 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
 
         {isLoading || !grupo ? (
           <div className="flex flex-col items-center justify-center flex-1 py-20">
-            <LoaderCircle size={36} strokeWidth={2} className="animate-spin text-[#0F766E]" />
+            <LoaderCircle size={36} strokeWidth={2} className="animate-spin text-[var(--primary)]" />
           </div>
         ) : (
           <div className="p-4 sm:p-5 overflow-y-auto flex-1 space-y-5">
@@ -478,8 +478,8 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
                       onClick={() => {
                         if (isGroupCreator) setIsEditAvatarOpen(true);
                       }}
-                      className={`w-12 h-12 rounded-full overflow-hidden bg-[#0F766E]/10 border border-[#0F766E]/30 flex items-center justify-center text-[#0F766E] transition-colors ${
-                        isGroupCreator ? 'cursor-pointer hover:border-[#0F766E]' : ''
+                      className={`w-12 h-12 rounded-full overflow-hidden bg-[var(--primary)]/10 border border-[var(--primary)]/30 flex items-center justify-center text-[var(--primary)] transition-colors ${
+                        isGroupCreator ? 'cursor-pointer hover:border-[var(--primary)]' : ''
                       }`}
                     >
                       {grupo.avatar_url ? (
@@ -497,7 +497,7 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
                         type="button"
                         onClick={() => setIsEditAvatarOpen(true)}
                         title="Editar ícone do grupo"
-                        className="absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full bg-[#0F766E] hover:bg-[#115E59] text-white flex items-center justify-center shadow-sm border border-[var(--bg-surface)] active:scale-90 transition-transform"
+                        className="absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full bg-[var(--primary)] hover:bg-[var(--primary-dark)] text-white flex items-center justify-center shadow-sm border border-[var(--bg-surface)] active:scale-90 transition-transform"
                       >
                         <Pencil size={10} strokeWidth={2.5} />
                       </button>
@@ -508,7 +508,7 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
                     <h3 className="text-[var(--text-primary)] text-h2 leading-tight">{grupo.name}</h3>
                     <div className="flex items-center mt-1.5">
                       <div className="flex -space-x-2">
-                        <div className="w-8 h-8 rounded-full overflow-hidden bg-[#0F766E] text-white font-bold text-caption flex items-center justify-center border-2 border-[var(--bg-surface)]">
+                        <div className="w-8 h-8 rounded-full overflow-hidden bg-[var(--primary)] text-white font-bold text-caption flex items-center justify-center border-2 border-[var(--bg-surface)]">
                           {myConfig.avatar_url ? (
                             <img
                               src={myConfig.avatar_url}
@@ -565,7 +565,7 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
                       ? 'text-[#10B981]'
                       : userNet < -0.01
                       ? 'text-[#F43F5E]'
-                      : 'text-[#0F766E]'
+                      : 'text-[var(--primary)]'
                   }`}
                 >
                   R$ {moneyConverter(Math.abs(userNet))}
@@ -586,7 +586,7 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
                   onClick={handleCobrarGrupo}
                   className="ds-btn-secondary"
                 >
-                  <QrCode size={18} strokeWidth={2} className="text-[#0F766E]" /> Cobrar
+                  <QrCode size={18} strokeWidth={2} className="text-[var(--primary)]" /> Cobrar
                 </button>
               </div>
             </div>
@@ -603,7 +603,7 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
 
                 <button
                   onClick={() => setShowAddMemberSection(!showAddMemberSection)}
-                  className="text-caption bg-[#0F766E]/10 hover:bg-[#0F766E]/20 text-[#0F766E] px-3 py-1.5 rounded-full font-semibold flex items-center gap-1 transition-colors"
+                  className="text-caption bg-[var(--primary)]/10 hover:bg-[var(--primary)]/20 text-[var(--primary)] px-3 py-1.5 rounded-full font-semibold flex items-center gap-1 transition-colors"
                 >
                   <UserPlus size={14} strokeWidth={2} /> Adicionar Amigo
                 </button>
@@ -618,7 +618,7 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
                     <button
                       type="button"
                       onClick={() => setIsCreateFriendOpen(true)}
-                      className="text-caption text-[#0F766E] font-semibold flex items-center gap-1 hover:underline"
+                      className="text-caption text-[var(--primary)] font-semibold flex items-center gap-1 hover:underline"
                     >
                       <Plus size={14} strokeWidth={2} /> Criar Novo Amigo
                     </button>
@@ -674,7 +674,7 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
                                     {nomeAmigo}
                                   </p>
                                   {(amigo.has_account || amigo.is_registered) && (
-                                    <BadgeCheck size={13} strokeWidth={2} className="text-[#0F766E] shrink-0" />
+                                    <BadgeCheck size={13} strokeWidth={2} className="text-[var(--primary)] shrink-0" />
                                   )}
                                 </div>
                                 {tel && <p className="text-caption text-[var(--text-secondary)]">{tel}</p>}
@@ -683,7 +683,7 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
                             <button
                               onClick={() => handleSelectExistingFriend(amigo.id)}
                               disabled={adding}
-                              className="bg-[#0F766E]/10 hover:bg-[#0F766E] text-[#0F766E] hover:text-white px-3 py-1.5 rounded-xl text-caption font-semibold transition-colors flex items-center gap-1"
+                              className="bg-[var(--primary)]/10 hover:bg-[var(--primary)] text-[var(--primary)] hover:text-white px-3 py-1.5 rounded-xl text-caption font-semibold transition-colors flex items-center gap-1"
                             >
                               {adding ? (
                                 <LoaderCircle size={13} strokeWidth={2} className="animate-spin" />
@@ -710,7 +710,7 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
                     </p>
                     <button
                       onClick={() => setShowAddMemberSection(true)}
-                      className="text-caption text-[#0F766E] font-semibold hover:underline"
+                      className="text-caption text-[var(--primary)] font-semibold hover:underline"
                     >
                       + Selecionar ou cadastrar amigos
                     </button>
@@ -820,10 +820,10 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
               <div className="ds-card-sm">
                 <div className="flex justify-between items-center mb-3">
                   <h4 className="text-[var(--text-primary)] font-semibold text-body2 flex items-center gap-2">
-                    <QrCode size={16} strokeWidth={2} className="text-[#0F766E]" />
+                    <QrCode size={16} strokeWidth={2} className="text-[var(--primary)]" />
                     Rotas de Acerto (Pix)
                   </h4>
-                  <span className="text-caption bg-[#0F766E]/10 text-[#0F766E] px-2.5 py-0.5 rounded-full font-semibold">
+                  <span className="text-caption bg-[var(--primary)]/10 text-[var(--primary)] px-2.5 py-0.5 rounded-full font-semibold">
                     {grupo.transfers.length} {grupo.transfers.length === 1 ? 'repasse' : 'repasses'}
                   </span>
                 </div>
@@ -844,7 +844,7 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
                         </span>
                         <button
                           onClick={() => handleOpenTransferPix(t)}
-                          className="bg-[#0F766E] text-white hover:bg-[#115E59] px-3 py-1.5 rounded-xl text-caption font-semibold transition-colors"
+                          className="bg-[var(--primary)] text-white hover:bg-[var(--primary-dark)] px-3 py-1.5 rounded-xl text-caption font-semibold transition-colors"
                         >
                           {t.fromName === 'Você' ? 'Pagar' : 'Pix'}
                         </button>
@@ -859,7 +859,7 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
             <div>
               <div className="flex justify-between items-center mb-3">
                 <h4 className="text-[var(--text-primary)] text-h2">Rachas no Grupo</h4>
-                <span className="text-caption text-[#0F766E] font-semibold">
+                <span className="text-caption text-[var(--primary)] font-semibold">
                   {expensesFiltradas.length}{' '}
                   {expensesFiltradas.length === 1 ? 'racha' : 'rachas'}
                 </span>
@@ -878,7 +878,7 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
                         onClick={() => setFiltroStatusGrupo(btn.id)}
                         className={`px-3.5 py-2 rounded-xl text-caption font-semibold whitespace-nowrap transition-all flex items-center gap-1.5 shrink-0 ${
                           isActive
-                            ? 'bg-[#0F766E] text-white shadow-sm'
+                            ? 'bg-[var(--primary)] text-white shadow-sm'
                             : 'bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] border border-[var(--border-color)]'
                         }`}
                       >
@@ -915,7 +915,7 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
                 <div className="ds-card text-center">
                   <p className="text-[var(--text-secondary)] text-caption">
                     Nenhum racha encontrado com o filtro{' '}
-                    <span className="text-[#0F766E] font-semibold">
+                    <span className="text-[var(--primary)] font-semibold">
                       {filtroStatusGrupo === 'a_pagar'
                         ? 'A Pagar'
                         : filtroStatusGrupo === 'a_receber'

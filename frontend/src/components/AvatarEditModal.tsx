@@ -333,7 +333,7 @@ export function AvatarEditModal({
               onTouchStart={handleTouchStart}
               onTouchMove={handleTouchMove}
               onTouchEnd={handleTouchEnd}
-              className={`w-[260px] h-[260px] sm:w-[280px] sm:h-[280px] relative rounded-2xl overflow-hidden bg-slate-950 border-2 border-[#0F766E] select-none touch-none shadow-md cursor-grab ${
+              className={`w-[260px] h-[260px] sm:w-[280px] sm:h-[280px] relative rounded-2xl overflow-hidden bg-slate-950 border-2 border-[var(--primary)] select-none touch-none shadow-md cursor-grab ${
                 isDragging ? 'cursor-grabbing' : ''
               }`}
             >
@@ -416,15 +416,15 @@ export function AvatarEditModal({
               </svg>
 
               {/* Marcadores de cantos */}
-              <div className="absolute top-1.5 left-1.5 w-4 h-4 border-t-2 border-l-2 border-[#0F766E] pointer-events-none" />
-              <div className="absolute top-1.5 right-1.5 w-4 h-4 border-t-2 border-r-2 border-[#0F766E] pointer-events-none" />
-              <div className="absolute bottom-1.5 left-1.5 w-4 h-4 border-b-2 border-l-2 border-[#0F766E] pointer-events-none" />
-              <div className="absolute bottom-1.5 right-1.5 w-4 h-4 border-b-2 border-r-2 border-[#0F766E] pointer-events-none" />
+              <div className="absolute top-1.5 left-1.5 w-4 h-4 border-t-2 border-l-2 border-[var(--primary)] pointer-events-none" />
+              <div className="absolute top-1.5 right-1.5 w-4 h-4 border-t-2 border-r-2 border-[var(--primary)] pointer-events-none" />
+              <div className="absolute bottom-1.5 left-1.5 w-4 h-4 border-b-2 border-l-2 border-[var(--primary)] pointer-events-none" />
+              <div className="absolute bottom-1.5 right-1.5 w-4 h-4 border-b-2 border-r-2 border-[var(--primary)] pointer-events-none" />
             </div>
 
             {/* Dica de arrastar */}
             <div className="flex items-center gap-1.5 mt-3 text-caption text-[var(--text-secondary)]">
-              <Move size={14} strokeWidth={2} className="text-[#0F766E]" />
+              <Move size={14} strokeWidth={2} className="text-[var(--primary)]" />
               <span>Arraste para mover a imagem</span>
             </div>
 
@@ -447,7 +447,7 @@ export function AvatarEditModal({
                 step="0.02"
                 value={zoom}
                 onChange={(e) => handleZoomChange(parseFloat(e.target.value))}
-                className="flex-1 h-1.5 bg-[var(--border-color)] rounded-lg appearance-none cursor-pointer accent-[#0F766E]"
+                className="flex-1 h-1.5 bg-[var(--border-color)] rounded-lg appearance-none cursor-pointer accent-[var(--primary)]"
               />
 
               <button
@@ -465,7 +465,7 @@ export function AvatarEditModal({
               <button
                 type="button"
                 onClick={handleReset}
-                className="p-1.5 text-[var(--text-secondary)] hover:text-[#0F766E] rounded-lg hover:bg-[var(--bg-surface)] active:scale-90 transition-transform"
+                className="p-1.5 text-[var(--text-secondary)] hover:text-[var(--primary)] rounded-lg hover:bg-[var(--bg-surface)] active:scale-90 transition-transform"
                 title="Redefinir enquadramento"
               >
                 <RotateCcw size={15} strokeWidth={2} />
@@ -476,9 +476,9 @@ export function AvatarEditModal({
           /* Estado Vazio - Nenhuma Imagem Selecionada */
           <div
             onClick={() => fileInputRef.current?.click()}
-            className="w-[260px] h-[260px] sm:w-[280px] sm:h-[280px] mx-auto rounded-2xl border-2 border-dashed border-[var(--border-color)] hover:border-[#0F766E] bg-[var(--bg-subtle)] flex flex-col items-center justify-center p-6 text-center cursor-pointer transition-colors group"
+            className="w-[260px] h-[260px] sm:w-[280px] sm:h-[280px] mx-auto rounded-2xl border-2 border-dashed border-[var(--border-color)] hover:border-[var(--primary)] bg-[var(--bg-subtle)] flex flex-col items-center justify-center p-6 text-center cursor-pointer transition-colors group"
           >
-            <div className="w-16 h-16 rounded-full bg-[#0F766E]/10 flex items-center justify-center text-[#0F766E] mb-3 group-hover:scale-105 transition-transform">
+            <div className="w-16 h-16 rounded-full bg-[var(--primary)]/10 flex items-center justify-center text-[var(--primary)] mb-3 group-hover:scale-105 transition-transform">
               <Camera size={28} strokeWidth={2} />
             </div>
             <p className="text-[var(--text-primary)] font-semibold text-body2 mb-1">Escolher imagem</p>
@@ -518,7 +518,7 @@ export function AvatarEditModal({
                   disabled={isSaving || isDeleting}
                   className="flex-1 h-12 px-3 bg-[var(--bg-subtle)] hover:bg-[var(--border-color)] text-[var(--text-primary)] text-body2 font-semibold rounded-xl flex items-center justify-center gap-1.5 border border-[var(--border-color)] transition-colors active:scale-95 disabled:opacity-50"
                 >
-                  <Camera size={16} strokeWidth={2} className="text-[#0F766E]" />
+                  <Camera size={16} strokeWidth={2} className="text-[var(--primary)]" />
                   <span>Trocar foto</span>
                 </button>
 

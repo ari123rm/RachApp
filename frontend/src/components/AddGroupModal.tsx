@@ -157,8 +157,8 @@ export function AddGroupModal({ isOpen, onClose, onSuccess, groupToEdit }: AddGr
               onClick={() => {
                 if (canEditIcon) setIsAvatarModalOpen(true);
               }}
-              className={`w-20 h-20 rounded-full overflow-hidden bg-[#CCFBF1] border-2 border-[#0F766E]/30 flex items-center justify-center relative transition-colors shadow-sm ${
-                canEditIcon ? 'cursor-pointer hover:border-[#0F766E]' : ''
+              className={`w-20 h-20 rounded-full overflow-hidden bg-[var(--primary-light)] border-2 border-[var(--primary)]/30 flex items-center justify-center relative transition-colors shadow-sm ${
+                canEditIcon ? 'cursor-pointer hover:border-[var(--primary)]' : ''
               }`}
             >
               {avatarUrl ? (
@@ -168,7 +168,7 @@ export function AddGroupModal({ isOpen, onClose, onSuccess, groupToEdit }: AddGr
                   className="w-full h-full object-cover"
                 />
               ) : (
-                <Users size={30} strokeWidth={2} className="text-[#0F766E]" />
+                <Users size={30} strokeWidth={2} className="text-[var(--primary)]" />
               )}
             </div>
 
@@ -177,7 +177,7 @@ export function AddGroupModal({ isOpen, onClose, onSuccess, groupToEdit }: AddGr
                 type="button"
                 onClick={() => setIsAvatarModalOpen(true)}
                 title="Alterar ícone do grupo"
-                className="absolute -bottom-0.5 -right-0.5 w-8 h-8 rounded-full bg-[#0F766E] hover:bg-[#115E59] text-white shadow-sm flex items-center justify-center border-2 border-[var(--bg-surface)] transition-transform active:scale-90"
+                className="absolute -bottom-0.5 -right-0.5 w-8 h-8 rounded-full bg-[var(--primary)] hover:bg-[var(--primary-dark)] text-white shadow-sm flex items-center justify-center border-2 border-[var(--bg-surface)] transition-transform active:scale-90"
               >
                 <Pencil size={13} strokeWidth={2} />
               </button>
@@ -189,7 +189,7 @@ export function AddGroupModal({ isOpen, onClose, onSuccess, groupToEdit }: AddGr
               <button
                 type="button"
                 onClick={() => setIsAvatarModalOpen(true)}
-                className="text-xs text-[#0F766E] font-semibold flex items-center gap-1 hover:underline active:scale-95 transition-transform"
+                className="text-xs text-[var(--primary)] font-semibold flex items-center gap-1 hover:underline active:scale-95 transition-transform"
               >
                 <Camera size={13} strokeWidth={2} />
                 {avatarUrl ? 'Editar ícone' : 'Adicionar ícone'}
@@ -223,8 +223,8 @@ export function AddGroupModal({ isOpen, onClose, onSuccess, groupToEdit }: AddGr
             </label>
             <span className="text-xs text-[var(--text-secondary)]">{nome.length}/30</span>
           </div>
-          <div className="h-12 bg-[var(--bg-subtle)] rounded-xl px-4 flex items-center border border-[var(--border-color)] focus-within:border-[#0F766E] focus-within:bg-[var(--bg-surface)] focus-within:ring-2 focus-within:ring-[#0F766E]/15 transition-all">
-            <Users size={18} strokeWidth={2} className="text-[#0F766E] mr-3 shrink-0" />
+          <div className="h-12 bg-[var(--bg-subtle)] rounded-xl px-4 flex items-center border border-[var(--border-color)] focus-within:border-[var(--primary)] focus-within:bg-[var(--bg-surface)] focus-within:ring-2 focus-within:ring-[var(--primary)]/15 transition-all">
+            <Users size={18} strokeWidth={2} className="text-[var(--primary)] mr-3 shrink-0" />
             <input
               type="text"
               placeholder="Ex: Apê República, Viagem..."
@@ -241,7 +241,7 @@ export function AddGroupModal({ isOpen, onClose, onSuccess, groupToEdit }: AddGr
           <div className="flex justify-between items-center mb-3">
             <div className="flex items-center gap-2">
               <label className="text-h2 text-[var(--text-primary)]">Participantes</label>
-              <span className="text-xs bg-[#CCFBF1] text-[#0F766E] font-semibold px-2.5 py-0.5 rounded-full">
+              <span className="text-xs bg-[var(--primary-light)] text-[var(--primary)] font-semibold px-2.5 py-0.5 rounded-full">
                 {totalPessoas} {totalPessoas === 1 ? 'pessoa' : 'pessoas'}
               </span>
             </div>
@@ -249,14 +249,14 @@ export function AddGroupModal({ isOpen, onClose, onSuccess, groupToEdit }: AddGr
             <button
               type="button"
               onClick={() => setIsAddFriendOpen(true)}
-              className="bg-[#CCFBF1] hover:opacity-90 text-[#0F766E] px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1 transition-colors"
+              className="bg-[var(--primary-light)] hover:opacity-90 text-[var(--primary)] px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1 transition-colors"
             >
               <UserPlus size={14} strokeWidth={2} /> Novo Amigo
             </button>
           </div>
 
           {/* Busca de Amigo */}
-          <div className="h-12 bg-[var(--bg-subtle)] rounded-xl px-4 flex items-center text-[var(--text-secondary)] border border-[var(--border-color)] focus-within:border-[#0F766E] focus-within:bg-[var(--bg-surface)] mb-3 transition-all">
+          <div className="h-12 bg-[var(--bg-subtle)] rounded-xl px-4 flex items-center text-[var(--text-secondary)] border border-[var(--border-color)] focus-within:border-[var(--primary)] focus-within:bg-[var(--bg-surface)] mb-3 transition-all">
             <Search size={18} strokeWidth={2} className="mr-3 shrink-0" />
             <input
               type="text"
@@ -269,15 +269,15 @@ export function AddGroupModal({ isOpen, onClose, onSuccess, groupToEdit }: AddGr
 
           {/* Chips de Selecionados */}
           <div className="flex gap-2 overflow-x-auto pb-2 mb-3 scrollbar-hide">
-            <div className="flex items-center gap-1.5 bg-[#CCFBF1] border border-[#0F766E]/20 px-3 py-1.5 rounded-full shrink-0">
-              <div className="w-5 h-5 rounded-full overflow-hidden bg-[#0F766E] text-white text-xs font-bold flex items-center justify-center">
+            <div className="flex items-center gap-1.5 bg-[var(--primary-light)] border border-[var(--primary)]/20 px-3 py-1.5 rounded-full shrink-0">
+              <div className="w-5 h-5 rounded-full overflow-hidden bg-[var(--primary)] text-white text-xs font-bold flex items-center justify-center">
                 {myAvatarUrl ? (
                   <img src={myAvatarUrl} alt="Você" className="w-full h-full object-cover" />
                 ) : (
                   'V'
                 )}
               </div>
-              <span className="text-xs text-[#0F766E] font-semibold">Você</span>
+              <span className="text-xs text-[var(--primary)] font-semibold">Você</span>
             </div>
 
             {amigos
@@ -311,7 +311,7 @@ export function AddGroupModal({ isOpen, onClose, onSuccess, groupToEdit }: AddGr
                     <span className="text-xs text-[var(--text-primary)] font-medium flex items-center gap-1">
                       <span>{nomeAmigo.split(' ')[0]}</span>
                       {(amigo.has_account || amigo.is_registered) && (
-                        <BadgeCheck size={12} strokeWidth={2} className="text-[#0F766E] fill-[#CCFBF1] shrink-0" />
+                        <BadgeCheck size={12} strokeWidth={2} className="text-[var(--primary)] fill-[var(--primary-light)] shrink-0" />
                       )}
                     </span>
                     <X size={12} strokeWidth={2} className="text-[var(--text-secondary)]" />
@@ -328,7 +328,7 @@ export function AddGroupModal({ isOpen, onClose, onSuccess, groupToEdit }: AddGr
                 <button
                   type="button"
                   onClick={() => setIsAddFriendOpen(true)}
-                  className="text-xs text-[#0F766E] font-semibold hover:underline"
+                  className="text-xs text-[var(--primary)] font-semibold hover:underline"
                 >
                   + Cadastrar novo amigo agora
                 </button>
@@ -345,8 +345,8 @@ export function AddGroupModal({ isOpen, onClose, onSuccess, groupToEdit }: AddGr
                     onClick={() => toggleAmigo(amigo.id)}
                     className={`flex items-center justify-between p-3 rounded-xl border cursor-pointer transition-colors ${
                       isSelected
-                        ? 'bg-[#CCFBF1]/40 border-[#0F766E]/40'
-                        : 'bg-[var(--bg-subtle)] border-[var(--border-color)] hover:border-[#0F766E]/30'
+                        ? 'bg-[var(--primary-light)]/40 border-[var(--primary)]/40'
+                        : 'bg-[var(--bg-subtle)] border-[var(--border-color)] hover:border-[var(--primary)]/30'
                     }`}
                   >
                     <div className="flex items-center gap-3">
@@ -372,7 +372,7 @@ export function AddGroupModal({ isOpen, onClose, onSuccess, groupToEdit }: AddGr
                             {nomeAmigo}
                           </span>
                           {(amigo.has_account || amigo.is_registered) && (
-                            <BadgeCheck size={15} strokeWidth={2} className="text-[#0F766E] fill-[#CCFBF1] shrink-0" />
+                            <BadgeCheck size={15} strokeWidth={2} className="text-[var(--primary)] fill-[var(--primary-light)] shrink-0" />
                           )}
                         </div>
                         {telFormatado && (
@@ -384,7 +384,7 @@ export function AddGroupModal({ isOpen, onClose, onSuccess, groupToEdit }: AddGr
                     <div
                       className={`w-6 h-6 rounded-full flex items-center justify-center transition-colors ${
                         isSelected
-                          ? 'bg-[#0F766E] text-white'
+                          ? 'bg-[var(--primary)] text-white'
                           : 'border-2 border-[var(--border-color)] bg-transparent'
                       }`}
                     >

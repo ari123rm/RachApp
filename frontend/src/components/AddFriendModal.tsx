@@ -175,7 +175,7 @@ export function AddFriendModal({ isOpen, onClose, onSuccess, friendToEdit }: Add
           <label className="block text-[var(--text-secondary)] text-xs uppercase font-semibold mb-2">
             Nome do Amigo
           </label>
-          <div className="h-12 bg-[var(--bg-subtle)] rounded-xl px-4 flex items-center border border-[var(--border-color)] focus-within:border-[#0F766E] focus-within:bg-[var(--bg-surface)] focus-within:ring-2 focus-within:ring-[#0F766E]/15 transition-all">
+          <div className="h-12 bg-[var(--bg-subtle)] rounded-xl px-4 flex items-center border border-[var(--border-color)] focus-within:border-[var(--primary)] focus-within:bg-[var(--bg-surface)] focus-within:ring-2 focus-within:ring-[var(--primary)]/15 transition-all">
             <User size={18} strokeWidth={2} className="text-[var(--text-secondary)] mr-3 shrink-0" />
             <input
               type="text"
@@ -196,7 +196,7 @@ export function AddFriendModal({ isOpen, onClose, onSuccess, friendToEdit }: Add
           <label className="block text-[var(--text-secondary)] text-xs uppercase font-semibold mb-2">
             WhatsApp com DDD (Opcional)
           </label>
-          <div className="h-12 bg-[var(--bg-subtle)] rounded-xl px-4 flex items-center border border-[var(--border-color)] focus-within:border-[#0F766E] focus-within:bg-[var(--bg-surface)] focus-within:ring-2 focus-within:ring-[#0F766E]/15 transition-all">
+          <div className="h-12 bg-[var(--bg-subtle)] rounded-xl px-4 flex items-center border border-[var(--border-color)] focus-within:border-[var(--primary)] focus-within:bg-[var(--bg-surface)] focus-within:ring-2 focus-within:ring-[var(--primary)]/15 transition-all">
             <Phone size={18} strokeWidth={2} className="text-[var(--text-secondary)] mr-3 shrink-0" />
             <input
               type="tel"
@@ -214,7 +214,7 @@ export function AddFriendModal({ isOpen, onClose, onSuccess, friendToEdit }: Add
           <label className="block text-[var(--text-secondary)] text-xs uppercase font-semibold mb-2">
             Chave Pix do Amigo (Opcional)
           </label>
-          <div className="h-12 bg-[var(--bg-subtle)] rounded-xl px-4 flex items-center border border-[var(--border-color)] focus-within:border-[#0F766E] focus-within:bg-[var(--bg-surface)] focus-within:ring-2 focus-within:ring-[#0F766E]/15 transition-all">
+          <div className="h-12 bg-[var(--bg-subtle)] rounded-xl px-4 flex items-center border border-[var(--border-color)] focus-within:border-[var(--primary)] focus-within:bg-[var(--bg-surface)] focus-within:ring-2 focus-within:ring-[var(--primary)]/15 transition-all">
             <QrCode size={18} strokeWidth={2} className="text-[var(--text-secondary)] mr-3 shrink-0" />
             <input
               type="text"
@@ -245,7 +245,7 @@ export function AddFriendModal({ isOpen, onClose, onSuccess, friendToEdit }: Add
               }}
               className={`text-xs px-3 py-1 rounded-full font-semibold transition-all flex items-center gap-1.5 active:scale-95 border ${
                 isCustomMode
-                  ? 'bg-[#CCFBF1] text-[#0F766E] border-[#0F766E]/30'
+                  ? 'bg-[var(--primary-light)] text-[var(--primary)] border-[var(--primary)]/30'
                   : 'bg-[var(--bg-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] border-[var(--border-color)]'
               }`}
             >
@@ -274,7 +274,7 @@ export function AddFriendModal({ isOpen, onClose, onSuccess, friendToEdit }: Add
                     }}
                     className={`aspect-square w-full rounded-full transition-all duration-150 relative flex items-center justify-center active:scale-90 shadow-sm ${
                       isActive
-                        ? 'scale-110 ring-2 ring-[#0F766E] ring-offset-2 ring-offset-[var(--bg-subtle)] shadow-md z-10'
+                        ? 'scale-110 ring-2 ring-[var(--primary)] ring-offset-2 ring-offset-[var(--bg-subtle)] shadow-md z-10'
                         : 'opacity-85 hover:opacity-100 hover:scale-105'
                     }`}
                   >
@@ -326,7 +326,7 @@ export function AddFriendModal({ isOpen, onClose, onSuccess, friendToEdit }: Add
                   style={{ backgroundColor: getAvatarColor(corSelecionada) }}
                   className="w-10 h-10 rounded-full border border-[var(--border-color)] shrink-0 shadow-sm transition-colors duration-200"
                 />
-                <div className="flex-1 bg-[var(--bg-surface)] rounded-xl px-3 py-2 flex items-center border border-[var(--border-color)] focus-within:border-[#0F766E] transition-colors">
+                <div className="flex-1 bg-[var(--bg-surface)] rounded-xl px-3 py-2 flex items-center border border-[var(--border-color)] focus-within:border-[var(--primary)] transition-colors">
                   <span className="text-[var(--text-secondary)] text-sm font-mono mr-1">#</span>
                   <input
                     type="text"

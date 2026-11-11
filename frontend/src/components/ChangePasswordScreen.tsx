@@ -116,7 +116,7 @@ export function ChangePasswordScreen({
 
         <div className="p-6 overflow-y-auto flex-1">
           <div className="text-center mb-5">
-            <div className="w-14 h-14 bg-[#CCFBF1] text-[#0F766E] rounded-full mx-auto mb-3 flex items-center justify-center">
+            <div className="w-14 h-14 bg-[var(--primary-light)] text-[var(--primary)] rounded-full mx-auto mb-3 flex items-center justify-center">
               <KeyRound size={24} strokeWidth={2} />
             </div>
             <h3 className="text-h1 text-[var(--text-primary)]">Segurança da Conta</h3>
@@ -137,7 +137,7 @@ export function ChangePasswordScreen({
               }}
               className={`flex-1 py-2.5 rounded-lg text-xs font-semibold transition-colors ${
                 mode === 'change'
-                  ? 'bg-[#0F766E] text-white'
+                  ? 'bg-[var(--primary)] text-white'
                   : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
               }`}
             >
@@ -151,7 +151,7 @@ export function ChangePasswordScreen({
               }}
               className={`flex-1 py-2.5 rounded-lg text-xs font-semibold transition-colors ${
                 mode === 'reset'
-                  ? 'bg-[#0F766E] text-white'
+                  ? 'bg-[var(--primary)] text-white'
                   : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
               }`}
             >
@@ -179,7 +179,7 @@ export function ChangePasswordScreen({
                 <label className="block text-[var(--text-secondary)] text-xs uppercase font-semibold mb-1.5">
                   Senha Atual
                 </label>
-                <div className="h-12 bg-[var(--bg-subtle)] rounded-xl px-4 flex items-center border border-[var(--border-color)] focus-within:border-[#0F766E] focus-within:bg-[var(--bg-surface)] transition-all">
+                <div className="h-12 bg-[var(--bg-subtle)] rounded-xl px-4 flex items-center border border-[var(--border-color)] focus-within:border-[var(--primary)] focus-within:bg-[var(--bg-surface)] transition-all">
                   <Lock size={18} strokeWidth={2} className="text-[var(--text-secondary)] mr-3 shrink-0" />
                   <input
                     type="password"
@@ -195,7 +195,7 @@ export function ChangePasswordScreen({
                 <label className="block text-[var(--text-secondary)] text-xs uppercase font-semibold mb-1.5">
                   Seu E-mail ou WhatsApp
                 </label>
-                <div className="h-12 bg-[var(--bg-subtle)] rounded-xl px-4 flex items-center border border-[var(--border-color)] focus-within:border-[#0F766E] focus-within:bg-[var(--bg-surface)] transition-all">
+                <div className="h-12 bg-[var(--bg-subtle)] rounded-xl px-4 flex items-center border border-[var(--border-color)] focus-within:border-[var(--primary)] focus-within:bg-[var(--bg-surface)] transition-all">
                   <Lock size={18} strokeWidth={2} className="text-[var(--text-secondary)] mr-3 shrink-0" />
                   <input
                     type="text"
@@ -212,7 +212,7 @@ export function ChangePasswordScreen({
               <label className="block text-[var(--text-secondary)] text-xs uppercase font-semibold mb-1.5">
                 Nova Senha
               </label>
-              <div className="h-12 bg-[var(--bg-subtle)] rounded-xl px-4 flex items-center border border-[var(--border-color)] focus-within:border-[#0F766E] focus-within:bg-[var(--bg-surface)] transition-all">
+              <div className="h-12 bg-[var(--bg-subtle)] rounded-xl px-4 flex items-center border border-[var(--border-color)] focus-within:border-[var(--primary)] focus-within:bg-[var(--bg-surface)] transition-all">
                 <Lock size={18} strokeWidth={2} className="text-[var(--text-secondary)] mr-3 shrink-0" />
                 <input
                   type="password"
@@ -228,7 +228,7 @@ export function ChangePasswordScreen({
               <label className="block text-[var(--text-secondary)] text-xs uppercase font-semibold mb-1.5">
                 Confirmar Nova Senha
               </label>
-              <div className="h-12 bg-[var(--bg-subtle)] rounded-xl px-4 flex items-center border border-[var(--border-color)] focus-within:border-[#0F766E] focus-within:bg-[var(--bg-surface)] transition-all">
+              <div className="h-12 bg-[var(--bg-subtle)] rounded-xl px-4 flex items-center border border-[var(--border-color)] focus-within:border-[var(--primary)] focus-within:bg-[var(--bg-surface)] transition-all">
                 <Lock size={18} strokeWidth={2} className="text-[var(--text-secondary)] mr-3 shrink-0" />
                 <input
                   type="password"

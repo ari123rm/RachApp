@@ -251,8 +251,8 @@ export function AssignReceiptModal({
         onClick={() => handleChooseFriend(amigo, true)}
         className={`p-3.5 rounded-2xl border transition-all cursor-pointer flex items-center justify-between gap-3 active:scale-[0.99] ${
           isSelected
-            ? 'bg-[#0F766E]/10 border-[#0F766E] shadow-sm'
-            : 'bg-[var(--bg-subtle)] border-[var(--border-color)] hover:border-[#0F766E]/40'
+            ? 'bg-[var(--primary)]/10 border-[var(--primary)] shadow-sm'
+            : 'bg-[var(--bg-subtle)] border-[var(--border-color)] hover:border-[var(--primary)]/40'
         }`}
       >
         <div className="flex items-center gap-3 min-w-0">
@@ -272,7 +272,7 @@ export function AssignReceiptModal({
                 {nomeAmigo}
               </h4>
               {(amigo.has_account || amigo.is_registered) && (
-                <BadgeCheck size={15} strokeWidth={2} className="text-[#0F766E] shrink-0" />
+                <BadgeCheck size={15} strokeWidth={2} className="text-[var(--primary)] shrink-0" />
               )}
             </div>
             <p className="text-caption text-[var(--text-secondary)] truncate">
@@ -336,7 +336,7 @@ export function AssignReceiptModal({
                   <ChevronLeft size={22} strokeWidth={2} />
                 </button>
               ) : (
-                <div className="w-10 h-10 rounded-full bg-[#0F766E]/10 text-[#0F766E] flex items-center justify-center">
+                <div className="w-10 h-10 rounded-full bg-[var(--primary)]/10 text-[var(--primary)] flex items-center justify-center">
                   <Sparkles size={20} strokeWidth={2} />
                 </div>
               )}
@@ -379,9 +379,9 @@ export function AssignReceiptModal({
                   key={item.num}
                   className={`py-2 px-2 rounded-xl text-center text-caption font-semibold border transition-all flex items-center justify-center gap-1 ${
                     isCurrent
-                      ? 'bg-[#0F766E] border-[#0F766E] text-white'
+                      ? 'bg-[var(--primary)] border-[var(--primary)] text-white'
                       : isDone
-                      ? 'bg-[#0F766E]/10 border-[#0F766E]/30 text-[#0F766E]'
+                      ? 'bg-[var(--primary)]/10 border-[var(--primary)]/30 text-[var(--primary)]'
                       : 'bg-[var(--bg-subtle)] border-[var(--border-color)] text-[var(--text-secondary)]'
                   }`}
                 >
@@ -408,7 +408,7 @@ export function AssignReceiptModal({
               {/* Mini barra do comprovante */}
               <div
                 onClick={() => setIsPreviewOpen(true)}
-                className="bg-[var(--bg-subtle)] rounded-2xl p-3 border border-[var(--border-color)] flex items-center justify-between gap-3 cursor-pointer hover:border-[#0F766E]/40 transition-colors"
+                className="bg-[var(--bg-subtle)] rounded-2xl p-3 border border-[var(--border-color)] flex items-center justify-between gap-3 cursor-pointer hover:border-[var(--primary)]/40 transition-colors"
               >
                 <div className="flex items-center gap-3 min-w-0">
                   <div className="w-12 h-12 rounded-xl overflow-hidden bg-slate-950 border border-[var(--border-color)] shrink-0">
@@ -419,7 +419,7 @@ export function AssignReceiptModal({
                     />
                   </div>
                   <div className="min-w-0">
-                    <p className="text-caption font-semibold text-[#0F766E] flex items-center gap-1">
+                    <p className="text-caption font-semibold text-[var(--primary)] flex items-center gap-1">
                       <FileCheck2 size={14} strokeWidth={2} /> Comprovante carregado
                     </p>
                     <p className="text-caption text-[var(--text-secondary)] truncate">
@@ -432,7 +432,7 @@ export function AssignReceiptModal({
 
               {/* Busca de amigos */}
               {amigos.length > 3 && (
-                <div className="bg-[var(--bg-subtle)] rounded-xl h-12 px-4 flex items-center gap-2 border border-[var(--border-color)] focus-within:border-[#0F766E]">
+                <div className="bg-[var(--bg-subtle)] rounded-xl h-12 px-4 flex items-center gap-2 border border-[var(--border-color)] focus-within:border-[var(--primary)]">
                   <Search size={18} strokeWidth={2} className="text-[var(--text-secondary)]" />
                   <input
                     type="text"
@@ -453,7 +453,7 @@ export function AssignReceiptModal({
               )}
 
               {isLoading ? (
-                <div className="flex items-center justify-center py-10 text-[#0F766E]">
+                <div className="flex items-center justify-center py-10 text-[var(--primary)]">
                   <LoaderCircle size={28} strokeWidth={2} className="animate-spin mr-2" />
                   <span className="text-caption text-[var(--text-secondary)]">Carregando amigos...</span>
                 </div>
@@ -545,7 +545,7 @@ export function AssignReceiptModal({
                 <button
                   type="button"
                   onClick={() => setStep(1)}
-                  className="text-caption font-semibold text-[#0F766E] hover:underline px-3 py-1.5 rounded-xl bg-[#0F766E]/10 shrink-0"
+                  className="text-caption font-semibold text-[var(--primary)] hover:underline px-3 py-1.5 rounded-xl bg-[var(--primary)]/10 shrink-0"
                 >
                   Trocar
                 </button>
@@ -554,19 +554,19 @@ export function AssignReceiptModal({
               {/* Input de Valor em destaque */}
               <div className="bg-[var(--bg-subtle)] rounded-2xl p-5 border border-[var(--border-color)] text-center space-y-3">
                 <label className="text-caption uppercase font-semibold tracking-wider text-[var(--text-secondary)] flex items-center justify-center gap-1">
-                  <DollarSign size={14} strokeWidth={2} className="text-[#0F766E]" />
+                  <DollarSign size={14} strokeWidth={2} className="text-[var(--primary)]" />
                   Qual o valor deste comprovante?
                 </label>
 
                 <div className="flex items-center justify-center gap-1.5">
-                  <span className="text-h1 font-bold text-[#0F766E]">R$</span>
+                  <span className="text-h1 font-bold text-[var(--primary)]">R$</span>
                   <input
                     type="tel"
                     value={amountStr}
                     onChange={handleAmountChange}
                     placeholder="0,00"
                     autoFocus
-                    className="bg-[var(--bg-surface)] border border-[var(--border-color)] focus:border-[#0F766E] rounded-xl py-2.5 px-4 text-display font-bold text-[var(--text-primary)] text-center w-48 outline-none transition-colors"
+                    className="bg-[var(--bg-surface)] border border-[var(--border-color)] focus:border-[var(--primary)] rounded-xl py-2.5 px-4 text-display font-bold text-[var(--text-primary)] text-center w-48 outline-none transition-colors"
                   />
                 </div>
 
@@ -576,7 +576,7 @@ export function AssignReceiptModal({
                     <button
                       type="button"
                       onClick={() => setAmountStr(moneyConverter(selectedSaldoReferencia))}
-                      className="text-caption font-semibold bg-[#0F766E]/10 hover:bg-[#0F766E]/20 text-[#0F766E] px-3 py-1.5 rounded-full transition-colors"
+                      className="text-caption font-semibold bg-[var(--primary)]/10 hover:bg-[var(--primary)]/20 text-[var(--primary)] px-3 py-1.5 rounded-full transition-colors"
                     >
                       Total (R$ {moneyConverter(selectedSaldoReferencia)})
                     </button>
@@ -601,7 +601,7 @@ export function AssignReceiptModal({
               {/* Preview do comprovante para consulta rápida do valor */}
               <div
                 onClick={() => setIsPreviewOpen(true)}
-                className="bg-[var(--bg-subtle)] rounded-2xl p-3 border border-[var(--border-color)] flex items-center gap-3 cursor-pointer hover:border-[#0F766E]/40 transition-colors"
+                className="bg-[var(--bg-subtle)] rounded-2xl p-3 border border-[var(--border-color)] flex items-center gap-3 cursor-pointer hover:border-[var(--primary)]/40 transition-colors"
               >
                 <div className="w-14 h-16 rounded-xl overflow-hidden bg-slate-950 border border-[var(--border-color)] shrink-0">
                   <img
@@ -612,7 +612,7 @@ export function AssignReceiptModal({
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-caption font-semibold text-[var(--text-primary)] flex items-center gap-1.5">
-                    <Eye size={14} strokeWidth={2} className="text-[#0F766E]" /> Conferir imagem do comprovante
+                    <Eye size={14} strokeWidth={2} className="text-[var(--primary)]" /> Conferir imagem do comprovante
                   </p>
                   <p className="text-caption text-[var(--text-secondary)] mt-0.5">
                     Toque para abrir o comprovante em tela cheia e verificar o valor exato.
@@ -657,7 +657,7 @@ export function AssignReceiptModal({
                   <span className="text-caption text-[var(--text-secondary)] font-semibold">
                     Valor do Comprovante
                   </span>
-                  <span className="text-h2 font-display font-bold text-[#0F766E]">
+                  <span className="text-h2 font-display font-bold text-[var(--primary)]">
                     R$ {moneyConverter(valorNumerico)}
                   </span>
                 </div>
@@ -700,8 +700,8 @@ export function AssignReceiptModal({
                 </div>
               </div>
 
-              <div className="bg-[#0F766E]/10 border border-[#0F766E]/25 rounded-2xl p-3.5 flex items-center gap-2.5 text-caption text-[var(--text-primary)]">
-                <ShieldCheck size={18} strokeWidth={2} className="text-[#0F766E] shrink-0" />
+              <div className="bg-[var(--primary)]/10 border border-[var(--primary)]/25 rounded-2xl p-3.5 flex items-center gap-2.5 text-caption text-[var(--text-primary)]">
+                <ShieldCheck size={18} strokeWidth={2} className="text-[var(--primary)] shrink-0" />
                 <span>
                   Ao confirmar, o comprovante ficará salvo nos rachas quitados com{' '}
                   <strong>{selectedName.split(' ')[0]}</strong> e você será direcionado para a Home.

@@ -450,7 +450,7 @@ export function AddRideModal({
           <label className="block text-[var(--text-secondary)] text-caption uppercase font-semibold mb-1.5">
             Título / Descrição
           </label>
-          <div className="bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-xl h-12 px-4 flex items-center text-[var(--text-primary)] mb-2 focus-within:border-[#0F766E] focus-within:ring-2 focus-within:ring-[#0F766E]/20 transition-all">
+          <div className="bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-xl h-12 px-4 flex items-center text-[var(--text-primary)] mb-2 focus-within:border-[var(--primary)] focus-within:ring-2 focus-within:ring-[var(--primary)]/20 transition-all">
             <input
               type="text"
               placeholder="Ex: Eletra, Internet Fibra, Jantar..."
@@ -467,7 +467,7 @@ export function AddRideModal({
                 onClick={() => setTitulo(sugestao)}
                 className={`whitespace-nowrap px-3 py-1 rounded-full text-caption font-semibold border transition-colors shrink-0 active:scale-95 ${
                   titulo === sugestao
-                    ? 'bg-[#0F766E] border-[#0F766E] text-white'
+                    ? 'bg-[var(--primary)] border-[var(--primary)] text-white'
                     : 'bg-[var(--bg-subtle)] border-[var(--border-color)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
                 }`}
               >
@@ -484,12 +484,12 @@ export function AddRideModal({
               Valor Total
             </label>
             {splitMode === 'equal' && valorPorPessoaIgual > 0 && (
-              <span className="text-caption text-[#0F766E] font-semibold tabular-nums">
+              <span className="text-caption text-[var(--primary)] font-semibold tabular-nums">
                 R$ {moneyConverter(valorPorPessoaIgual)} / pessoa ({qtdTotalPessoas}x)
               </span>
             )}
           </div>
-          <div className="bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-xl h-12 px-4 flex items-center focus-within:border-[#0F766E] focus-within:ring-2 focus-within:ring-[#0F766E]/20 transition-all">
+          <div className="bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-xl h-12 px-4 flex items-center focus-within:border-[var(--primary)] focus-within:ring-2 focus-within:ring-[var(--primary)]/20 transition-all">
             <span className="text-[var(--text-secondary)] text-h2 mr-2 font-semibold">R$</span>
             <input
               type="tel"
@@ -507,7 +507,7 @@ export function AddRideModal({
             <label className="block text-[var(--text-secondary)] text-caption uppercase font-semibold mb-1.5">
               Data
             </label>
-            <div className="bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-xl h-12 px-4 flex items-center text-[var(--text-primary)] focus-within:border-[#0F766E]">
+            <div className="bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-xl h-12 px-4 flex items-center text-[var(--text-primary)] focus-within:border-[var(--primary)]">
               <input
                 type="date"
                 value={data}
@@ -521,7 +521,7 @@ export function AddRideModal({
             <label className="block text-[var(--text-secondary)] text-caption uppercase font-semibold mb-1.5">
               Categoria / Tag
             </label>
-            <div className="bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-xl h-12 px-4 flex items-center text-[var(--text-primary)] mb-1.5 focus-within:border-[#0F766E]">
+            <div className="bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-xl h-12 px-4 flex items-center text-[var(--text-primary)] mb-1.5 focus-within:border-[var(--primary)]">
               <input
                 type="text"
                 placeholder="Uber"
@@ -538,7 +538,7 @@ export function AddRideModal({
                   onClick={() => setTag(sugestao)}
                   className={`px-2.5 py-0.5 rounded-lg text-caption font-semibold border transition-colors active:scale-95 ${
                     tag === sugestao
-                      ? 'bg-[#0F766E] border-[#0F766E] text-white'
+                      ? 'bg-[var(--primary)] border-[var(--primary)] text-white'
                       : 'bg-[var(--bg-subtle)] border-[var(--border-color)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
                   }`}
                 >
@@ -553,12 +553,12 @@ export function AddRideModal({
         {grupos.length > 0 && (
           <div className="mb-4">
             <label className="text-[var(--text-secondary)] text-caption uppercase font-semibold mb-1.5 flex items-center gap-1.5">
-              <UsersRound size={14} strokeWidth={2} className="text-[#0F766E]" /> Grupo (Opcional)
+              <UsersRound size={14} strokeWidth={2} className="text-[var(--primary)]" /> Grupo (Opcional)
             </label>
             <select
               value={groupId}
               onChange={(e) => handleGroupChange(e.target.value)}
-              className="w-full h-12 bg-[var(--bg-subtle)] text-[var(--text-primary)] rounded-xl px-4 text-body2 outline-none border border-[var(--border-color)] focus:border-[#0F766E]"
+              className="w-full h-12 bg-[var(--bg-subtle)] text-[var(--text-primary)] rounded-xl px-4 text-body2 outline-none border border-[var(--border-color)] focus:border-[var(--primary)]"
             >
               <option value="">Racha Avulso (Sem Grupo)</option>
               {grupos.map((g) => (
@@ -588,7 +588,7 @@ export function AddRideModal({
                     inicializarDivisaoIgual(todosIds, valorNumerico);
                   }
                 }}
-                className="text-caption text-[#0F766E] font-semibold hover:underline"
+                className="text-caption text-[var(--primary)] font-semibold hover:underline"
               >
                 {selecionados.length === amigosReais.length ? 'Limpar' : 'Selecionar todos'}
               </button>
@@ -597,7 +597,7 @@ export function AddRideModal({
 
           {isLoadingAmigos ? (
             <div className="flex justify-center p-4">
-              <LoaderCircle className="animate-spin text-[#0F766E]" />
+              <LoaderCircle className="animate-spin text-[var(--primary)]" />
             </div>
           ) : (
             <div className="flex flex-wrap gap-2">
@@ -617,7 +617,7 @@ export function AddRideModal({
                       onClick={() => toggleAmigo(amigo.id)}
                       className={`flex items-center gap-2 px-3 py-2 rounded-full border transition-all ${
                         isSelected
-                          ? 'border-[#0F766E] bg-[#0F766E]/10 text-[var(--text-primary)] font-semibold'
+                          ? 'border-[var(--primary)] bg-[var(--primary)]/10 text-[var(--text-primary)] font-semibold'
                           : 'border-[var(--border-color)] bg-[var(--bg-subtle)] text-[var(--text-secondary)]'
                       }`}
                     >
@@ -629,7 +629,7 @@ export function AddRideModal({
                       </div>
                       <span className="text-body2">{nomeAmigo}</span>
                       {(amigo.has_account || amigo.is_registered) && (
-                        <BadgeCheck size={14} strokeWidth={2} className="text-[#0F766E] shrink-0" />
+                        <BadgeCheck size={14} strokeWidth={2} className="text-[var(--primary)] shrink-0" />
                       )}
                     </button>
                   );
@@ -652,7 +652,7 @@ export function AddRideModal({
                   onClick={() => handleModeSwitch('equal')}
                   className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-caption font-semibold transition-colors active:scale-95 ${
                     splitMode === 'equal'
-                      ? 'bg-[#0F766E] text-white'
+                      ? 'bg-[var(--primary)] text-white'
                       : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
                   }`}
                 >
@@ -663,7 +663,7 @@ export function AddRideModal({
                   onClick={() => handleModeSwitch('percent')}
                   className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-caption font-semibold transition-colors active:scale-95 ${
                     splitMode === 'percent'
-                      ? 'bg-[#0F766E] text-white'
+                      ? 'bg-[var(--primary)] text-white'
                       : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
                   }`}
                 >
@@ -674,7 +674,7 @@ export function AddRideModal({
                   onClick={() => handleModeSwitch('amount')}
                   className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-caption font-semibold transition-colors active:scale-95 ${
                     splitMode === 'amount'
-                      ? 'bg-[#0F766E] text-white'
+                      ? 'bg-[var(--primary)] text-white'
                       : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
                   }`}
                 >
@@ -687,7 +687,7 @@ export function AddRideModal({
               <p className="text-caption text-[var(--text-secondary)]">
                 Divisão igualitária entre{' '}
                 <strong className="text-[var(--text-primary)]">{qtdTotalPessoas} pessoas</strong>:{' '}
-                <strong className="text-[#0F766E] tabular-nums">
+                <strong className="text-[var(--primary)] tabular-nums">
                   R$ {moneyConverter(valorPorPessoaIgual)}
                 </strong>{' '}
                 ({(100 / qtdTotalPessoas).toFixed(1)}%) para cada.
@@ -727,7 +727,7 @@ export function AddRideModal({
                           </div>
                         </div>
 
-                        <div className="flex items-center gap-1.5 bg-[var(--bg-subtle)] px-2.5 py-1.5 rounded-lg border border-[var(--border-color)] focus-within:border-[#0F766E] shrink-0">
+                        <div className="flex items-center gap-1.5 bg-[var(--bg-subtle)] px-2.5 py-1.5 rounded-lg border border-[var(--border-color)] focus-within:border-[var(--primary)] shrink-0">
                           {splitMode === 'amount' && (
                             <span className="text-caption text-[var(--text-secondary)] font-semibold">
                               R$
@@ -750,7 +750,7 @@ export function AddRideModal({
                             className="w-16 sm:w-20 bg-transparent text-right text-[var(--text-primary)] text-caption font-bold outline-none tabular-nums"
                           />
                           {splitMode === 'percent' && (
-                            <span className="text-caption text-[#0F766E] font-bold">%</span>
+                            <span className="text-caption text-[var(--primary)] font-bold">%</span>
                           )}
                         </div>
                       </div>
@@ -758,9 +758,9 @@ export function AddRideModal({
                   })}
 
                 {/* Linha Você */}
-                <div className="flex items-center justify-between bg-[var(--bg-surface)] px-3 py-2.5 rounded-xl border border-[#0F766E]/30 gap-2">
+                <div className="flex items-center justify-between bg-[var(--bg-surface)] px-3 py-2.5 rounded-xl border border-[var(--primary)]/30 gap-2">
                   <div className="flex items-center gap-2 min-w-0 flex-1">
-                    <div className="w-7 h-7 rounded-full bg-[#0F766E] flex items-center justify-center text-caption text-white font-bold shrink-0">
+                    <div className="w-7 h-7 rounded-full bg-[var(--primary)] flex items-center justify-center text-caption text-white font-bold shrink-0">
                       V
                     </div>
                     <div className="min-w-0 truncate">
@@ -775,7 +775,7 @@ export function AddRideModal({
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-1.5 bg-[var(--bg-subtle)] px-2.5 py-1.5 rounded-lg border border-[var(--border-color)] focus-within:border-[#0F766E] shrink-0">
+                  <div className="flex items-center gap-1.5 bg-[var(--bg-subtle)] px-2.5 py-1.5 rounded-lg border border-[var(--border-color)] focus-within:border-[var(--primary)] shrink-0">
                     {splitMode === 'amount' && (
                       <span className="text-caption text-[var(--text-secondary)] font-semibold">
                         R$
@@ -794,7 +794,7 @@ export function AddRideModal({
                       className="w-16 sm:w-20 bg-transparent text-right text-[var(--text-primary)] text-caption font-bold outline-none tabular-nums"
                     />
                     {splitMode === 'percent' && (
-                      <span className="text-caption text-[#0F766E] font-bold">%</span>
+                      <span className="text-caption text-[var(--primary)] font-bold">%</span>
                     )}
                   </div>
                 </div>
@@ -825,7 +825,7 @@ export function AddRideModal({
                       <button
                         type="button"
                         onClick={handleAjustarRestanteEmVoce}
-                        className="text-caption text-[#0F766E] hover:underline font-semibold active:scale-95"
+                        className="text-caption text-[var(--primary)] hover:underline font-semibold active:scale-95"
                       >
                         Ajustar em Você
                       </button>
@@ -844,7 +844,7 @@ export function AddRideModal({
                         <button
                           type="button"
                           onClick={handleAjustarRestanteEmVoce}
-                          className="text-caption text-[#0F766E] hover:underline font-semibold active:scale-95"
+                          className="text-caption text-[var(--primary)] hover:underline font-semibold active:scale-95"
                         >
                           Ajustar em Você
                         </button>
@@ -860,7 +860,7 @@ export function AddRideModal({
         {selecionados.length > 0 && (
           <div className="mb-6">
             <label className="text-[var(--text-secondary)] text-caption uppercase font-semibold mb-1.5 flex items-center gap-1.5">
-              <Wallet size={14} strokeWidth={2} className="text-[#0F766E]" /> Quem pagou esta conta?
+              <Wallet size={14} strokeWidth={2} className="text-[var(--primary)]" /> Quem pagou esta conta?
             </label>
             <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
               <button
@@ -868,7 +868,7 @@ export function AddRideModal({
                 onClick={() => setPaidByFriendId('')}
                 className={`px-3.5 py-2 rounded-xl text-caption font-semibold border transition-colors shrink-0 active:scale-95 ${
                   paidByFriendId === ''
-                    ? 'bg-[#0F766E] text-white border-[#0F766E]'
+                    ? 'bg-[var(--primary)] text-white border-[var(--primary)]'
                     : 'bg-[var(--bg-subtle)] text-[var(--text-secondary)] border-[var(--border-color)]'
                 }`}
               >
@@ -886,7 +886,7 @@ export function AddRideModal({
                       onClick={() => setPaidByFriendId(amigo.id)}
                       className={`px-3.5 py-2 rounded-xl text-caption font-semibold border transition-colors shrink-0 active:scale-95 ${
                         isPayer
-                          ? 'bg-[#0F766E] text-white border-[#0F766E]'
+                          ? 'bg-[var(--primary)] text-white border-[var(--primary)]'
                           : 'bg-[var(--bg-subtle)] text-[var(--text-secondary)] border-[var(--border-color)]'
                       }`}
                     >
@@ -896,7 +896,7 @@ export function AddRideModal({
                           <BadgeCheck
                             size={12}
                             strokeWidth={2}
-                            className={isPayer ? 'text-white shrink-0' : 'text-[#0F766E] shrink-0'}
+                            className={isPayer ? 'text-white shrink-0' : 'text-[var(--primary)] shrink-0'}
                           />
                         )}
                       </span>

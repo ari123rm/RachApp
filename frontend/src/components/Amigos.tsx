@@ -415,7 +415,7 @@ export function Amigos({
 
   if (isLoading) {
     return (
-      <div className="flex flex-col items-center justify-center h-64 text-[#0F766E]">
+      <div className="flex flex-col items-center justify-center h-64 text-[var(--primary)]">
         <LoaderCircle size={40} strokeWidth={2} className="animate-spin mb-4" />
         <p className="text-sm font-medium text-[var(--text-secondary)]">
           Carregando amigos e grupos...
@@ -435,7 +435,7 @@ export function Amigos({
         <div className="flex items-center justify-between gap-2">
           <div className="relative bg-[var(--bg-subtle)] p-1 rounded-xl flex items-center border border-[var(--border-color)] flex-1">
             <div
-              className={`absolute top-1 bottom-1 w-[calc(50%-4px)] bg-[#0F766E] rounded-lg transition-all duration-300 ease-out shadow-sm ${
+              className={`absolute top-1 bottom-1 w-[calc(50%-4px)] bg-[var(--primary)] rounded-lg transition-all duration-300 ease-out shadow-sm ${
                 subTab === 'amigos' ? 'left-1' : 'left-[calc(50%+2px)]'
               }`}
             />
@@ -473,7 +473,7 @@ export function Amigos({
         </div>
 
         {/* Barra de Busca Dinâmica (48px height, 12px radius) */}
-        <div className="h-12 bg-[var(--bg-surface)] rounded-xl flex items-center px-4 text-[var(--text-secondary)] border border-[var(--border-color)] focus-within:border-[#0F766E] focus-within:ring-2 focus-within:ring-[#0F766E]/15 transition-all shadow-sm">
+        <div className="h-12 bg-[var(--bg-surface)] rounded-xl flex items-center px-4 text-[var(--text-secondary)] border border-[var(--border-color)] focus-within:border-[var(--primary)] focus-within:ring-2 focus-within:ring-[var(--primary)]/15 transition-all shadow-sm">
           <Search size={18} strokeWidth={2} className="mr-3 shrink-0" />
           <input
             type="text"
@@ -514,7 +514,7 @@ export function Amigos({
               onClick={() => setFiltroAmigos('todos')}
               className={`px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-colors flex items-center gap-1.5 shrink-0 border ${
                 filtroAmigos === 'todos'
-                  ? 'bg-[#0F766E] text-white border-[#0F766E]'
+                  ? 'bg-[var(--primary)] text-white border-[var(--primary)]'
                   : 'bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] border-[var(--border-color)]'
               }`}
             >
@@ -526,14 +526,14 @@ export function Amigos({
               onClick={() => setFiltroAmigos(filtroAmigos === 'verificados' ? 'todos' : 'verificados')}
               className={`px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-colors flex items-center gap-1.5 shrink-0 border ${
                 filtroAmigos === 'verificados'
-                  ? 'bg-[#0F766E] text-white border-[#0F766E]'
+                  ? 'bg-[var(--primary)] text-white border-[var(--primary)]'
                   : 'bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] border-[var(--border-color)]'
               }`}
             >
               <BadgeCheck
                 size={14}
                 strokeWidth={2}
-                className={filtroAmigos === 'verificados' ? 'text-white' : 'text-[#0F766E]'}
+                className={filtroAmigos === 'verificados' ? 'text-white' : 'text-[var(--primary)]'}
               />
               Verificados ({contagemVerificados})
             </button>
@@ -543,7 +543,7 @@ export function Amigos({
               onClick={() => setFiltroAmigos(filtroAmigos === 'favoritos' ? 'todos' : 'favoritos')}
               className={`px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-colors flex items-center gap-1.5 shrink-0 border ${
                 filtroAmigos === 'favoritos'
-                  ? 'bg-[#0F766E] text-white border-[#0F766E]'
+                  ? 'bg-[var(--primary)] text-white border-[var(--primary)]'
                   : 'bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] border-[var(--border-color)]'
               }`}
             >
@@ -564,7 +564,7 @@ export function Amigos({
               onClick={() => setFiltroAmigos(filtroAmigos === 'pendentes' ? 'todos' : 'pendentes')}
               className={`px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-colors flex items-center gap-1.5 shrink-0 border ${
                 filtroAmigos === 'pendentes'
-                  ? 'bg-[#0F766E] text-white border-[#0F766E]'
+                  ? 'bg-[var(--primary)] text-white border-[var(--primary)]'
                   : 'bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] border-[var(--border-color)]'
               }`}
             >
@@ -578,7 +578,7 @@ export function Amigos({
               onClick={() => setFiltroGrupos('todos')}
               className={`px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-colors flex items-center gap-1.5 shrink-0 border ${
                 filtroGrupos === 'todos'
-                  ? 'bg-[#0F766E] text-white border-[#0F766E]'
+                  ? 'bg-[var(--primary)] text-white border-[var(--primary)]'
                   : 'bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] border-[var(--border-color)]'
               }`}
             >
@@ -590,7 +590,7 @@ export function Amigos({
               onClick={() => setFiltroGrupos(filtroGrupos === 'meus' ? 'todos' : 'meus')}
               className={`px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-colors flex items-center gap-1.5 shrink-0 border ${
                 filtroGrupos === 'meus'
-                  ? 'bg-[#0F766E] text-white border-[#0F766E]'
+                  ? 'bg-[var(--primary)] text-white border-[var(--primary)]'
                   : 'bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] border-[var(--border-color)]'
               }`}
             >
@@ -603,7 +603,7 @@ export function Amigos({
                 onClick={() => setFiltroGrupos(filtroGrupos === 'convites' ? 'todos' : 'convites')}
                 className={`px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-colors flex items-center gap-1.5 shrink-0 border ${
                   filtroGrupos === 'convites'
-                    ? 'bg-[#0F766E] text-white border-[#0F766E]'
+                    ? 'bg-[var(--primary)] text-white border-[var(--primary)]'
                     : 'bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] border-[var(--border-color)]'
                 }`}
               >
@@ -685,7 +685,7 @@ export function Amigos({
                           <button
                             disabled={isProcessing}
                             onClick={() => handleAceitarAmizade(req.id)}
-                            className="px-4 py-2 rounded-xl text-xs font-semibold bg-[#0F766E] hover:bg-[#115E59] text-white active:scale-95 transition-all shadow-sm flex items-center gap-1.5 disabled:opacity-50"
+                            className="px-4 py-2 rounded-xl text-xs font-semibold bg-[var(--primary)] hover:bg-[var(--primary-dark)] text-white active:scale-95 transition-all shadow-sm flex items-center gap-1.5 disabled:opacity-50"
                           >
                             <Check size={14} strokeWidth={2} />
                             Confirmar
@@ -739,7 +739,7 @@ export function Amigos({
                       <span className="text-xs font-semibold text-[var(--text-primary)] truncate w-full text-center flex items-center justify-center gap-1">
                         <span className="truncate">{amigo.nome.split(' ')[0]}</span>
                         {(amigo.has_account || amigo.is_registered) && (
-                          <BadgeCheck size={13} strokeWidth={2} className="text-[#0F766E] fill-[#CCFBF1] shrink-0" />
+                          <BadgeCheck size={13} strokeWidth={2} className="text-[var(--primary)] fill-[var(--primary-light)] shrink-0" />
                         )}
                       </span>
                     </div>
@@ -785,7 +785,7 @@ export function Amigos({
                           setBuscaAmigos('');
                           setFiltroAmigos('todos');
                         }}
-                        className="bg-[#CCFBF1] text-[#0F766E] hover:opacity-90 px-4 py-2 rounded-xl text-xs font-semibold inline-flex items-center gap-1.5 transition-colors"
+                        className="bg-[var(--primary-light)] text-[var(--primary)] hover:opacity-90 px-4 py-2 rounded-xl text-xs font-semibold inline-flex items-center gap-1.5 transition-colors"
                       >
                         Limpar filtros
                       </button>
@@ -808,7 +808,7 @@ export function Amigos({
             <section className="pb-10">
               <div className="flex items-center justify-between gap-2 mb-3 min-w-0">
                 <div className="flex items-center gap-2 min-w-0 flex-1">
-                  <BadgeCheck size={18} strokeWidth={2} className="text-[#0F766E] shrink-0" />
+                  <BadgeCheck size={18} strokeWidth={2} className="text-[var(--primary)] shrink-0" />
                   <h2 className="text-h2 text-[var(--text-primary)] truncate">
                     Amigos com conta
                   </h2>
@@ -817,7 +817,7 @@ export function Amigos({
                   type="button"
                   onClick={handleSincronizarAgenda}
                   disabled={isSyncingAgenda}
-                  className="text-xs font-semibold text-[#0F766E] hover:underline flex items-center gap-1.5 shrink-0 disabled:opacity-50"
+                  className="text-xs font-semibold text-[var(--primary)] hover:underline flex items-center gap-1.5 shrink-0 disabled:opacity-50"
                 >
                   <RefreshCw size={13} strokeWidth={2} className={isSyncingAgenda ? 'animate-spin' : ''} />
                   <span className="hidden xs:inline">Sincronizar agenda</span>
@@ -837,7 +837,7 @@ export function Amigos({
                     type="button"
                     onClick={handleSincronizarAgenda}
                     disabled={isSyncingAgenda}
-                    className="bg-[#CCFBF1] text-[#0F766E] hover:opacity-90 px-4 py-2.5 rounded-xl text-xs font-semibold inline-flex items-center gap-1.5 transition-colors disabled:opacity-50"
+                    className="bg-[var(--primary-light)] text-[var(--primary)] hover:opacity-90 px-4 py-2.5 rounded-xl text-xs font-semibold inline-flex items-center gap-1.5 transition-colors disabled:opacity-50"
                   >
                     <BookUser size={15} strokeWidth={2} />
                     <span>Buscar na minha agenda</span>
@@ -858,7 +858,7 @@ export function Amigos({
                     return (
                       <div
                         key={user.id}
-                        className="ds-card p-4 flex items-center justify-between gap-3 hover:border-[#0F766E]/40 transition-colors"
+                        className="ds-card p-4 flex items-center justify-between gap-3 hover:border-[var(--primary)]/40 transition-colors"
                       >
                         <div className="flex items-center gap-3 min-w-0 flex-1 pr-1">
                           <div
@@ -888,10 +888,10 @@ export function Amigos({
                               <BadgeCheck
                                 size={15}
                                 strokeWidth={2}
-                                className="text-[#0F766E] fill-[#CCFBF1] shrink-0"
+                                className="text-[var(--primary)] fill-[var(--primary-light)] shrink-0"
                               />
                               {user.is_in_contacts && (
-                                <span className="text-xs font-semibold text-[#0F766E] bg-[#CCFBF1] px-2 py-0.5 rounded-full shrink-0">
+                                <span className="text-xs font-semibold text-[var(--primary)] bg-[var(--primary-light)] px-2 py-0.5 rounded-full shrink-0">
                                   Agenda
                                 </span>
                               )}
@@ -914,7 +914,7 @@ export function Amigos({
                           type="button"
                           disabled={isAdding}
                           onClick={() => handleAdicionarUsuarioComConta(user)}
-                          className="px-3.5 py-2 rounded-xl text-xs font-semibold bg-[#0F766E] hover:bg-[#115E59] text-white active:scale-95 transition-all shadow-sm flex items-center gap-1.5 shrink-0 disabled:opacity-50"
+                          className="px-3.5 py-2 rounded-xl text-xs font-semibold bg-[var(--primary)] hover:bg-[var(--primary-dark)] text-white active:scale-95 transition-all shadow-sm flex items-center gap-1.5 shrink-0 disabled:opacity-50"
                         >
                           {isAdding ? (
                             <LoaderCircle size={14} strokeWidth={2} className="animate-spin" />
@@ -960,7 +960,7 @@ export function Amigos({
                         className="bg-[var(--bg-subtle)] p-3.5 rounded-xl border border-[var(--border-color)] flex flex-col sm:flex-row sm:items-center justify-between gap-3"
                       >
                         <div className="flex items-center gap-3">
-                          <div className="w-12 h-12 rounded-full overflow-hidden bg-[#0F766E] text-white font-display font-bold text-base flex items-center justify-center shadow-sm shrink-0">
+                          <div className="w-12 h-12 rounded-full overflow-hidden bg-[var(--primary)] text-white font-display font-bold text-base flex items-center justify-center shadow-sm shrink-0">
                             {inv.group?.avatar_url ? (
                               <img
                                 src={inv.group.avatar_url}
@@ -996,7 +996,7 @@ export function Amigos({
                           <button
                             disabled={isProcessing}
                             onClick={() => handleAceitarGrupo(inv.id)}
-                            className="px-4 py-2 rounded-xl text-xs font-semibold bg-[#0F766E] hover:bg-[#115E59] text-white active:scale-95 transition-all shadow-sm flex items-center gap-1.5 disabled:opacity-50"
+                            className="px-4 py-2 rounded-xl text-xs font-semibold bg-[var(--primary)] hover:bg-[var(--primary-dark)] text-white active:scale-95 transition-all shadow-sm flex items-center gap-1.5 disabled:opacity-50"
                           >
                             <Check size={14} strokeWidth={2} />
                             Aceitar
@@ -1031,7 +1031,7 @@ export function Amigos({
                   </p>
                   <button
                     onClick={() => setIsAddGroupOpen(true)}
-                    className="text-[#0F766E] font-semibold text-sm hover:underline"
+                    className="text-[var(--primary)] font-semibold text-sm hover:underline"
                   >
                     + Criar novo grupo
                   </button>
@@ -1051,7 +1051,7 @@ export function Amigos({
                         setBuscaGrupos('');
                         setFiltroGrupos('todos');
                       }}
-                      className="bg-[#CCFBF1] text-[#0F766E] hover:opacity-90 px-4 py-2 rounded-xl text-xs font-semibold inline-flex items-center gap-1.5 transition-colors"
+                      className="bg-[var(--primary-light)] text-[var(--primary)] hover:opacity-90 px-4 py-2 rounded-xl text-xs font-semibold inline-flex items-center gap-1.5 transition-colors"
                     >
                       Limpar filtros
                     </button>
@@ -1082,10 +1082,10 @@ export function Amigos({
                     <div
                       key={grupo.id}
                       onClick={() => setGrupoSelecionadoId(grupo.id)}
-                      className="ds-card p-4 flex items-center justify-between cursor-pointer hover:border-[#0F766E]/40 transition-colors gap-3"
+                      className="ds-card p-4 flex items-center justify-between cursor-pointer hover:border-[var(--primary)]/40 transition-colors gap-3"
                     >
                       <div className="flex items-start gap-3.5 flex-1 min-w-0">
-                        <div className="w-12 h-12 rounded-full overflow-hidden bg-[#CCFBF1] text-[#0F766E] flex items-center justify-center shrink-0 mt-0.5">
+                        <div className="w-12 h-12 rounded-full overflow-hidden bg-[var(--primary-light)] text-[var(--primary)] flex items-center justify-center shrink-0 mt-0.5">
                           {grupo.avatar_url ? (
                             <img
                               src={grupo.avatar_url}
@@ -1103,7 +1103,7 @@ export function Amigos({
                               {grupo.name}
                             </h3>
                             {currentUserId && grupo.created_by === currentUserId && (
-                              <span className="text-xs font-semibold text-[#0F766E] bg-[#CCFBF1] px-2 py-0.5 rounded-full shrink-0">
+                              <span className="text-xs font-semibold text-[var(--primary)] bg-[var(--primary-light)] px-2 py-0.5 rounded-full shrink-0">
                                 Criador
                               </span>
                             )}
@@ -1114,7 +1114,7 @@ export function Amigos({
                           </p>
 
                           {matchedMemberName && (
-                            <div className="mb-2.5 inline-flex items-center gap-1.5 text-xs text-[#0F766E] bg-[#CCFBF1] px-2.5 py-0.5 rounded-lg font-medium">
+                            <div className="mb-2.5 inline-flex items-center gap-1.5 text-xs text-[var(--primary)] bg-[var(--primary-light)] px-2.5 py-0.5 rounded-lg font-medium">
                               <UserCheck size={13} strokeWidth={2} className="shrink-0" />
                               <span className="truncate">Participante: {matchedMemberName}</span>
                             </div>
@@ -1122,7 +1122,7 @@ export function Amigos({
 
                           {/* Pilha de Avatares 32x32px (w-8 h-8) com borda de 2px */}
                           <div className="flex -space-x-2">
-                            <div className="w-8 h-8 rounded-full overflow-hidden bg-[#0F766E] text-white font-display font-bold text-xs flex items-center justify-center border-2 border-[var(--bg-surface)]">
+                            <div className="w-8 h-8 rounded-full overflow-hidden bg-[var(--primary)] text-white font-display font-bold text-xs flex items-center justify-center border-2 border-[var(--bg-surface)]">
                               {myAvatarUrl ? (
                                 <img
                                   src={myAvatarUrl}

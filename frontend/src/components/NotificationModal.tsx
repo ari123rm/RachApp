@@ -120,10 +120,10 @@ export function NotificationModal({ isOpen, onClose, onDataChange, onOpenRide }:
       case 'PAYMENT_RECEIVED':
         return <DollarSign size={18} strokeWidth={2} className="text-[#10B981]" />;
       case 'GROUP_INVITE':
-        return <Users size={18} strokeWidth={2} className="text-[#0F766E]" />;
+        return <Users size={18} strokeWidth={2} className="text-[var(--primary)]" />;
       case 'EXPENSE_ADDED':
       default:
-        return <Car size={18} strokeWidth={2} className="text-[#0F766E]" />;
+        return <Car size={18} strokeWidth={2} className="text-[var(--primary)]" />;
     }
   };
 
@@ -142,14 +142,14 @@ export function NotificationModal({ isOpen, onClose, onDataChange, onOpenRide }:
         {/* Cabeçalho */}
         <div className="p-4 border-b border-[var(--border-color)] flex items-center justify-between bg-[var(--bg-surface)]">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-[#CCFBF1] text-[#0F766E] flex items-center justify-center shrink-0">
+            <div className="w-10 h-10 rounded-full bg-[var(--primary-light)] text-[var(--primary)] flex items-center justify-center shrink-0">
               <Bell size={18} strokeWidth={2} />
             </div>
             <div>
               <h2 className="text-h2 text-[var(--text-primary)] flex items-center gap-2">
                 Notificações
                 {unreadCount > 0 && (
-                  <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-[#0F766E] text-white">
+                  <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-[var(--primary)] text-white">
                     {unreadCount} nova{unreadCount > 1 ? 's' : ''}
                   </span>
                 )}
@@ -165,7 +165,7 @@ export function NotificationModal({ isOpen, onClose, onDataChange, onOpenRide }:
               <button
                 onClick={handleMarkAllAsRead}
                 title="Marcar todas como lidas"
-                className="p-2 rounded-xl text-xs font-semibold text-[#0F766E] hover:bg-[#CCFBF1]/50 transition-colors flex items-center gap-1"
+                className="p-2 rounded-xl text-xs font-semibold text-[var(--primary)] hover:bg-[var(--primary-light)]/50 transition-colors flex items-center gap-1"
               >
                 <CheckCheck size={16} strokeWidth={2} />
                 <span className="hidden sm:inline text-xs">Lidas</span>
@@ -206,11 +206,11 @@ export function NotificationModal({ isOpen, onClose, onDataChange, onOpenRide }:
                   key={notif.id}
                   onClick={() => handleItemClick(notif)}
                   className={`p-4 rounded-2xl border transition-all flex items-start justify-between gap-3 ${
-                    hasRide ? 'cursor-pointer hover:border-[#0F766E]/50 active:scale-[0.99]' : ''
+                    hasRide ? 'cursor-pointer hover:border-[var(--primary)]/50 active:scale-[0.99]' : ''
                   } ${
                     notif.read
                       ? 'bg-[var(--bg-subtle)]/60 border-[var(--border-color)] opacity-80'
-                      : 'bg-[var(--bg-surface)] border-[#0F766E]/30 shadow-sm'
+                      : 'bg-[var(--bg-surface)] border-[var(--primary)]/30 shadow-sm'
                   }`}
                 >
                   <div className="flex items-start gap-3 min-w-0 flex-1">
@@ -223,7 +223,7 @@ export function NotificationModal({ isOpen, onClose, onDataChange, onOpenRide }:
                           {notif.title}
                         </p>
                         {!notif.read && (
-                          <span className="w-2 h-2 rounded-full bg-[#0F766E] shrink-0" />
+                          <span className="w-2 h-2 rounded-full bg-[var(--primary)] shrink-0" />
                         )}
                       </div>
                       <p className="text-xs text-[var(--text-secondary)] mt-1 leading-relaxed break-words">
@@ -235,7 +235,7 @@ export function NotificationModal({ isOpen, onClose, onDataChange, onOpenRide }:
                           <span>{formatNotificationDate(notif.created_at)}</span>
                         </div>
                         {hasRide && (
-                          <div className="flex items-center gap-0.5 text-xs font-semibold text-[#0F766E]">
+                          <div className="flex items-center gap-0.5 text-xs font-semibold text-[var(--primary)]">
                             <span>Ver racha</span>
                             <ChevronRight size={14} strokeWidth={2} />
                           </div>

@@ -547,11 +547,11 @@ export function FriendDetailsModal({
             <div className="flex items-center gap-1.5">
               <h3 className="text-h1 text-[var(--text-primary)]">{nome}</h3>
               {(amigoAtual?.has_account || amigoAtual?.is_registered) && (
-                <BadgeCheck size={20} strokeWidth={2} className="text-[#0F766E] shrink-0" />
+                <BadgeCheck size={20} strokeWidth={2} className="text-[var(--primary)] shrink-0" />
               )}
             </div>
             {(amigoAtual?.has_account || amigoAtual?.is_registered) && (
-              <span className="text-caption font-semibold text-[#0F766E] bg-[#0F766E]/10 px-2.5 py-0.5 rounded-full flex items-center gap-1 mt-1 mb-0.5">
+              <span className="text-caption font-semibold text-[var(--primary)] bg-[var(--primary)]/10 px-2.5 py-0.5 rounded-full flex items-center gap-1 mt-1 mb-0.5">
                 <BadgeCheck size={12} strokeWidth={2} /> Conta RachApp Ativa
               </span>
             )}
@@ -563,7 +563,7 @@ export function FriendDetailsModal({
                 </span>
               )}
               {friendPix && (
-                <span className="text-caption text-[#0F766E] bg-[#0F766E]/10 px-2.5 py-1 rounded-full flex items-center gap-1 font-medium">
+                <span className="text-caption text-[var(--primary)] bg-[var(--primary)]/10 px-2.5 py-1 rounded-full flex items-center gap-1 font-medium">
                   <QrCode size={12} strokeWidth={2} /> Pix: {friendPix}
                 </span>
               )}
@@ -575,7 +575,7 @@ export function FriendDetailsModal({
                   ? 'text-[#F43F5E]'
                   : eleDeveNoSaldo
                   ? 'text-[#10B981]'
-                  : 'text-[#0F766E]'
+                  : 'text-[var(--primary)]'
               }`}
             >
               R$ {moneyConverter(valorDestaque)}
@@ -643,7 +643,7 @@ export function FriendDetailsModal({
                     onClick={handleOpenPixModal}
                     className="ds-btn-secondary px-4 truncate"
                   >
-                    <QrCode size={16} strokeWidth={2} className="shrink-0 text-[#0F766E]" />
+                    <QrCode size={16} strokeWidth={2} className="shrink-0 text-[var(--primary)]" />
                     <span className="truncate">QR Code Pix</span>
                   </button>
                 </div>
@@ -660,7 +660,7 @@ export function FriendDetailsModal({
 
           {isLoading ? (
             <div className="flex justify-center py-8">
-              <LoaderCircle className="animate-spin text-[#0F766E]" />
+              <LoaderCircle className="animate-spin text-[var(--primary)]" />
             </div>
           ) : corridasDoAmigo.length === 0 ? (
             <div className="ds-card text-center mb-4">
@@ -765,7 +765,7 @@ export function FriendDetailsModal({
                 placeholder="0,00"
                 value={paymentAmount}
                 onChange={handlePaymentAmountChange}
-                className="w-full h-12 bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-xl pl-12 pr-4 text-[var(--text-primary)] text-h2 font-display font-bold focus:outline-none focus:border-[#0F766E] transition-colors"
+                className="w-full h-12 bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-xl pl-12 pr-4 text-[var(--text-primary)] text-h2 font-display font-bold focus:outline-none focus:border-[var(--primary)] transition-colors"
                 autoFocus
               />
             </div>

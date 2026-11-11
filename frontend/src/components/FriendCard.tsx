@@ -25,7 +25,7 @@ export function FriendCard({ amigo, onClick, onToggleFavorito }: FriendCardProps
   return (
     <div
       onClick={onClick}
-      className="ds-card p-4 flex items-center justify-between hover:border-[#0F766E]/40 transition-all cursor-pointer active:scale-[0.99] gap-3"
+      className="ds-card p-4 flex items-center justify-between hover:border-[var(--primary)]/40 transition-all cursor-pointer active:scale-[0.99] gap-3"
     >
       {/* Lado Esquerdo: Avatar Circular 48x48px e Nome */}
       <div className="flex items-center gap-3 min-w-0 flex-1 pr-1">
@@ -52,7 +52,7 @@ export function FriendCard({ amigo, onClick, onToggleFavorito }: FriendCardProps
               <BadgeCheck
                 size={16}
                 strokeWidth={2}
-                className="text-[#0F766E] fill-[#CCFBF1] shrink-0"
+                className="text-[var(--primary)] fill-[var(--primary-light)] shrink-0"
               />
             )}
           </div>
@@ -65,7 +65,7 @@ export function FriendCard({ amigo, onClick, onToggleFavorito }: FriendCardProps
             )}
             {pixKey && (
               <span className="text-xs font-medium text-[var(--text-secondary)] flex items-center gap-1 truncate max-w-full">
-                <QrCode size={12} strokeWidth={2} className="text-[#0F766E] shrink-0" />{' '}
+                <QrCode size={12} strokeWidth={2} className="text-[var(--primary)] shrink-0" />{' '}
                 <span className="truncate">Pix: {pixKey}</span>
               </span>
             )}

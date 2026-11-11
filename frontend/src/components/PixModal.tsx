@@ -180,7 +180,7 @@ export function PixModal({
         </button>
 
         <div className="flex items-center gap-3 mb-4 pr-8">
-          <div className="w-11 h-11 rounded-full bg-[#CCFBF1] text-[#0F766E] flex items-center justify-center shrink-0">
+          <div className="w-11 h-11 rounded-full bg-[var(--primary-light)] text-[var(--primary)] flex items-center justify-center shrink-0">
             <QrCode size={22} strokeWidth={2} />
           </div>
           <div className="min-w-0 flex-1">
@@ -200,20 +200,20 @@ export function PixModal({
               <span className="text-xs text-[var(--text-secondary)] uppercase font-semibold tracking-wider">
                 Valor para Teste
               </span>
-              <span className="text-xs text-[#0F766E] font-semibold bg-[#CCFBF1] px-2.5 py-0.5 rounded-full">
+              <span className="text-xs text-[var(--primary)] font-semibold bg-[var(--primary-light)] px-2.5 py-0.5 rounded-full">
                 Editável
               </span>
             </div>
 
             <div className="flex items-center justify-center gap-1.5 py-1">
-              <span className="text-2xl font-display font-bold text-[#0F766E]">R$</span>
+              <span className="text-2xl font-display font-bold text-[var(--primary)]">R$</span>
               <input
                 type="text"
                 inputMode="numeric"
                 value={amountInput}
                 onChange={handleAmountChange}
                 placeholder="0,00"
-                className="bg-transparent text-display text-[var(--text-primary)] outline-none w-44 text-center border-b border-dashed border-[var(--border-color)] focus:border-[#0F766E] focus:text-[#0F766E] transition-all"
+                className="bg-transparent text-display text-[var(--text-primary)] outline-none w-44 text-center border-b border-dashed border-[var(--border-color)] focus:border-[var(--primary)] focus:text-[var(--primary)] transition-all"
                 autoFocus
               />
             </div>
@@ -227,7 +227,7 @@ export function PixModal({
                   onClick={() => handleSelectPreset(preset)}
                   className={`text-xs px-3 py-1.5 rounded-xl font-semibold transition-all active:scale-95 border ${
                     currentAmount === preset
-                      ? 'bg-[#0F766E] text-white border-[#0F766E]'
+                      ? 'bg-[var(--primary)] text-white border-[var(--primary)]'
                       : 'bg-[var(--bg-surface)] text-[var(--text-secondary)] border-[var(--border-color)] hover:text-[var(--text-primary)]'
                   }`}
                 >
@@ -239,7 +239,7 @@ export function PixModal({
                 onClick={() => handleSelectPreset(0)}
                 className={`text-xs px-3 py-1.5 rounded-xl font-semibold transition-all active:scale-95 border ${
                   currentAmount === 0
-                    ? 'bg-[#0F766E] text-white border-[#0F766E]'
+                    ? 'bg-[var(--primary)] text-white border-[var(--primary)]'
                     : 'bg-[var(--bg-surface)] text-[var(--text-secondary)] border-[var(--border-color)] hover:text-[var(--text-primary)]'
                 }`}
                 title="Sem valor pré-definido no QR Code"
@@ -264,7 +264,7 @@ export function PixModal({
             <p className="text-xs text-[var(--text-secondary)] uppercase font-semibold">
               Valor do Acerto
             </p>
-            <p className="text-display text-[#0F766E] mt-1 tabular-nums">
+            <p className="text-display text-[var(--primary)] mt-1 tabular-nums">
               R$ {moneyConverter(amount)}
             </p>
           </div>
@@ -299,7 +299,7 @@ export function PixModal({
                 </div>
                 <button
                   onClick={handleCopyKey}
-                  className="bg-[#CCFBF1] text-[#0F766E] hover:opacity-90 px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 shrink-0 active:scale-95"
+                  className="bg-[var(--primary-light)] text-[var(--primary)] hover:opacity-90 px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 shrink-0 active:scale-95"
                 >
                   {copiedKey ? <Check size={14} strokeWidth={2} /> : <Copy size={14} strokeWidth={2} />}
                   {copiedKey ? 'Copiada!' : 'Copiar'}
@@ -318,7 +318,7 @@ export function PixModal({
                   </div>
                   <button
                     onClick={handleCopyCode}
-                    className="bg-[#0F766E] text-white hover:bg-[#115E59] px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 shrink-0 active:scale-95"
+                    className="bg-[var(--primary)] text-white hover:bg-[var(--primary-dark)] px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 shrink-0 active:scale-95"
                   >
                     {copiedCode ? <Check size={14} strokeWidth={2} /> : <Copy size={14} strokeWidth={2} />}
                     {copiedCode ? 'Copiado!' : 'Copiar'}

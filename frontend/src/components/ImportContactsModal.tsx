@@ -264,7 +264,7 @@ export function ImportContactsModal({
         {/* Header */}
         <div className="p-5 pb-4 border-b border-[var(--border-color)] flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-full bg-[#0F766E]/10 text-[#0F766E] flex items-center justify-center">
+            <div className="w-12 h-12 rounded-full bg-[var(--primary)]/10 text-[var(--primary)] flex items-center justify-center">
               <BookUser size={22} strokeWidth={2} />
             </div>
             <div>
@@ -287,7 +287,7 @@ export function ImportContactsModal({
 
         {/* Barra de Busca e Controles */}
         <div className="px-5 pt-4 space-y-3">
-          <div className="bg-[var(--bg-subtle)] rounded-xl h-12 px-4 flex items-center gap-2.5 border border-[var(--border-color)] focus-within:border-[#0F766E] transition-colors">
+          <div className="bg-[var(--bg-subtle)] rounded-xl h-12 px-4 flex items-center gap-2.5 border border-[var(--border-color)] focus-within:border-[var(--primary)] transition-colors">
             <Search size={18} strokeWidth={2} className="text-[var(--text-secondary)] shrink-0" />
             <input
               type="text"
@@ -318,7 +318,7 @@ export function ImportContactsModal({
                 type="button"
                 onClick={handleLoadContacts}
                 disabled={isLoading}
-                className="text-[#0F766E] font-semibold hover:underline flex items-center gap-1 disabled:opacity-50"
+                className="text-[var(--primary)] font-semibold hover:underline flex items-center gap-1 disabled:opacity-50"
               >
                 <RefreshCw size={12} strokeWidth={2} className={isLoading ? 'animate-spin' : ''} />
                 <span>Atualizar agenda</span>
@@ -328,7 +328,7 @@ export function ImportContactsModal({
                 <button
                   type="button"
                   onClick={handleToggleSelectAll}
-                  className="text-[#0F766E] font-semibold hover:underline"
+                  className="text-[var(--primary)] font-semibold hover:underline"
                 >
                   {allFilteredSelected ? 'Desmarcar todos' : 'Selecionar todos'}
                 </button>
@@ -347,7 +347,7 @@ export function ImportContactsModal({
           )}
 
           {isLoading ? (
-            <div className="flex flex-col items-center justify-center py-14 text-[#0F766E]">
+            <div className="flex flex-col items-center justify-center py-14 text-[var(--primary)]">
               <LoaderCircle size={32} strokeWidth={2} className="animate-spin mb-2" />
               <span className="text-caption text-[var(--text-secondary)]">
                 Solicitando permissão e lendo contatos da sua agenda...
@@ -355,7 +355,7 @@ export function ImportContactsModal({
             </div>
           ) : contacts.length === 0 ? (
             <div className="bg-[var(--bg-subtle)] rounded-2xl p-6 text-center border border-[var(--border-color)] space-y-3">
-              <BookUser size={32} strokeWidth={2} className="text-[#0F766E] mx-auto opacity-80" />
+              <BookUser size={32} strokeWidth={2} className="text-[var(--primary)] mx-auto opacity-80" />
               <div>
                 <p className="text-body2 font-semibold text-[var(--text-primary)]">
                   Permitir acesso aos seus contatos
@@ -413,8 +413,8 @@ export function ImportContactsModal({
                     alreadyAdded
                       ? 'bg-[var(--bg-subtle)]/50 border-[var(--border-color)] opacity-60 cursor-default'
                       : isSelected
-                      ? 'bg-[#0F766E]/10 border-[#0F766E] cursor-pointer shadow-sm'
-                      : 'bg-[var(--bg-subtle)] border-[var(--border-color)] hover:border-[#0F766E]/40 cursor-pointer'
+                      ? 'bg-[var(--primary)]/10 border-[var(--primary)] cursor-pointer shadow-sm'
+                      : 'bg-[var(--bg-subtle)] border-[var(--border-color)] hover:border-[var(--primary)]/40 cursor-pointer'
                   }`}
                 >
                   <div className="flex items-center gap-3 min-w-0">
@@ -442,7 +442,7 @@ export function ImportContactsModal({
                           {contact.name}
                         </h4>
                         {regUser && (
-                          <span className="inline-flex items-center gap-1 text-caption font-semibold text-[#0F766E] bg-[#0F766E]/10 px-2 py-0.5 rounded-full shrink-0">
+                          <span className="inline-flex items-center gap-1 text-caption font-semibold text-[var(--primary)] bg-[var(--primary)]/10 px-2 py-0.5 rounded-full shrink-0">
                             <BadgeCheck size={12} strokeWidth={2} />
                             Tem conta
                           </span>
@@ -468,7 +468,7 @@ export function ImportContactsModal({
                       <div
                         className={`w-6 h-6 rounded-lg border flex items-center justify-center transition-colors ${
                           isSelected
-                            ? 'bg-[#0F766E] border-[#0F766E] text-white'
+                            ? 'bg-[var(--primary)] border-[var(--primary)] text-white'
                             : 'border-[var(--border-color)] bg-[var(--bg-surface)]'
                         }`}
                       >

@@ -82,13 +82,13 @@ export function ReceiptViewerModal({
 
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-3 min-w-0 pr-2">
-            <div className="w-10 h-10 rounded-full bg-[#0F766E]/10 text-[#0F766E] flex items-center justify-center shrink-0">
+            <div className="w-10 h-10 rounded-full bg-[var(--primary)]/10 text-[var(--primary)] flex items-center justify-center shrink-0">
               <FileCheck2 size={20} strokeWidth={2} />
             </div>
             <div className="min-w-0">
               <h3 className="text-[var(--text-primary)] text-h2 truncate">{title}</h3>
               {receipts.length > 1 && (
-                <p className="text-caption text-[#0F766E] font-semibold">
+                <p className="text-caption text-[var(--primary)] font-semibold">
                   Comprovante {activeIndex + 1} de {receipts.length}
                 </p>
               )}
@@ -99,7 +99,7 @@ export function ReceiptViewerModal({
               onClick={handleShare}
               disabled={isSharing}
               title="Compartilhar comprovante em outros apps"
-              className="p-2 text-[var(--text-secondary)] hover:text-[#0F766E] rounded-full hover:bg-[var(--bg-subtle)] transition-colors disabled:opacity-50"
+              className="p-2 text-[var(--text-secondary)] hover:text-[var(--primary)] rounded-full hover:bg-[var(--bg-subtle)] transition-colors disabled:opacity-50"
             >
               <Share2 size={20} strokeWidth={2} />
             </button>
@@ -128,7 +128,7 @@ export function ReceiptViewerModal({
                     onClick={() => setActiveIndex(idx)}
                     className={`px-3 py-2 rounded-xl text-caption font-semibold shrink-0 flex items-center gap-1.5 transition-all ${
                       isSelected
-                        ? 'bg-[#0F766E] text-white shadow-sm'
+                        ? 'bg-[var(--primary)] text-white shadow-sm'
                         : 'bg-[var(--bg-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] border border-[var(--border-color)]'
                     }`}
                   >
@@ -424,7 +424,7 @@ export function PayWithReceiptModal({
         </button>
 
         <div className="flex items-center gap-3 mb-4 pr-8">
-          <div className="w-12 h-12 rounded-full bg-[#0F766E]/10 text-[#0F766E] flex items-center justify-center shrink-0">
+          <div className="w-12 h-12 rounded-full bg-[var(--primary)]/10 text-[var(--primary)] flex items-center justify-center shrink-0">
             <QrCode size={22} strokeWidth={2} />
           </div>
           <div className="min-w-0 flex-1">
@@ -450,16 +450,16 @@ export function PayWithReceiptModal({
           </p>
           {allowCustomAmount ? (
             <div className="flex items-center justify-center gap-1">
-              <span className="text-h2 font-bold text-[#0F766E]">R$</span>
+              <span className="text-h2 font-bold text-[var(--primary)]">R$</span>
               <input
                 type="tel"
                 value={amountStr}
                 onChange={handleAmountChange}
-                className="bg-transparent text-display font-bold text-[#0F766E] text-center w-40 outline-none border-b-2 border-[#0F766E]/40 focus:border-[#0F766E]"
+                className="bg-transparent text-display font-bold text-[var(--primary)] text-center w-40 outline-none border-b-2 border-[var(--primary)]/40 focus:border-[var(--primary)]"
               />
             </div>
           ) : (
-            <p className="text-display font-bold text-[#0F766E]">
+            <p className="text-display font-bold text-[var(--primary)]">
               R$ {moneyConverter(numericAmount)}
             </p>
           )}
@@ -488,7 +488,7 @@ export function PayWithReceiptModal({
               <button
                 type="button"
                 onClick={handleCopyKey}
-                className="bg-[#0F766E]/10 text-[#0F766E] hover:bg-[#0F766E]/20 px-3 py-2 rounded-xl text-caption font-semibold flex items-center gap-1 shrink-0 transition-colors"
+                className="bg-[var(--primary)]/10 text-[var(--primary)] hover:bg-[var(--primary)]/20 px-3 py-2 rounded-xl text-caption font-semibold flex items-center gap-1 shrink-0 transition-colors"
               >
                 {copiedKey ? <Check size={14} strokeWidth={2} /> : <Copy size={14} strokeWidth={2} />}
                 {copiedKey ? 'Copiada!' : 'Copiar'}
@@ -508,7 +508,7 @@ export function PayWithReceiptModal({
                 <button
                   type="button"
                   onClick={handleCopyCode}
-                  className="bg-[#0F766E] text-white hover:bg-[#115E59] px-3 py-2 rounded-xl text-caption font-semibold flex items-center gap-1 shrink-0 transition-colors"
+                  className="bg-[var(--primary)] text-white hover:bg-[var(--primary-dark)] px-3 py-2 rounded-xl text-caption font-semibold flex items-center gap-1 shrink-0 transition-colors"
                 >
                   {copiedCode ? <Check size={14} strokeWidth={2} /> : <Copy size={14} strokeWidth={2} />}
                   {copiedCode ? 'Copiado!' : 'Copiar'}
@@ -542,18 +542,18 @@ export function PayWithReceiptModal({
               type="button"
               onClick={() => fileInputRef.current?.click()}
               disabled={isCompressing}
-              className="w-full border-2 border-dashed border-[#0F766E]/40 hover:border-[#0F766E] bg-[#0F766E]/5 hover:bg-[#0F766E]/10 rounded-2xl p-5 flex flex-col items-center justify-center gap-2 transition-colors"
+              className="w-full border-2 border-dashed border-[var(--primary)]/40 hover:border-[var(--primary)] bg-[var(--primary)]/5 hover:bg-[var(--primary)]/10 rounded-2xl p-5 flex flex-col items-center justify-center gap-2 transition-colors"
             >
               {isCompressing ? (
                 <>
-                  <LoaderCircle size={26} strokeWidth={2} className="animate-spin text-[#0F766E]" />
+                  <LoaderCircle size={26} strokeWidth={2} className="animate-spin text-[var(--primary)]" />
                   <span className="text-caption text-[var(--text-secondary)] font-medium">
                     Processando imagem...
                   </span>
                 </>
               ) : (
                 <>
-                  <div className="w-12 h-12 rounded-full bg-[#0F766E]/15 text-[#0F766E] flex items-center justify-center">
+                  <div className="w-12 h-12 rounded-full bg-[var(--primary)]/15 text-[var(--primary)] flex items-center justify-center">
                     <Upload size={20} strokeWidth={2} />
                   </div>
                   <span className="text-body2 font-semibold text-[var(--text-primary)]">
@@ -601,7 +601,7 @@ export function PayWithReceiptModal({
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
                 disabled={isCompressing}
-                className="w-full h-11 rounded-xl border border-dashed border-[#0F766E]/40 hover:border-[#0F766E] bg-[#0F766E]/10 hover:bg-[#0F766E]/15 text-[#0F766E] text-caption font-semibold flex items-center justify-center gap-1.5 transition-colors"
+                className="w-full h-11 rounded-xl border border-dashed border-[var(--primary)]/40 hover:border-[var(--primary)] bg-[var(--primary)]/10 hover:bg-[var(--primary)]/15 text-[var(--primary)] text-caption font-semibold flex items-center justify-center gap-1.5 transition-colors"
               >
                 {isCompressing ? (
                   <>

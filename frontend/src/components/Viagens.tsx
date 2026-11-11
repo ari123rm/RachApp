@@ -320,16 +320,25 @@ export function Viagens({
     }, {} as Record<string, Corrida[]>);
   }, [corridasPaginadas, anoAtual, mesAtual]);
 
-  const totalFiltrosAtivos =
-    (filtroStatus !== 'tudo' ? 1 : 0) +
-    (busca.trim() ? 1 : 0) +
-    (filtroAmigoId ? 1 : 0) +
-    (filtroTag ? 1 : 0) +
-    (dataInicio || dataFim ? 1 : 0);
+  // Conta apenas os filtros avançados do painel (Amigo, Tag e Período)
+  // para não duplicar visualmente os botões rápidos de status nem a barra de busca
+  const totalFiltrosAvancados =
+    (filtroAmigoId ? 1 : 0) + (filtroTag ? 1 : 0) + (dataInicio || dataFim ? 1 : 0);
+
+  const temAlgumFiltroAtivo =
+    filtroStatus !== 'tudo' || Boolean(busca.trim()) || totalFiltrosAvancados > 0;
 
   const limparFiltros = () => {
     handleSetFiltroStatus('tudo');
     setBusca('');
+    setFiltroAmigoId('');
+    setFiltroTag('');
+    setDataInicio('');
+    setDataFim('');
+    setItensVisiveis(8);
+  };
+
+  const limparFiltrosAvancados = () => {
     setFiltroAmigoId('');
     setFiltroTag('');
     setDataInicio('');
@@ -371,7 +380,7 @@ export function Viagens({
 
   if (isLoading) {
     return (
-      <div className="flex flex-col items-center justify-center h-64 text-[#0F766E]">
+      <div className="flex flex-col items-center justify-center h-64 text-[var(--primary)]">
         <LoaderCircle size={40} strokeWidth={2} className="animate-spin mb-4" />
         <p className="text-sm font-medium text-[var(--text-secondary)]">Carregando rachas...</p>
       </div>
@@ -379,49 +388,47 @@ export function Viagens({
   }
 
   return (
-    <div className="space-y-4 relative">
+    <div className="space-y-3.5 relative">
       {/* Cabeçalho */}
-      <header className="flex justify-between items-center mt-1 gap-2 min-w-0">
-        <div className="min-w-0 flex-1 pr-1">
-          <h1 className="text-h1 text-[var(--text-primary)] truncate">Histórico de Rachas</h1>
-          <p className="text-body2 text-[var(--text-secondary)] mt-0.5 truncate">
+      <header className="flex justify-between items-center gap-2 min-w-0 pt-1">
+        <div className="min-w-0 flex-1">
+          <h1 className="text-xl sm:text-h1 font-display font-bold text-[var(--text-primary)] truncate">
+            Histórico de Rachas
+          </h1>
+          <p className="text-xs text-[var(--text-secondary)] mt-0.5 truncate">
             {corridasFiltradas.length}{' '}
             {corridasFiltradas.length === 1 ? 'racha encontrado' : 'rachas encontrados'}
           </p>
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
-          {/* Botão para abrir/fechar painel de filtros */}
+          {/* Botão para abrir/fechar painel de filtros avançados */}
           <button
+            type="button"
             onClick={() => setMostrarFiltros(!mostrarFiltros)}
-            className={`h-10 px-3.5 rounded-xl transition-all flex items-center gap-1.5 text-xs font-semibold shrink-0 border ${
-              mostrarFiltros || totalFiltrosAtivos > 0
-                ? 'bg-[#0F766E] text-white border-[#0F766E] shadow-sm'
+            className={`h-10 px-3 rounded-xl transition-all flex items-center gap-1.5 text-xs font-semibold shrink-0 border ${
+              mostrarFiltros || totalFiltrosAvancados > 0
+                ? 'bg-[var(--primary)] text-white border-[var(--primary)] shadow-sm'
                 : 'bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] border-[var(--border-color)]'
             }`}
             title="Filtros avançados"
           >
             <SlidersHorizontal size={15} strokeWidth={2} />
             <span className="hidden xs:inline">Filtros</span>
-            {totalFiltrosAtivos > 0 && (
-              <span
-                className={`px-1.5 py-0.5 rounded-full text-xs font-bold ${
-                  mostrarFiltros || totalFiltrosAtivos > 0
-                    ? 'bg-white/20 text-white'
-                    : 'bg-[#CCFBF1] text-[#0F766E]'
-                }`}
-              >
-                {totalFiltrosAtivos}
+            {totalFiltrosAvancados > 0 && (
+              <span className="px-1.5 py-0.2 rounded-full text-[11px] font-bold bg-white/20 text-white">
+                {totalFiltrosAvancados}
               </span>
             )}
           </button>
 
           {/* Botão de Ordenação */}
           <button
+            type="button"
             onClick={() => setOrdemCrescente(!ordemCrescente)}
             className={`h-10 w-10 rounded-xl transition-colors flex items-center justify-center shrink-0 border ${
               ordemCrescente
-                ? 'bg-[#CCFBF1] text-[#0F766E] border-[#0F766E]/40'
+                ? 'bg-[var(--primary-light)] text-[var(--primary)] border-[var(--primary)]/40'
                 : 'bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] border-[var(--border-color)]'
             }`}
             title={ordemCrescente ? 'Mais antigos primeiro' : 'Mais recentes primeiro'}
@@ -431,8 +438,8 @@ export function Viagens({
         </div>
       </header>
 
-      {/* Barra de Pesquisa por Texto (48px de altura, 12px border-radius) */}
-      <div className="h-12 bg-[var(--bg-surface)] rounded-xl flex items-center px-4 text-[var(--text-secondary)] border border-[var(--border-color)] focus-within:border-[#0F766E] focus-within:ring-2 focus-within:ring-[#0F766E]/15 transition-all shadow-sm">
+      {/* Barra de Pesquisa por Texto */}
+      <div className="h-12 bg-[var(--bg-surface)] rounded-xl flex items-center px-4 text-[var(--text-secondary)] border border-[var(--border-color)] focus-within:border-[var(--primary)] focus-within:ring-2 focus-within:ring-[var(--primary-focus-ring)] transition-all shadow-sm">
         <Search size={18} strokeWidth={2} className="mr-3 text-[var(--text-secondary)] shrink-0" />
         <input
           type="text"
@@ -446,6 +453,7 @@ export function Viagens({
         />
         {busca && (
           <button
+            type="button"
             onClick={() => {
               setBusca('');
               setItensVisiveis(8);
@@ -459,7 +467,10 @@ export function Viagens({
       </div>
 
       {/* Botões de Filtros Rápidos de Status (Tudo, A Pagar, A Receber, Quitados) */}
-      <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-hide pt-0.5">
+      <div
+        data-horizontal-scroll="true"
+        className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-hide pt-0.5"
+      >
         {botoesFiltro.map((btn) => {
           const isActive = filtroStatus === btn.id;
           const Icon = btn.icon;
@@ -468,9 +479,9 @@ export function Viagens({
               key={btn.id}
               type="button"
               onClick={() => handleSetFiltroStatus(btn.id)}
-              className={`px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-1.5 shrink-0 border ${
+              className={`h-9 px-3 rounded-xl text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-1.5 shrink-0 border ${
                 isActive
-                  ? 'bg-[#0F766E] text-white border-[#0F766E] shadow-sm'
+                  ? 'bg-[var(--primary)] text-white border-[var(--primary)] shadow-sm'
                   : 'bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] border-[var(--border-color)]'
               }`}
             >
@@ -483,7 +494,7 @@ export function Viagens({
               )}
               <span>{btn.label}</span>
               <span
-                className={`text-xs px-1.5 py-0.5 rounded-full font-bold ${
+                className={`text-[11px] px-1.5 py-0.2 rounded-full font-bold tabular-nums ${
                   isActive
                     ? 'bg-white/20 text-white'
                     : 'bg-[var(--bg-subtle)] text-[var(--text-secondary)]'
@@ -496,64 +507,44 @@ export function Viagens({
         })}
       </div>
 
-      {/* Chips Rápidos de Filtros Ativos */}
-      {totalFiltrosAtivos > 0 && (
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-hide text-xs">
-          <span className="text-xs text-[var(--text-secondary)] font-medium shrink-0 mr-1">
-            Filtros:
-          </span>
-
-          {filtroStatus !== 'tudo' && (
-            <span className="bg-[#CCFBF1] text-[#0F766E] px-2.5 py-1 rounded-full flex items-center gap-1.5 font-medium shrink-0">
-              {filtroStatus === 'a_pagar'
-                ? 'A Pagar'
-                : filtroStatus === 'a_receber'
-                ? 'A Receber'
-                : 'Quitados'}
-              <button onClick={() => handleSetFiltroStatus('tudo')}>
-                <X size={12} strokeWidth={2} />
-              </button>
-            </span>
-          )}
-
-          {busca.trim() && (
-            <span className="bg-[#CCFBF1] text-[#0F766E] px-2.5 py-1 rounded-full flex items-center gap-1.5 font-medium shrink-0">
-              "{busca}"
-              <button onClick={() => setBusca('')}>
-                <X size={12} strokeWidth={2} />
-              </button>
-            </span>
-          )}
-
+      {/* Chips de Filtros Avançados Ativos (apenas quando Amigo, Tag ou Período está selecionado) */}
+      {totalFiltrosAvancados > 0 && (
+        <div
+          data-horizontal-scroll="true"
+          className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-hide text-xs"
+        >
           {amigoSelecionadoFiltro && (
-            <span className="bg-[var(--bg-subtle)] text-[var(--text-primary)] border border-[var(--border-color)] px-2.5 py-1 rounded-full flex items-center gap-1.5 font-medium shrink-0">
-              <User size={12} strokeWidth={2} />
-              {amigoSelecionadoFiltro.nome || amigoSelecionadoFiltro.name}
-              <button onClick={() => setFiltroAmigoId('')}>
+            <span className="bg-[var(--bg-surface)] text-[var(--text-primary)] border border-[var(--border-color)] px-2.5 py-1 rounded-full flex items-center gap-1.5 font-medium shrink-0">
+              <User size={12} strokeWidth={2} className="text-[var(--primary)]" />
+              <span>{amigoSelecionadoFiltro.nome || amigoSelecionadoFiltro.name}</span>
+              <button type="button" onClick={() => setFiltroAmigoId('')}>
                 <X size={12} strokeWidth={2} />
               </button>
             </span>
           )}
 
           {filtroTag && (
-            <span className="bg-[var(--amber-bg)] text-[#F59E0B] border border-[var(--amber-border)] px-2.5 py-1 rounded-full flex items-center gap-1.5 font-medium shrink-0">
+            <span className="bg-[var(--primary-light)] text-[var(--primary)] px-2.5 py-1 rounded-full flex items-center gap-1.5 font-medium shrink-0">
               <Tag size={12} strokeWidth={2} />
-              {filtroTag}
-              <button onClick={() => setFiltroTag('')}>
+              <span>{filtroTag}</span>
+              <button type="button" onClick={() => setFiltroTag('')}>
                 <X size={12} strokeWidth={2} />
               </button>
             </span>
           )}
 
           {(dataInicio || dataFim) && (
-            <span className="bg-[var(--bg-subtle)] text-[var(--text-primary)] border border-[var(--border-color)] px-2.5 py-1 rounded-full flex items-center gap-1.5 font-medium shrink-0">
-              <Calendar size={12} strokeWidth={2} />
-              {dataInicio && dataFim
-                ? `${dataInicio.split('-').reverse().slice(0, 2).join('/')} até ${dataFim.split('-').reverse().slice(0, 2).join('/')}`
-                : dataInicio
-                ? `A partir de ${dataInicio.split('-').reverse().join('/')}`
-                : `Até ${dataFim.split('-').reverse().join('/')}`}
+            <span className="bg-[var(--bg-surface)] text-[var(--text-primary)] border border-[var(--border-color)] px-2.5 py-1 rounded-full flex items-center gap-1.5 font-medium shrink-0">
+              <Calendar size={12} strokeWidth={2} className="text-[var(--primary)]" />
+              <span>
+                {dataInicio && dataFim
+                  ? `${dataInicio.split('-').reverse().slice(0, 2).join('/')} - ${dataFim.split('-').reverse().slice(0, 2).join('/')}`
+                  : dataInicio
+                  ? `Desde ${dataInicio.split('-').reverse().slice(0, 2).join('/')}`
+                  : `Até ${dataFim.split('-').reverse().slice(0, 2).join('/')}`}
+              </span>
               <button
+                type="button"
                 onClick={() => {
                   setDataInicio('');
                   setDataFim('');
@@ -565,9 +556,10 @@ export function Viagens({
           )}
 
           <button
-            onClick={limparFiltros}
+            type="button"
+            onClick={limparFiltrosAvancados}
             className="text-[var(--text-secondary)] hover:text-[#F43F5E] px-2 py-1 rounded-full transition-colors flex items-center gap-1 shrink-0 ml-auto font-medium"
-            title="Limpar todos os filtros"
+            title="Limpar filtros avançados"
           >
             <RotateCcw size={12} strokeWidth={2} />
             <span className="text-xs">Limpar</span>
@@ -577,11 +569,11 @@ export function Viagens({
 
       {/* Painel Expansível de Filtros Avançados */}
       {mostrarFiltros && (
-        <div className="ds-card p-4 sm:p-5 space-y-4">
+        <div className="ds-card p-4 sm:p-5 space-y-4 animate-fade-in">
           {/* 1. Filtro por Amigo */}
           <div>
             <label className="text-[var(--text-secondary)] text-xs uppercase font-semibold flex items-center gap-1.5 mb-2">
-              <User size={14} strokeWidth={2} className="text-[#0F766E]" /> Filtrar por Amigo
+              <User size={14} strokeWidth={2} className="text-[var(--primary)]" /> Filtrar por Amigo
             </label>
             <select
               value={filtroAmigoId}
@@ -603,7 +595,8 @@ export function Viagens({
           {/* 2. Filtro por Tag */}
           <div>
             <label className="text-[var(--text-secondary)] text-xs uppercase font-semibold flex items-center gap-1.5 mb-2">
-              <Tag size={14} strokeWidth={2} className="text-[#0F766E]" /> Filtrar por Categoria / Tag
+              <Tag size={14} strokeWidth={2} className="text-[var(--primary)]" /> Filtrar por
+              Categoria / Tag
             </label>
             <div className="flex flex-wrap gap-1.5">
               <button
@@ -614,7 +607,7 @@ export function Viagens({
                 }}
                 className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors border ${
                   filtroTag === ''
-                    ? 'bg-[#0F766E] text-white border-[#0F766E]'
+                    ? 'bg-[var(--primary)] text-white border-[var(--primary)]'
                     : 'bg-[var(--bg-subtle)] text-[var(--text-secondary)] border-[var(--border-color)] hover:text-[var(--text-primary)]'
                 }`}
               >
@@ -630,7 +623,7 @@ export function Viagens({
                   }}
                   className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors border ${
                     filtroTag.toLowerCase() === t.toLowerCase()
-                      ? 'bg-[#0F766E] text-white border-[#0F766E]'
+                      ? 'bg-[var(--primary)] text-white border-[var(--primary)]'
                       : 'bg-[var(--bg-subtle)] text-[var(--text-secondary)] border-[var(--border-color)] hover:text-[var(--text-primary)]'
                   }`}
                 >
@@ -643,7 +636,8 @@ export function Viagens({
           {/* 3. Filtro por Data */}
           <div>
             <label className="text-[var(--text-secondary)] text-xs uppercase font-semibold flex items-center gap-1.5 mb-2">
-              <Calendar size={14} strokeWidth={2} className="text-[#0F766E]" /> Filtrar por Período
+              <Calendar size={14} strokeWidth={2} className="text-[var(--primary)]" /> Filtrar por
+              Período
             </label>
 
             {/* Atalhos de Data */}
@@ -727,10 +721,10 @@ export function Viagens({
               {corridasFiltradas.length === 1 ? 'racha filtrado' : 'rachas filtrados'}
             </span>
             <div className="flex gap-2">
-              {totalFiltrosAtivos > 0 && (
+              {totalFiltrosAvancados > 0 && (
                 <button
                   type="button"
-                  onClick={limparFiltros}
+                  onClick={limparFiltrosAvancados}
                   className="px-3 py-2 rounded-xl text-xs font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
                 >
                   Resetar
@@ -739,7 +733,7 @@ export function Viagens({
               <button
                 type="button"
                 onClick={() => setMostrarFiltros(false)}
-                className="bg-[#0F766E] hover:bg-[#115E59] text-white px-4 py-2 rounded-xl text-xs font-semibold transition-colors"
+                className="bg-[var(--primary)] hover:bg-[var(--primary-dark)] text-white px-4 py-2 rounded-xl text-xs font-semibold transition-colors"
               >
                 Concluir
               </button>
@@ -749,36 +743,37 @@ export function Viagens({
       )}
 
       {/* Lista de Rachas */}
-      <div className="mt-4 pb-20">
+      <div className="mt-3 pb-28">
         {corridasPaginadas.length === 0 ? (
           <div className="text-center py-12 ds-card px-4">
             <p className="font-display font-semibold text-[var(--text-primary)] text-base mb-1">
               Nenhum racha encontrado
             </p>
             <p className="text-[var(--text-secondary)] text-sm mb-4">
-              {totalFiltrosAtivos > 0
+              {temAlgumFiltroAtivo
                 ? 'Tente ajustar ou limpar os filtros aplicados.'
                 : 'Você ainda não cadastrou nenhum racha.'}
             </p>
-            {totalFiltrosAtivos > 0 && (
+            {temAlgumFiltroAtivo && (
               <button
+                type="button"
                 onClick={limparFiltros}
-                className="bg-[#CCFBF1] text-[#0F766E] hover:opacity-90 px-4 py-2.5 rounded-xl text-xs font-semibold inline-flex items-center gap-1.5 transition-colors"
+                className="bg-[var(--primary-light)] text-[var(--primary)] hover:opacity-90 px-4 py-2.5 rounded-xl text-xs font-semibold inline-flex items-center gap-1.5 transition-colors"
               >
                 <RotateCcw size={14} strokeWidth={2} />
-                Limpar todos os filtros
+                <span>Limpar todos os filtros</span>
               </button>
             )}
           </div>
         ) : (
-          <div className="space-y-6">
+          <div className="space-y-5">
             {Object.entries(corridasAgrupadas).map(([mes, corridasDoMes]) => (
               <div key={mes}>
-                <div className="flex items-center gap-2 mb-3 px-0.5">
-                  <h3 className="font-display text-xs sm:text-sm font-bold tracking-wider text-[#0F766E] uppercase">
+                <div className="flex items-center gap-2 mb-2.5 px-0.5">
+                  <h3 className="font-display text-xs font-bold tracking-wider text-[var(--primary)] uppercase">
                     {mes}
                   </h3>
-                  <span className="w-1.5 h-1.5 rounded-full bg-[#0F766E] shrink-0" />
+                  <span className="w-1.5 h-1.5 rounded-full bg-[var(--primary)] shrink-0" />
                 </div>
 
                 <div className="space-y-3">
@@ -812,10 +807,11 @@ export function Viagens({
 
             {temMaisCorridas && (
               <button
+                type="button"
                 onClick={() => setItensVisiveis((prev) => prev + 5)}
-                className="w-full h-12 mt-6 bg-[var(--bg-surface)] border border-[var(--border-color)] rounded-xl text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[#0F766E]/40 transition-colors flex items-center justify-center gap-2 text-sm font-semibold active:scale-[0.99] shadow-sm"
+                className="w-full h-12 mt-5 bg-[var(--bg-surface)] border border-[var(--border-color)] rounded-xl text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[var(--primary)]/40 transition-colors flex items-center justify-center gap-2 text-sm font-semibold active:scale-[0.99] shadow-sm"
               >
-                Ver mais rachas ({corridasOrdenadas.length - itensVisiveis} restantes)
+                <span>Ver mais rachas ({corridasOrdenadas.length - itensVisiveis} restantes)</span>
                 <ChevronDown size={18} strokeWidth={2} />
               </button>
             )}

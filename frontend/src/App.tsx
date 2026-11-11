@@ -615,7 +615,7 @@ function App() {
     (otaStatus === 'ready' || otaStatus === 'applying') && readyBundle ? (
       <div className="fixed bottom-[calc(5.25rem+env(safe-area-inset-bottom,0px))] left-4 right-4 max-w-md mx-auto z-[95] bg-[var(--bg-surface)] border border-[var(--border-color)] rounded-2xl p-4 shadow-lg animate-fade-in">
         <div className="flex items-start gap-3">
-          <div className="w-10 h-10 rounded-full bg-[#CCFBF1] text-[#0F766E] flex items-center justify-center shrink-0">
+          <div className="w-10 h-10 rounded-full bg-[var(--primary-light)] text-[var(--primary)] flex items-center justify-center shrink-0">
             {otaStatus === 'applying' ? (
               <RefreshCw size={18} strokeWidth={2} className="animate-spin" />
             ) : (
@@ -638,7 +638,7 @@ function App() {
               <div className="flex items-center gap-2 mt-3">
                 <button
                   onClick={applyNow}
-                  className="bg-[#0F766E] hover:bg-[#115E59] text-white text-xs font-semibold px-3.5 py-2 rounded-xl flex items-center gap-1.5 transition-transform active:scale-95"
+                  className="bg-[var(--primary)] hover:bg-[var(--primary-dark)] text-white text-xs font-semibold px-3.5 py-2 rounded-xl flex items-center gap-1.5 transition-transform active:scale-95"
                 >
                   <RefreshCw size={13} strokeWidth={2} />
                   Recarregar agora
@@ -669,7 +669,7 @@ function App() {
 
   if (isInitializing) {
     return (
-      <div className="min-h-screen bg-[var(--bg-app)] flex flex-col items-center justify-center text-[#0F766E]">
+      <div className="min-h-screen bg-[var(--bg-app)] flex flex-col items-center justify-center text-[var(--primary)]">
         <LoaderCircle size={40} strokeWidth={2} className="animate-spin mb-3" />
         <p className="text-sm font-medium text-[var(--text-secondary)]">Carregando seus dados...</p>
       </div>
@@ -696,13 +696,13 @@ function App() {
       <div
         className="fixed top-0 left-0 right-0 flex justify-center z-[60] pointer-events-none"
         style={{
-          paddingTop: 'max(0.75rem, env(safe-area-inset-top, 0px))',
+          paddingTop: 'max(1.5rem, env(safe-area-inset-top, 0px))',
         }}
       >
         <div
           className={`w-10 h-10 rounded-full flex items-center justify-center border shadow-md transition-colors ${
             pullDistance >= PULL_THRESHOLD || isPullRefreshing
-              ? 'bg-[var(--bg-surface)] border-[#0F766E] text-[#0F766E]'
+              ? 'bg-[var(--bg-surface)] border-[var(--primary)] text-[var(--primary)]'
               : 'bg-[var(--bg-surface)] border-[var(--border-color)] text-[var(--text-secondary)]'
           }`}
           style={{
@@ -760,7 +760,7 @@ function App() {
               ref={(el) => {
                 tabScrollRefs.current.home = el;
               }}
-              className="w-full h-full overflow-y-auto px-4 sm:px-6 pt-[max(1rem,env(safe-area-inset-top,0px))] pb-[calc(6rem+env(safe-area-inset-bottom,0px))] max-w-lg md:max-w-xl lg:max-w-2xl mx-auto scrollbar-hide touch-pan-y overscroll-y-contain"
+              className="w-full h-full overflow-y-auto px-4 sm:px-6 pt-[max(2.25rem,calc(env(safe-area-inset-top,0px)+0.75rem))] pb-[calc(6rem+env(safe-area-inset-bottom,0px))] max-w-lg md:max-w-xl lg:max-w-2xl mx-auto scrollbar-hide touch-pan-y overscroll-y-contain"
             >
               <Home
                 dataVersion={dataVersion}
@@ -784,7 +784,7 @@ function App() {
               ref={(el) => {
                 tabScrollRefs.current.viagens = el;
               }}
-              className="w-full h-full overflow-y-auto px-4 sm:px-6 pt-[max(1rem,env(safe-area-inset-top,0px))] pb-[calc(6rem+env(safe-area-inset-bottom,0px))] max-w-lg md:max-w-xl lg:max-w-2xl mx-auto scrollbar-hide touch-pan-y overscroll-y-contain"
+              className="w-full h-full overflow-y-auto px-4 sm:px-6 pt-[max(2.25rem,calc(env(safe-area-inset-top,0px)+0.75rem))] pb-[calc(6rem+env(safe-area-inset-bottom,0px))] max-w-lg md:max-w-xl lg:max-w-2xl mx-auto scrollbar-hide touch-pan-y overscroll-y-contain"
             >
               <Viagens
                 dataVersion={dataVersion}
@@ -805,7 +805,7 @@ function App() {
               ref={(el) => {
                 tabScrollRefs.current.amigos = el;
               }}
-              className="w-full h-full overflow-y-auto px-4 sm:px-6 pt-[max(1rem,env(safe-area-inset-top,0px))] pb-[calc(6rem+env(safe-area-inset-bottom,0px))] max-w-lg md:max-w-xl lg:max-w-2xl mx-auto scrollbar-hide touch-pan-y overscroll-y-contain"
+              className="w-full h-full overflow-y-auto px-4 sm:px-6 pt-[max(2.25rem,calc(env(safe-area-inset-top,0px)+0.75rem))] pb-[calc(6rem+env(safe-area-inset-bottom,0px))] max-w-lg md:max-w-xl lg:max-w-2xl mx-auto scrollbar-hide touch-pan-y overscroll-y-contain"
             >
               <Amigos
                 dataVersion={dataVersion}
@@ -826,7 +826,7 @@ function App() {
               ref={(el) => {
                 tabScrollRefs.current.perfil = el;
               }}
-              className="w-full h-full overflow-y-auto px-4 sm:px-6 pt-[max(1rem,env(safe-area-inset-top,0px))] pb-[calc(6rem+env(safe-area-inset-bottom,0px))] max-w-lg md:max-w-xl lg:max-w-2xl mx-auto scrollbar-hide touch-pan-y overscroll-y-contain"
+              className="w-full h-full overflow-y-auto px-4 sm:px-6 pt-[max(2.25rem,calc(env(safe-area-inset-top,0px)+0.75rem))] pb-[calc(6rem+env(safe-area-inset-bottom,0px))] max-w-lg md:max-w-xl lg:max-w-2xl mx-auto scrollbar-hide touch-pan-y overscroll-y-contain"
             >
               <Perfil
                 dataVersion={dataVersion}
@@ -856,7 +856,7 @@ function App() {
                 : 'Adicionar Amigo'
               : 'Novo Racha'
           }
-          className="fixed bottom-[calc(4.75rem+env(safe-area-inset-bottom,0px))] right-4 sm:right-6 md:right-[max(1.5rem,calc(50%-22rem))] w-14 h-14 bg-[#0F766E] hover:bg-[#115E59] text-white rounded-full flex items-center justify-center shadow-lg transition-all active:scale-95 z-40"
+          className="fixed bottom-[calc(4.75rem+env(safe-area-inset-bottom,0px))] right-4 sm:right-6 md:right-[max(1.5rem,calc(50%-22rem))] w-14 h-14 bg-[var(--primary)] hover:bg-[var(--primary-dark)] text-white rounded-full flex items-center justify-center shadow-lg transition-all active:scale-95 z-40"
         >
           {activeTab === 'amigos' ? (
             amigosSubTab === 'grupos' ? (
@@ -944,7 +944,7 @@ function App() {
           }}
           className="fixed top-[max(0.75rem,env(safe-area-inset-top,0px))] left-4 right-4 max-w-md mx-auto z-50 bg-[var(--bg-surface)] border border-[var(--border-color)] rounded-2xl p-4 shadow-lg flex items-start gap-3 cursor-pointer animate-fade-in"
         >
-          <div className="w-10 h-10 rounded-full bg-[#CCFBF1] text-[#0F766E] flex items-center justify-center shrink-0">
+          <div className="w-10 h-10 rounded-full bg-[var(--primary-light)] text-[var(--primary)] flex items-center justify-center shrink-0">
             <Bell size={18} strokeWidth={2} />
           </div>
           <div className="flex-1 min-w-0">
