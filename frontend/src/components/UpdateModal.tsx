@@ -34,7 +34,7 @@ export function UpdateModal({ isOpen, onClose, updateInfo }: UpdateModalProps) {
   const [downloadSuccess, setDownloadSuccess] = useState(false);
   const [statusMessage, setStatusMessage] = useState('');
 
-  useModalBackHandler(isOpen, onClose);
+  const sheetRef = useModalBackHandler(isOpen, onClose);
 
   if (!isOpen) return null;
 
@@ -94,11 +94,17 @@ export function UpdateModal({ isOpen, onClose, updateInfo }: UpdateModalProps) {
       onClick={onClose}
     >
       <div
+        ref={sheetRef}
         className="bg-[var(--bg-surface)] w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl p-6 animate-slide-up relative border border-[var(--border-color)] shadow-lg overflow-hidden pb-safe"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Handle visual mobile */}
-        <div className="w-12 h-1 bg-[var(--border-color)] rounded-full mx-auto mb-3 sm:hidden shrink-0" />
+        {/* Handle de arrastar para baixo */}
+        <div
+          data-sheet-handle="true"
+          className="w-full pt-1 pb-3 -mt-2 mb-1 flex justify-center items-center cursor-grab active:cursor-grabbing touch-none select-none shrink-0"
+        >
+          <div className="w-12 h-1.5 bg-[var(--border-color)] rounded-full" />
+        </div>
 
         <button
           onClick={onClose}
@@ -108,7 +114,10 @@ export function UpdateModal({ isOpen, onClose, updateInfo }: UpdateModalProps) {
         </button>
 
         {/* Ícone e Título */}
-        <div className="flex items-center gap-3.5 mb-4 pr-6">
+        <div
+          data-sheet-handle="true"
+          className="flex items-center gap-3.5 mb-4 pr-6 select-none"
+        >
           <div className="w-12 h-12 rounded-full bg-[var(--primary-light)] text-[var(--primary)] flex items-center justify-center shrink-0">
             <Sparkles size={22} strokeWidth={2} />
           </div>

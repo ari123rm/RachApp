@@ -56,7 +56,7 @@ export function AssignReceiptModal({
     onClose();
   };
 
-  useModalBackHandler(isOpen, () => {
+  const sheetRef = useModalBackHandler(isOpen, () => {
     if (step > 1 && !isSubmitting) {
       setErrorMsg('');
       setStep((prev) => (prev === 3 ? 2 : 1));
@@ -313,14 +313,23 @@ export function AssignReceiptModal({
       onClick={handleClose}
     >
       <div
+        ref={sheetRef}
         className="bg-[var(--bg-surface)] w-full sm:max-w-lg rounded-t-2xl sm:rounded-2xl border border-[var(--border-color)] shadow-xl flex flex-col max-h-[92dvh] sm:max-h-[90vh] overflow-hidden animate-slide-up pb-safe"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Handle visual mobile */}
-        <div className="w-12 h-1 bg-[var(--border-color)] rounded-full mx-auto mt-2.5 mb-1 sm:hidden shrink-0" />
+        {/* Handle de arrastar para baixo */}
+        <div
+          data-sheet-handle="true"
+          className="w-full pt-2.5 pb-1.5 flex justify-center items-center cursor-grab active:cursor-grabbing touch-none select-none shrink-0"
+        >
+          <div className="w-12 h-1.5 bg-[var(--border-color)] rounded-full" />
+        </div>
 
         {/* Header + Stepper */}
-        <div className="p-5 pb-4 border-b border-[var(--border-color)] space-y-4">
+        <div
+          data-sheet-handle="true"
+          className="p-5 pt-2 pb-4 border-b border-[var(--border-color)] space-y-4 select-none"
+        >
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               {step > 1 ? (

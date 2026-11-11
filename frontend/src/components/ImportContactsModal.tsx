@@ -41,7 +41,7 @@ export function ImportContactsModal({
   existingFriends = [],
   onImported,
 }: ImportContactsModalProps) {
-  useModalBackHandler(isOpen, onClose);
+  const sheetRef = useModalBackHandler(isOpen, onClose);
 
   const [contacts, setContacts] = useState<RawPhoneContact[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -255,14 +255,23 @@ export function ImportContactsModal({
       onClick={onClose}
     >
       <div
+        ref={sheetRef}
         className="bg-[var(--bg-surface)] w-full sm:max-w-lg rounded-t-2xl sm:rounded-2xl border border-[var(--border-color)] shadow-xl flex flex-col max-h-[92dvh] sm:max-h-[90vh] overflow-hidden animate-slide-up pb-safe"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Handle visual mobile */}
-        <div className="w-12 h-1 bg-[var(--border-color)] rounded-full mx-auto mt-2.5 mb-1 sm:hidden shrink-0" />
+        {/* Handle de arrastar para baixo */}
+        <div
+          data-sheet-handle="true"
+          className="w-full pt-2.5 pb-1 flex justify-center items-center cursor-grab active:cursor-grabbing touch-none select-none shrink-0"
+        >
+          <div className="w-12 h-1.5 bg-[var(--border-color)] rounded-full" />
+        </div>
 
         {/* Header */}
-        <div className="p-5 pb-4 border-b border-[var(--border-color)] flex items-center justify-between">
+        <div
+          data-sheet-handle="true"
+          className="p-5 pt-2 pb-4 border-b border-[var(--border-color)] flex items-center justify-between select-none"
+        >
           <div className="flex items-center gap-3">
             <div className="w-12 h-12 rounded-full bg-[var(--primary)]/10 text-[var(--primary)] flex items-center justify-center">
               <BookUser size={22} strokeWidth={2} />

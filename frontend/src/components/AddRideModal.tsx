@@ -53,7 +53,7 @@ export function AddRideModal({
   const [isLoadingAmigos, setIsLoadingAmigos] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
-  useModalBackHandler(isOpen, onClose);
+  const sheetRef = useModalBackHandler(isOpen, onClose);
 
   const isEditing = !!rideToEdit;
   const valorNumerico = valor ? parseFloat(valor.replace(/\./g, '').replace(',', '.')) : 0;
@@ -428,11 +428,17 @@ export function AddRideModal({
       onClick={onClose}
     >
       <div
+        ref={sheetRef}
         className="bg-[var(--bg-surface)] w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl p-6 animate-slide-up relative overflow-y-auto max-h-[92dvh] sm:max-h-[90vh] border border-[var(--border-color)] shadow-xl pb-safe"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Handle visual mobile */}
-        <div className="w-12 h-1 bg-[var(--border-color)] rounded-full mx-auto mb-4 sm:hidden shrink-0" />
+        {/* Handle de arrastar para baixo (sempre acessível no topo) */}
+        <div
+          data-sheet-handle="true"
+          className="sticky -top-6 z-20 bg-[var(--bg-surface)]/95 backdrop-blur-sm w-full pt-2.5 pb-3 -mt-6 mb-2 flex justify-center items-center cursor-grab active:cursor-grabbing touch-none select-none shrink-0"
+        >
+          <div className="w-12 h-1.5 bg-[var(--border-color)] rounded-full" />
+        </div>
 
         <button
           onClick={onClose}
@@ -441,7 +447,10 @@ export function AddRideModal({
           <X size={22} strokeWidth={2} />
         </button>
 
-        <h2 className="text-h1 text-[var(--text-primary)] mb-5 pr-8">
+        <h2
+          data-sheet-handle="true"
+          className="text-h1 text-[var(--text-primary)] mb-5 pr-8 select-none"
+        >
           {isEditing ? 'Editar Racha' : 'Adicionar Novo Racha'}
         </h2>
 

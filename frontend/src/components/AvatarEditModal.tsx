@@ -34,7 +34,7 @@ export function AvatarEditModal({
   onSave,
   onDelete,
 }: AvatarEditModalProps) {
-  useModalBackHandler(isOpen, onClose);
+  const sheetRef = useModalBackHandler(isOpen, onClose);
 
   const [imageSrc, setImageSrc] = useState<string | null>(null);
   const [imageDimensions, setImageDimensions] = useState<{ width: number; height: number } | null>(
@@ -288,11 +288,17 @@ export function AvatarEditModal({
       onClick={onClose}
     >
       <div
+        ref={sheetRef}
         className="bg-[var(--bg-surface)] w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl p-6 animate-slide-up relative max-h-[95dvh] overflow-y-auto border border-[var(--border-color)] shadow-xl pb-safe"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Handle visual mobile */}
-        <div className="w-12 h-1 bg-[var(--border-color)] rounded-full mx-auto mb-4 sm:hidden shrink-0" />
+        {/* Handle de arrastar para baixo */}
+        <div
+          data-sheet-handle="true"
+          className="w-full pt-1 pb-3 -mt-2 mb-1 flex justify-center items-center cursor-grab active:cursor-grabbing touch-none select-none shrink-0"
+        >
+          <div className="w-12 h-1.5 bg-[var(--border-color)] rounded-full" />
+        </div>
 
         {/* Botão Fechar */}
         <button
@@ -305,7 +311,12 @@ export function AvatarEditModal({
         </button>
 
         {/* Título */}
-        <h2 className="text-h1 text-[var(--text-primary)] mb-1 pr-8">{title}</h2>
+        <h2
+          data-sheet-handle="true"
+          className="text-h1 text-[var(--text-primary)] mb-1 pr-8 select-none"
+        >
+          {title}
+        </h2>
         <p className="text-body2 text-[var(--text-secondary)] mb-5">
           {hasPhoto
             ? 'Arraste a foto e use o zoom para enquadrar perfeitamente.'

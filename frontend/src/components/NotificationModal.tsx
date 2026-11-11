@@ -14,6 +14,7 @@ import {
   ChevronRight,
 } from 'lucide-react';
 import { dbService } from '../services/database';
+import { useModalBackHandler } from '../utils/modalBackHandler';
 import type { AppNotification } from '../types';
 
 interface NotificationModalProps {
@@ -60,6 +61,7 @@ function formatNotificationDate(dateStr: string): string {
 export function NotificationModal({ isOpen, onClose, onDataChange, onOpenRide }: NotificationModalProps) {
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const sheetRef = useModalBackHandler(isOpen, onClose);
 
   const carregarNotificacoes = async () => {
     try {
@@ -133,14 +135,23 @@ export function NotificationModal({ isOpen, onClose, onDataChange, onOpenRide }:
       onClick={onClose}
     >
       <div
-        className="w-full sm:max-w-lg bg-[var(--bg-surface)] border border-[var(--border-color)] rounded-t-2xl sm:rounded-2xl max-h-[92dvh] sm:max-h-[85vh] flex flex-col shadow-lg overflow-hidden pb-safe"
+        ref={sheetRef}
+        className="w-full sm:max-w-lg bg-[var(--bg-surface)] border border-[var(--border-color)] rounded-t-2xl sm:rounded-2xl max-h-[92dvh] sm:max-h-[85vh] flex flex-col shadow-lg overflow-hidden pb-safe animate-slide-up"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Handle visual mobile */}
-        <div className="w-12 h-1 bg-[var(--border-color)] rounded-full mx-auto mt-2.5 mb-1 sm:hidden shrink-0" />
+        {/* Handle de arrastar para baixo */}
+        <div
+          data-sheet-handle="true"
+          className="w-full pt-2.5 pb-1 flex justify-center items-center cursor-grab active:cursor-grabbing touch-none select-none shrink-0"
+        >
+          <div className="w-12 h-1.5 bg-[var(--border-color)] rounded-full" />
+        </div>
 
         {/* Cabeçalho */}
-        <div className="p-4 border-b border-[var(--border-color)] flex items-center justify-between bg-[var(--bg-surface)]">
+        <div
+          data-sheet-handle="true"
+          className="p-4 pt-2 border-b border-[var(--border-color)] flex items-center justify-between bg-[var(--bg-surface)] select-none"
+        >
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-full bg-[var(--primary-light)] text-[var(--primary)] flex items-center justify-center shrink-0">
               <Bell size={18} strokeWidth={2} />

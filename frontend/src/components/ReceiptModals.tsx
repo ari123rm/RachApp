@@ -38,7 +38,7 @@ export function ReceiptViewerModal({
   initialIndex = 0,
   onViewDetails,
 }: ReceiptViewerModalProps) {
-  useModalBackHandler(isOpen, onClose);
+  const sheetRef = useModalBackHandler(isOpen, onClose);
   const receipts = parseReceiptUrls(receiptUrl);
   const [activeIndex, setActiveIndex] = useState(0);
   const [isSharing, setIsSharing] = useState(false);
@@ -74,13 +74,22 @@ export function ReceiptViewerModal({
       onClick={onClose}
     >
       <div
-        className="bg-[var(--bg-surface)] w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl p-6 border border-[var(--border-color)] shadow-xl relative max-h-[92dvh] sm:max-h-[88vh] flex flex-col pb-safe"
+        ref={sheetRef}
+        className="bg-[var(--bg-surface)] w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl p-6 border border-[var(--border-color)] shadow-xl relative max-h-[92dvh] sm:max-h-[88vh] flex flex-col pb-safe animate-slide-up"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Handle visual mobile */}
-        <div className="w-12 h-1 bg-[var(--border-color)] rounded-full mx-auto mb-3 sm:hidden shrink-0" />
+        {/* Handle de arrastar para baixo */}
+        <div
+          data-sheet-handle="true"
+          className="w-full pt-1 pb-3 -mt-2 mb-1 flex justify-center items-center cursor-grab active:cursor-grabbing touch-none select-none shrink-0"
+        >
+          <div className="w-12 h-1.5 bg-[var(--border-color)] rounded-full" />
+        </div>
 
-        <div className="flex items-center justify-between mb-4">
+        <div
+          data-sheet-handle="true"
+          className="flex items-center justify-between mb-4 select-none"
+        >
           <div className="flex items-center gap-3 min-w-0 pr-2">
             <div className="w-10 h-10 rounded-full bg-[var(--primary)]/10 text-[var(--primary)] flex items-center justify-center shrink-0">
               <FileCheck2 size={20} strokeWidth={2} />
@@ -246,7 +255,7 @@ export function PayWithReceiptModal({
   description = 'Acerto RachApp',
   onConfirm,
 }: PayWithReceiptModalProps) {
-  useModalBackHandler(isOpen, onClose);
+  const sheetRef = useModalBackHandler(isOpen, onClose);
 
   const [amountStr, setAmountStr] = useState('');
   const [receiptList, setReceiptList] = useState<string[]>([]);
@@ -410,11 +419,17 @@ export function PayWithReceiptModal({
       onClick={onClose}
     >
       <div
-        className="bg-[var(--bg-surface)] w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl p-6 border border-[var(--border-color)] shadow-xl relative max-h-[92dvh] sm:max-h-[90vh] overflow-y-auto pb-safe"
+        ref={sheetRef}
+        className="bg-[var(--bg-surface)] w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl p-6 border border-[var(--border-color)] shadow-xl relative max-h-[92dvh] sm:max-h-[90vh] overflow-y-auto pb-safe animate-slide-up"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Handle visual mobile */}
-        <div className="w-12 h-1 bg-[var(--border-color)] rounded-full mx-auto mb-4 sm:hidden shrink-0" />
+        {/* Handle de arrastar para baixo */}
+        <div
+          data-sheet-handle="true"
+          className="w-full pt-1 pb-3 -mt-2 mb-1 flex justify-center items-center cursor-grab active:cursor-grabbing touch-none select-none shrink-0"
+        >
+          <div className="w-12 h-1.5 bg-[var(--border-color)] rounded-full" />
+        </div>
 
         <button
           onClick={onClose}
@@ -423,7 +438,10 @@ export function PayWithReceiptModal({
           <X size={22} strokeWidth={2} />
         </button>
 
-        <div className="flex items-center gap-3 mb-4 pr-8">
+        <div
+          data-sheet-handle="true"
+          className="flex items-center gap-3 mb-4 pr-8 select-none"
+        >
           <div className="w-12 h-12 rounded-full bg-[var(--primary)]/10 text-[var(--primary)] flex items-center justify-center shrink-0">
             <QrCode size={22} strokeWidth={2} />
           </div>

@@ -41,7 +41,7 @@ export function PixModal({
   const [copiedKey, setCopiedKey] = useState(false);
   const [copiedCode, setCopiedCode] = useState(false);
 
-  useModalBackHandler(isOpen, onClose);
+  const sheetRef = useModalBackHandler(isOpen, onClose);
 
   useEffect(() => {
     if (isOpen) {
@@ -166,11 +166,17 @@ export function PixModal({
       onClick={onClose}
     >
       <div
+        ref={sheetRef}
         className="bg-[var(--bg-surface)] w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl p-6 border border-[var(--border-color)] shadow-lg relative max-h-[92dvh] sm:max-h-[90vh] overflow-y-auto animate-slide-up pb-safe"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Handle visual mobile */}
-        <div className="w-12 h-1 bg-[var(--border-color)] rounded-full mx-auto mb-3.5 sm:hidden shrink-0" />
+        {/* Handle de arrastar para baixo */}
+        <div
+          data-sheet-handle="true"
+          className="w-full pt-1 pb-3 -mt-2 mb-1 flex justify-center items-center cursor-grab active:cursor-grabbing touch-none select-none shrink-0"
+        >
+          <div className="w-12 h-1.5 bg-[var(--border-color)] rounded-full" />
+        </div>
 
         <button
           onClick={onClose}
@@ -179,7 +185,10 @@ export function PixModal({
           <X size={22} strokeWidth={2} />
         </button>
 
-        <div className="flex items-center gap-3 mb-4 pr-8">
+        <div
+          data-sheet-handle="true"
+          className="flex items-center gap-3 mb-4 pr-8 select-none"
+        >
           <div className="w-11 h-11 rounded-full bg-[var(--primary-light)] text-[var(--primary)] flex items-center justify-center shrink-0">
             <QrCode size={22} strokeWidth={2} />
           </div>
