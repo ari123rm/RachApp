@@ -776,8 +776,6 @@ export async function syncWithBackend(pullAfterPush = true): Promise<boolean> {
     if (pullAfterPush) {
       pendingPullAfterPush = true;
     }
-    // Empurra imediatamente itens pendentes na fila sem esperar o pull atual terminar
-    pushPendingQueue().catch(() => {});
     return activeSyncPromise;
   }
 
@@ -807,8 +805,15 @@ export async function syncWithBackend(pullAfterPush = true): Promise<boolean> {
         }
 
         if (shouldPull) {
+          const seqBeforePull = localMutationSeq;
           const { data } = await api.get('/finances/sync');
-          await saveRemoteSnapshotToSQLite(data);
+          if (localMutationSeq !== seqBeforePull) {
+            // Uma mutação local ocorreu enquanto o pull estava em voo; descarta o snapshot antigo e ressincroniza
+            pendingResync = true;
+            shouldPull = true;
+          } else {
+            await saveRemoteSnapshotToSQLite(data);
+          }
         }
       } while (pendingResync);
 

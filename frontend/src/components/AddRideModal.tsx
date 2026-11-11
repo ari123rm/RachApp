@@ -1,5 +1,5 @@
 // src/components/AddRideModal.tsx
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { X, LoaderCircle, UsersRound, Wallet, Percent, DollarSign, Equal, BadgeCheck } from 'lucide-react';
 import { dbService } from '../services/database';
@@ -43,6 +43,7 @@ export function AddRideModal({
 
   // Custom Split State
   const [splitMode, setSplitMode] = useState<SplitMode>('equal');
+  const [hasCustomEdits, setHasCustomEdits] = useState(false);
   const [friendPercents, setFriendPercents] = useState<Record<string, string>>({});
   const [selfPercent, setSelfPercent] = useState<string>('');
   const [friendAmounts, setFriendAmounts] = useState<Record<string, string>>({});
@@ -53,6 +54,7 @@ export function AddRideModal({
   const [isLoadingAmigos, setIsLoadingAmigos] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
+  const initializedKeyRef = useRef<string | null>(null);
   const sheetRef = useModalBackHandler(isOpen, onClose);
 
   const isEditing = !!rideToEdit;
@@ -76,88 +78,107 @@ export function AddRideModal({
   };
 
   useEffect(() => {
-    if (isOpen) {
-      const carregarDados = async () => {
-        setIsLoadingAmigos(true);
-        try {
-          const [dadosAmigos, dadosGrupos] = await Promise.all([
-            dbService.amigos.getAll(),
-            dbService.grupos.getAll(),
-          ]);
+    if (!isOpen) {
+      initializedKeyRef.current = null;
+      return;
+    }
+
+    const sessionKey = rideToEdit ? `edit:${rideToEdit.id}` : `new:${defaultGroupId || ''}`;
+    if (initializedKeyRef.current === sessionKey) {
+      // Já inicializado nesta sessão de abertura: apenas atualiza listas de referência sem sobrescrever edições do usuário
+      Promise.all([dbService.amigos.getAll(), dbService.grupos.getAll()])
+        .then(([dadosAmigos, dadosGrupos]) => {
           setAmigosReais(dadosAmigos);
           setGrupos(dadosGrupos);
+        })
+        .catch(() => {});
+      return;
+    }
 
-          if (rideToEdit) {
-            const totalNum = Number(rideToEdit.valorTotal || 0);
-            setTitulo(rideToEdit.titulo || '');
-            setTag(rideToEdit.tag || 'Uber');
-            setData(rideToEdit.data || getTodayDate());
-            setValor(
-              totalNum.toLocaleString('pt-BR', {
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 2,
-              })
-            );
-            const pIds = rideToEdit.participantesIds || [];
-            setSelecionados(pIds);
-            setGroupId(rideToEdit.groupId || '');
-            setPaidByFriendId(rideToEdit.paidByFriendId || '');
+    initializedKeyRef.current = sessionKey;
 
-            const qtd = pIds.length + 1;
-            const partePadrao = qtd > 0 ? totalNum / qtd : totalNum;
-            const devidos = rideToEdit.valoresDevidos || {};
-            const selfOwed =
-              rideToEdit.selfAmountOwed !== undefined ? rideToEdit.selfAmountOwed : partePadrao;
+    const carregarDados = async () => {
+      setIsLoadingAmigos(true);
+      try {
+        const [dadosAmigos, dadosGrupos] = await Promise.all([
+          dbService.amigos.getAll(),
+          dbService.grupos.getAll(),
+        ]);
+        setAmigosReais(dadosAmigos);
+        setGrupos(dadosGrupos);
 
-            const temCustom =
-              pIds.some(
-                (id) => devidos[id] !== undefined && Math.abs(devidos[id] - partePadrao) > 0.05
-              ) || Math.abs(selfOwed - partePadrao) > 0.05;
+        if (rideToEdit) {
+          const totalNum = Number(rideToEdit.valorTotal || 0);
+          setTitulo(rideToEdit.titulo || '');
+          setTag(rideToEdit.tag || 'Uber');
+          setData(rideToEdit.data || getTodayDate());
+          setValor(
+            totalNum.toLocaleString('pt-BR', {
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2,
+            })
+          );
+          const pIds = rideToEdit.participantesIds || [];
+          setSelecionados(pIds);
+          setGroupId(rideToEdit.groupId || '');
+          setPaidByFriendId(rideToEdit.paidByFriendId || '');
 
-            const nextPct: Record<string, string> = {};
-            const nextAmt: Record<string, string> = {};
-            pIds.forEach((id) => {
-              const v = devidos[id] !== undefined ? devidos[id] : partePadrao;
-              nextAmt[id] = v.toFixed(2);
-              nextPct[id] = totalNum > 0 ? ((v / totalNum) * 100).toFixed(1) : '0';
-            });
+          const qtd = pIds.length + 1;
+          const partePadrao = qtd > 0 ? totalNum / qtd : totalNum;
+          const devidos = rideToEdit.valoresDevidos || {};
+          const selfOwed =
+            rideToEdit.selfAmountOwed !== undefined ? rideToEdit.selfAmountOwed : partePadrao;
 
-            setFriendAmounts(nextAmt);
-            setSelfAmount(selfOwed.toFixed(2));
-            setFriendPercents(nextPct);
-            setSelfPercent(totalNum > 0 ? ((selfOwed / totalNum) * 100).toFixed(1) : '0');
-            setSplitMode(temCustom ? 'amount' : 'equal');
-          } else {
-            setTitulo('');
-            setTag('');
-            setData(getTodayDate());
-            setValor('');
-            setPaidByFriendId('');
-            setSplitMode('equal');
-            if (defaultGroupId) {
-              setGroupId(defaultGroupId);
-              const g = dadosGrupos.find((grp) => grp.id === defaultGroupId);
-              if (g && g.members) {
-                const fIds = g.members
-                  .filter((m) => m.friend?.id)
-                  .map((m) => m.friend!.id);
-                setSelecionados(fIds);
-                inicializarDivisaoIgual(fIds, 0);
-              } else {
-                setSelecionados([]);
-              }
+          const temCustom =
+            pIds.some(
+              (id) => devidos[id] !== undefined && Math.abs(devidos[id] - partePadrao) > 0.05
+            ) || Math.abs(selfOwed - partePadrao) > 0.05;
+
+          const nextPct: Record<string, string> = {};
+          const nextAmt: Record<string, string> = {};
+          pIds.forEach((id) => {
+            const v = devidos[id] !== undefined ? devidos[id] : partePadrao;
+            nextAmt[id] = v.toFixed(2);
+            nextPct[id] = totalNum > 0 ? ((v / totalNum) * 100).toFixed(1) : '0';
+          });
+
+          setFriendAmounts(nextAmt);
+          setSelfAmount(selfOwed.toFixed(2));
+          setFriendPercents(nextPct);
+          setSelfPercent(totalNum > 0 ? ((selfOwed / totalNum) * 100).toFixed(1) : '0');
+          setSplitMode(temCustom ? 'amount' : 'equal');
+          setHasCustomEdits(temCustom);
+        } else {
+          setTitulo('');
+          setTag('');
+          setData(getTodayDate());
+          setValor('');
+          setPaidByFriendId('');
+          setSplitMode('equal');
+          setHasCustomEdits(false);
+          if (defaultGroupId) {
+            setGroupId(defaultGroupId);
+            const g = dadosGrupos.find((grp) => grp.id === defaultGroupId);
+            if (g && g.members) {
+              const fIds = g.members
+                .filter((m) => m.friend?.id)
+                .map((m) => m.friend!.id);
+              setSelecionados(fIds);
+              inicializarDivisaoIgual(fIds, 0);
             } else {
-              setGroupId('');
               setSelecionados([]);
             }
+          } else {
+            setGroupId('');
+            setSelecionados([]);
           }
-        } finally {
-          setIsLoadingAmigos(false);
         }
-      };
-      carregarDados();
-    }
-  }, [isOpen, rideToEdit, defaultGroupId]);
+      } finally {
+        setIsLoadingAmigos(false);
+      }
+    };
+    carregarDados();
+  }, [isOpen, rideToEdit?.id, defaultGroupId]);
 
   const sugestoesTitulos = ['Eletra', 'IFCE', 'Casa', 'Cinema', 'Pizza', 'Internet', 'Mercado'];
   const sugestoesTags = ['Uber', 'Pizza', 'Trabalho', 'Contas', 'Mercado'];
@@ -170,22 +191,55 @@ export function AddRideModal({
         const fIds = g.members.filter((m) => m.friend?.id).map((m) => m.friend!.id);
         if (fIds.length > 0) {
           setSelecionados(fIds);
-          inicializarDivisaoIgual(fIds, valorNumerico);
+          if (splitMode === 'equal' || !hasCustomEdits) {
+            inicializarDivisaoIgual(fIds, valorNumerico);
+          }
         }
       }
     }
   };
 
   const toggleAmigo = (id: string) => {
+    const isRemoving = selecionados.includes(id);
     let next: string[];
-    if (selecionados.includes(id)) {
+    if (isRemoving) {
       next = selecionados.filter((item) => item !== id);
       if (paidByFriendId === id) setPaidByFriendId('');
     } else {
       next = [...selecionados, id];
     }
     setSelecionados(next);
-    inicializarDivisaoIgual(next, valorNumerico);
+
+    if (splitMode === 'equal' || !hasCustomEdits) {
+      inicializarDivisaoIgual(next, valorNumerico);
+    } else {
+      // Preserva valores personalizados já digitados pelos outros participantes
+      const nextAmt: Record<string, string> = {};
+      const nextPct: Record<string, string> = {};
+      let somaExistenteAmt = parseFloat(selfAmount || '0') || 0;
+      let somaExistentePct = parseFloat(selfPercent || '0') || 0;
+
+      next.forEach((fId) => {
+        if (fId !== id && friendAmounts[fId] !== undefined) {
+          nextAmt[fId] = friendAmounts[fId];
+          somaExistenteAmt += parseFloat(friendAmounts[fId] || '0') || 0;
+        }
+        if (fId !== id && friendPercents[fId] !== undefined) {
+          nextPct[fId] = friendPercents[fId];
+          somaExistentePct += parseFloat(friendPercents[fId] || '0') || 0;
+        }
+      });
+
+      if (!isRemoving) {
+        const restAmt = Math.max(0, Number((valorNumerico - somaExistenteAmt).toFixed(2)));
+        const restPct = Math.max(0, Number((100 - somaExistentePct).toFixed(1)));
+        nextAmt[id] = restAmt.toFixed(2);
+        nextPct[id] = restPct.toFixed(1);
+      }
+
+      setFriendAmounts(nextAmt);
+      setFriendPercents(nextPct);
+    }
   };
 
   const handleValorChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -225,15 +279,18 @@ export function AddRideModal({
   };
 
   const handleModeSwitch = (mode: SplitMode) => {
+    if (mode === splitMode) return;
+    const prevMode = splitMode;
     setSplitMode(mode);
     if (mode === 'equal') {
+      setHasCustomEdits(false);
       inicializarDivisaoIgual(selecionados, valorNumerico);
     } else if (mode === 'percent') {
       if (valorNumerico > 0) {
         const nextPct: Record<string, string> = {};
         selecionados.forEach((id) => {
           const v =
-            splitMode === 'amount' && friendAmounts[id] !== undefined
+            prevMode === 'amount' && friendAmounts[id] !== undefined
               ? parseFloat(friendAmounts[id] || '0') || 0
               : valorNumerico / (selecionados.length + 1);
           const pct = (v / valorNumerico) * 100;
@@ -241,7 +298,7 @@ export function AddRideModal({
         });
         setFriendPercents(nextPct);
         const selfV =
-          splitMode === 'amount' && selfAmount !== undefined
+          prevMode === 'amount' && selfAmount !== undefined
             ? parseFloat(selfAmount || '0') || 0
             : valorNumerico / (selecionados.length + 1);
         const sPct = (selfV / valorNumerico) * 100;
@@ -253,35 +310,40 @@ export function AddRideModal({
       if (valorNumerico > 0) {
         const nextAmt: Record<string, string> = {};
         selecionados.forEach((id) => {
-          const pct =
-            splitMode === 'percent' && friendPercents[id] !== undefined
-              ? parseFloat(friendPercents[id] || '0') || 0
-              : 100 / (selecionados.length + 1);
-          const v = (valorNumerico * pct) / 100;
-          nextAmt[id] = v.toFixed(2);
+          if (prevMode === 'percent' && friendPercents[id] !== undefined) {
+            const pct = parseFloat(friendPercents[id] || '0') || 0;
+            nextAmt[id] = ((valorNumerico * pct) / 100).toFixed(2);
+          } else if (friendAmounts[id] !== undefined && hasCustomEdits) {
+            nextAmt[id] = friendAmounts[id];
+          } else {
+            nextAmt[id] = (valorNumerico / (selecionados.length + 1)).toFixed(2);
+          }
         });
         setFriendAmounts(nextAmt);
-        const sPct =
-          splitMode === 'percent' && selfPercent !== undefined
-            ? parseFloat(selfPercent || '0') || 0
-            : 100 / (selecionados.length + 1);
-        const sAmt = (valorNumerico * sPct) / 100;
-        setSelfAmount(sAmt.toFixed(2));
+        if (prevMode === 'percent' && selfPercent !== undefined) {
+          const sPct = parseFloat(selfPercent || '0') || 0;
+          setSelfAmount(((valorNumerico * sPct) / 100).toFixed(2));
+        } else if (!selfAmount || !hasCustomEdits) {
+          setSelfAmount((valorNumerico / (selecionados.length + 1)).toFixed(2));
+        }
       }
     }
   };
 
   const handleFriendPercentChange = (friendId: string, rawVal: string) => {
     const cleaned = rawVal.replace(',', '.');
+    setHasCustomEdits(true);
     setFriendPercents((prev) => ({ ...prev, [friendId]: cleaned }));
   };
 
   const handleFriendAmountChange = (friendId: string, rawVal: string) => {
     const cleaned = rawVal.replace(',', '.');
+    setHasCustomEdits(true);
     setFriendAmounts((prev) => ({ ...prev, [friendId]: cleaned }));
   };
 
   const handleAjustarRestanteEmVoce = () => {
+    setHasCustomEdits(true);
     if (splitMode === 'percent') {
       const somaAmigos = selecionados.reduce(
         (acc, id) => acc + (parseFloat(friendPercents[id] || '0') || 0),
@@ -795,11 +857,14 @@ export function AddRideModal({
                       step="any"
                       min="0"
                       value={splitMode === 'percent' ? selfPercent : selfAmount}
-                      onChange={(e) =>
-                        splitMode === 'percent'
-                          ? setSelfPercent(e.target.value.replace(',', '.'))
-                          : setSelfAmount(e.target.value.replace(',', '.'))
-                      }
+                      onChange={(e) => {
+                        setHasCustomEdits(true);
+                        if (splitMode === 'percent') {
+                          setSelfPercent(e.target.value.replace(',', '.'));
+                        } else {
+                          setSelfAmount(e.target.value.replace(',', '.'));
+                        }
+                      }}
                       className="w-16 sm:w-20 bg-transparent text-right text-[var(--text-primary)] text-caption font-bold outline-none tabular-nums"
                     />
                     {splitMode === 'percent' && (

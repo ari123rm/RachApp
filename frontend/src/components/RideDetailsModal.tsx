@@ -1,6 +1,6 @@
 // src/components/RideDetailsModal.tsx
 import { createPortal } from 'react-dom';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   ChevronLeft,
   Receipt,
@@ -45,6 +45,7 @@ export function RideDetailsModal({
   onUpdated,
 }: RideDetailsProps) {
   const [currentRide, setCurrentRide] = useState<Corrida | null>(ride || null);
+  const [allFriendsList, setAllFriendsList] = useState<any[]>([]);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isPaySelfOpen, setIsPaySelfOpen] = useState(false);
   const [myAvatarUrl, setMyAvatarUrl] = useState<string | null>(null);
@@ -63,11 +64,16 @@ export function RideDetailsModal({
     initialIndex: 0,
   });
 
+  const participantesRef = useRef<any[]>(participantes);
+  participantesRef.current = participantes;
+
   const sheetRef = useModalBackHandler(isOpen, onClose);
 
   useEffect(() => {
-    setCurrentRide(ride || null);
-  }, [ride]);
+    if (!isEditOpen) {
+      setCurrentRide(ride || null);
+    }
+  }, [ride, isEditOpen]);
 
   useEffect(() => {
     if (!feedbackMsg) return;
@@ -84,6 +90,7 @@ export function RideDetailsModal({
           dbService.corridas.getAll(),
           dbService.amigos.getAll(),
         ]);
+        setAllFriendsList(allFriends);
         const fresh = allRides.find((c) => c.id === targetRide.id);
         if (fresh) {
           setCurrentRide(fresh);
@@ -98,10 +105,19 @@ export function RideDetailsModal({
             if (info) map.set('self', info);
           }
         } else {
-          for (const p of participantes) {
-            const res = applyBilateralNetting(allRides, p, allFriends);
-            const info = res.get(r.id);
-            if (info) map.set(p.id, info);
+          const partIds =
+            r.participantesIds && r.participantesIds.length > 0
+              ? r.participantesIds
+              : participantesRef.current.map((p: any) => p.id);
+          for (const pid of partIds) {
+            const friendObj =
+              allFriends.find((f) => f.id === pid) ||
+              participantesRef.current.find((p: any) => p.id === pid);
+            if (friendObj) {
+              const res = applyBilateralNetting(allRides, friendObj, allFriends);
+              const info = res.get(r.id);
+              if (info) map.set(pid, info);
+            }
           }
         }
         setNettingMap(map);
@@ -109,7 +125,7 @@ export function RideDetailsModal({
         console.warn('Erro ao atualizar netting:', err);
       }
     },
-    [participantes]
+    []
   );
 
   useEffect(() => {
@@ -139,8 +155,17 @@ export function RideDetailsModal({
   const activeRide = currentRide || ride;
   if (!isOpen || !activeRide) return null;
 
+  const effectiveParticipantes =
+    activeRide.participantesIds && activeRide.participantesIds.length > 0
+      ? activeRide.participantesIds.map(
+          (pid) =>
+            participantes.find((p: any) => p.id === pid) ||
+            allFriendsList.find((f: any) => f.id === pid) || { id: pid, nome: 'Amigo' }
+        )
+      : participantes;
+
   const valorNumerico = Number(activeRide.valorTotal || 0);
-  const totalPessoas = (activeRide.participantesIds?.length || participantes.length) + 1;
+  const totalPessoas = (activeRide.participantesIds?.length || effectiveParticipantes.length) + 1;
   const valorDivididoPadrao = totalPessoas > 0 ? valorNumerico / totalPessoas : valorNumerico;
 
   const obterParteAmigo = (amigoId: string): number => {
@@ -164,7 +189,7 @@ export function RideDetailsModal({
   const voceEhPagador = !activeRide.paidByFriendId;
   const selfNetting = nettingMap.get('self');
   const isSelfQuitado = voceEhPagador || meuValorPago >= minhaParte - 0.01 || !!selfNetting?.isQuitada;
-  const pagadorAmigo = participantes.find((p: any) => p.id === activeRide.paidByFriendId);
+  const pagadorAmigo = effectiveParticipantes.find((p: any) => p.id === activeRide.paidByFriendId);
   const pagadorNome = pagadorAmigo?.nome || pagadorAmigo?.name || activeRide.paidByName || 'Amigo';
   const pagadorPix =
     activeRide.payerPixKey?.trim() ||
@@ -180,7 +205,7 @@ export function RideDetailsModal({
   ) => {
     if (!voceEhPagador || updatingFriendId) return;
 
-    const amigoObj = participantes.find((p: any) => p.id === amigoId);
+    const amigoObj = effectiveParticipantes.find((p: any) => p.id === amigoId);
     const amigoNome = amigoObj?.nome || amigoObj?.name || 'Amigo';
     const novoValor = jaPago ? 0 : valorParte;
 
@@ -253,7 +278,7 @@ export function RideDetailsModal({
     }
   };
 
-  const nonPayerFriendsCount = participantes.filter(
+  const nonPayerFriendsCount = effectiveParticipantes.filter(
     (item: any) => item.id !== activeRide.paidByFriendId
   ).length;
 
@@ -392,7 +417,7 @@ export function RideDetailsModal({
             </div>
 
             <div className="space-y-2.5">
-              {participantes.map((p: any) => {
+              {effectiveParticipantes.map((p: any) => {
                 const nome = p.nome || p.name || 'Amigo';
                 const cor = p.cor || p.color || 'bg-sky-500';
                 const valorParte = obterParteAmigo(p.id);
@@ -737,8 +762,9 @@ export function RideDetailsModal({
         isOpen={isEditOpen}
         rideToEdit={activeRide}
         onClose={() => setIsEditOpen(false)}
-        onSuccess={() => {
+        onSuccess={async () => {
           setIsEditOpen(false);
+          await atualizarNettingEModal(activeRide);
           if (onUpdated) onUpdated();
         }}
       />

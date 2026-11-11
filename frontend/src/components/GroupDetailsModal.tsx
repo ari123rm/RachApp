@@ -103,9 +103,11 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
 
   const sheetRef = useModalBackHandler(isOpen, onClose);
 
-  const carregarDetalhes = async () => {
+  const carregarDetalhes = async (showSpinner = false) => {
     if (!grupoId) return;
-    setIsLoading(true);
+    if (showSpinner) {
+      setIsLoading(true);
+    }
     try {
       const [dadosGrupo, amigos, corridas, config] = await Promise.all([
         dbService.grupos.getById(grupoId),
@@ -128,14 +130,16 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
     } catch (error) {
       console.error('Erro ao carregar detalhes do grupo:', error);
     } finally {
-      setIsLoading(false);
+      if (showSpinner) {
+        setIsLoading(false);
+      }
     }
   };
 
   useEffect(() => {
     if (isOpen && grupoId) {
       setShowAddMemberSection(false);
-      carregarDetalhes();
+      carregarDetalhes(true);
     }
   }, [isOpen, grupoId]);
 
