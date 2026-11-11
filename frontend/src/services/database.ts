@@ -60,6 +60,7 @@ let isSyncing = false;
 let activeSyncPromise: Promise<boolean> | null = null;
 let pendingResync = false;
 let pendingPullAfterPush = false;
+let localMutationSeq = 0;
 let lastSyncedAt: string | null = null;
 let syncListeners: Array<(status: SyncStatus) => void> = [];
 
@@ -94,6 +95,7 @@ async function notifySyncListeners(stateOverride?: SyncStatus['state']) {
 }
 
 async function enqueueSync(entity: string, action: string, entityId: string, payload?: any) {
+  localMutationSeq += 1;
   await runSQL(
     `INSERT INTO sync_queue (entity, action, entity_id, payload, created_at) VALUES (?, ?, ?, ?, ?)`,
     [entity, action, entityId, payload ? JSON.stringify(payload) : null, new Date().toISOString()]
@@ -269,7 +271,15 @@ async function saveRemoteSnapshotToSQLite(data: {
   const db = await getSQLiteDB();
 
   const pendingRows = await queryAll<{ entity_id: string }>('SELECT entity_id FROM sync_queue');
-  const pendingIds = new Set(pendingRows.map((r) => r.entity_id));
+  const unsyncedFriendIds = await queryAll<{ id: string }>('SELECT id FROM friends WHERE synced = 0');
+  const unsyncedGroupIds = await queryAll<{ id: string }>('SELECT id FROM groups_table WHERE synced = 0');
+  const unsyncedExpIds = await queryAll<{ id: string }>('SELECT id FROM expenses WHERE synced = 0');
+  const pendingIds = new Set([
+    ...pendingRows.map((r) => r.entity_id),
+    ...unsyncedFriendIds.map((r) => r.id),
+    ...unsyncedGroupIds.map((r) => r.id),
+    ...unsyncedExpIds.map((r) => r.id),
+  ]);
   const localFriends = await queryAll<{ id: string; phone: string }>(
     'SELECT id, phone FROM friends WHERE synced = 1'
   );
