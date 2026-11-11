@@ -149,7 +149,13 @@ export class FriendService {
       )
     );
 
-    const matchedUsers =
+    const matchedUsers: Array<{
+      id: string;
+      name: string;
+      phone: string | null;
+      pix_key: string | null;
+      avatar_url: string | null;
+    }> =
       friendPhoneSuffixes.length > 0
         ? await prisma.user.findMany({
             where: {
@@ -210,7 +216,7 @@ export class FriendService {
           matchedUsers.push({
             id: ownerUser.id,
             name: ownerUser.name,
-            phone: ownerUser.phone || null,
+            phone: ownerUser.phone || '',
             pix_key: cleanOwnerPix,
             avatar_url: cleanOwnerAvatar,
           });
