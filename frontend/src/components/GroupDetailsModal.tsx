@@ -30,6 +30,7 @@ import { PayWithReceiptModal } from './ReceiptModals';
 import { RideDetailsModal } from './RideDetailsModal';
 import { RideCard } from './RideCard';
 import { formatPhoneBR, openWhatsApp, phonesMatchBR, stripCountryCode } from '../utils/phoneFormatter';
+import { generatePixCopiaECola } from '../utils/pixGenerator';
 import { useModalBackHandler } from '../utils/modalBackHandler';
 import { getAvatarColor } from '../utils/avatarColor';
 import { getRideStatusForUser } from '../utils/rideStatus';
@@ -389,6 +390,7 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
         fromKey,
         toKey,
         fromShort: getShortName(fromFull),
+        fromFull,
         toShort: getShortName(toFull),
         toFull,
         toPix,
@@ -407,7 +409,7 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
         netByKey.set(dt.fromKey, {
           key: dt.fromKey,
           shortName: dt.fromShort,
-          fullName: dt.fromShort,
+          fullName: dt.fromFull,
           pix: '',
           net: 0,
         });
@@ -443,6 +445,7 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
       toKey: string;
       fromShort: string;
       toShort: string;
+      toFull: string;
       toPix: string;
       amount: number;
     }[] = [];
@@ -459,6 +462,7 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
           toKey: c.key,
           fromShort: d.shortName,
           toShort: c.shortName,
+          toFull: c.fullName,
           toPix: c.pix || resolveMemberPix(c.key, c.fullName),
           amount: amt,
         });
@@ -483,7 +487,9 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
       optimizedTransfers.length > 0 &&
       serializeTransfers(directTransfers) !== serializeTransfers(optimizedTransfers);
 
-    const linhasOtimizadas = (optimizedTransfers.length > 0 ? optimizedTransfers : directTransfers)
+    const activeTransfers = optimizedTransfers.length > 0 ? optimizedTransfers : directTransfers;
+
+    const linhasOtimizadas = activeTransfers
       .map((t) => `• ${t.fromShort} ➔ ${t.toShort}: *R$ ${moneyConverter(t.amount)}*`)
       .join('\n');
 
@@ -491,18 +497,36 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
       .map((t) => `• ${t.fromShort} ➔ ${t.toShort}: R$ ${moneyConverter(t.amount)}`)
       .join('\n');
 
-    // 3. Chaves Pix de quem vai receber (sem duplicar)
-    const receiversMap = new Map<string, { name: string; pix: string }>();
-    for (const t of [...optimizedTransfers, ...directTransfers]) {
+    // 3. Chaves Pix e Pix Copia e Cola (sem valor) apenas de quem vai receber
+    const receiversMap = new Map<string, { name: string; fullName: string; pix: string }>();
+    for (const t of activeTransfers) {
       if (!receiversMap.has(t.toKey)) {
-        const pix = t.toPix || resolveMemberPix(t.toKey, t.toShort);
-        receiversMap.set(t.toKey, { name: t.toShort, pix });
+        const pix = t.toPix || resolveMemberPix(t.toKey, t.toFull || t.toShort);
+        receiversMap.set(t.toKey, {
+          name: t.toShort,
+          fullName: t.toFull || t.toShort,
+          pix,
+        });
       }
     }
 
     const linhasPix = Array.from(receiversMap.values())
       .map((r) => `• *${r.name}:* ${r.pix || 'Não informada'}`)
       .join('\n');
+
+    const linhasCopiaECola = Array.from(receiversMap.values())
+      .map((r) => {
+        if (!r.pix) return '';
+        const payload = generatePixCopiaECola({
+          pixKey: r.pix,
+          merchantName: r.fullName || r.name || 'RachApp',
+          amount: undefined,
+        });
+        if (!payload) return '';
+        return `*Pix Copia e Cola (${r.name}):*\n${payload}`;
+      })
+      .filter(Boolean)
+      .join('\n\n');
 
     const secoes: string[] = [
       `Fala grupo *${grupo.name}*! Segue o resumo dos nossos rachas pelo RachApp:`,
@@ -522,6 +546,10 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
 
     if (linhasPix) {
       secoes.push(`🔑 *Chaves Pix:*\n${linhasPix}`);
+    }
+
+    if (linhasCopiaECola) {
+      secoes.push(linhasCopiaECola);
     }
 
     secoes.push('Valeu!');
