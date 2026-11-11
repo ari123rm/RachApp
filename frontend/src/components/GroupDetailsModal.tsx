@@ -17,6 +17,7 @@ import {
   BadgeCheck,
   TrendingDown,
   TrendingUp,
+  Share2,
 } from 'lucide-react';
 import { dbService } from '../services/database';
 import moneyConverter from '../utils/moneyConverter';
@@ -28,7 +29,7 @@ import { PixModal } from './PixModal';
 import { PayWithReceiptModal } from './ReceiptModals';
 import { RideDetailsModal } from './RideDetailsModal';
 import { RideCard } from './RideCard';
-import { formatPhoneBR } from '../utils/phoneFormatter';
+import { formatPhoneBR, openWhatsApp, phonesMatchBR, stripCountryCode } from '../utils/phoneFormatter';
 import { useModalBackHandler } from '../utils/modalBackHandler';
 import { getAvatarColor } from '../utils/avatarColor';
 import { getRideStatusForUser } from '../utils/rideStatus';
@@ -190,25 +191,356 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
     if (onChanged) onChanged();
   };
 
+  const montarMensagemResumoGrupo = (cfg?: { nome: string; pix: string }) => {
+    if (!grupo) return '';
+    const myName = (cfg?.nome || myConfig.nome || 'Você').trim();
+    const myPix = (cfg?.pix || myConfig.pix || '').trim();
+    const membersList = grupo.memberBalances || [];
+
+    const allKnownNames = Array.from(
+      new Set(
+        [
+          myName,
+          ...membersList.map((m) => (m.name || '').trim()),
+          ...(grupo.expenses || []).flatMap((e: any) => [
+            (e.paidByFriend?.name || e.payer_friend_name || '').trim(),
+            ...(e.participants || []).map((p: any) => (p.friend?.name || p.friend_name || '').trim()),
+          ]),
+        ].filter(Boolean)
+      )
+    );
+
+    const getShortName = (rawName?: string | null): string => {
+      const clean = (rawName || '').trim();
+      if (!clean) return 'Amigo';
+      if (clean === 'Você') return getShortName(myName);
+      const parts = clean.split(/\s+/);
+      const first = parts[0];
+      const hasDuplicateFirst = allKnownNames.some(
+        (other) =>
+          other.toLowerCase() !== clean.toLowerCase() &&
+          other.split(/\s+/)[0]?.toLowerCase() === first.toLowerCase()
+      );
+      if (hasDuplicateFirst && parts.length > 1) {
+        return `${parts[0]} ${parts[1][0]}.`;
+      }
+      return first;
+    };
+
+    const resolveMemberFullName = (friendId?: string | null, fallbackName?: string | null): string => {
+      if (
+        !friendId ||
+        friendId === 'self' ||
+        friendId === 'me' ||
+        (myConfig.id && friendId === myConfig.id) ||
+        fallbackName === 'Você'
+      ) {
+        return myName;
+      }
+      const fromBalance = membersList.find((m) => m.friendId === friendId);
+      if (fromBalance?.name) return fromBalance.name.trim();
+      const fromGroup = (grupo.members || []).find((m) => m.friend?.id === friendId);
+      if (fromGroup?.friend?.name) return fromGroup.friend.name.trim();
+      const fromFriends = todosAmigos.find((a) => a.id === friendId);
+      if (fromFriends) return (fromFriends.nome || fromFriends.name || fallbackName || 'Amigo').trim();
+      return (fallbackName || 'Amigo').trim();
+    };
+
+    const resolveMemberPix = (
+      friendId?: string | null,
+      rawName?: string | null,
+      fallbackPix?: string | null
+    ): string => {
+      if (
+        !friendId ||
+        friendId === 'self' ||
+        friendId === 'me' ||
+        (myConfig.id && friendId === myConfig.id) ||
+        rawName === 'Você' ||
+        (rawName && rawName.trim().toLowerCase() === myName.toLowerCase())
+      ) {
+        return myPix;
+      }
+      if (fallbackPix?.trim()) return fallbackPix.trim();
+
+      const fromBalance = membersList.find((m) => m.friendId === friendId);
+      if (fromBalance?.pix_key?.trim()) return fromBalance.pix_key.trim();
+
+      const fromGroup = (grupo.members || []).find((m) => m.friend?.id === friendId);
+      if (fromGroup?.friend?.pix_key?.trim()) return fromGroup.friend.pix_key.trim();
+
+      const targetPhone = stripCountryCode(fromBalance?.phone || fromGroup?.friend?.phone || '');
+      const targetName = (rawName || fromBalance?.name || '').trim().toLowerCase();
+
+      const friendMatch =
+        todosAmigos.find((a) => a.id === friendId) ||
+        todosAmigos.find((a) => {
+          const aPhone = stripCountryCode(a.telefone || a.phone || '');
+          if (targetPhone && aPhone && phonesMatchBR(targetPhone, aPhone)) return true;
+          const aName = (a.nome || a.name || '').trim().toLowerCase();
+          return Boolean(targetName && aName && targetName === aName);
+        });
+
+      const friendPix = (
+        (friendMatch as any)?.registered_pix_key ||
+        friendMatch?.pix_key ||
+        friendMatch?.pix ||
+        ''
+      ).trim();
+      if (friendPix) return friendPix;
+
+      const rachaComPix = todasCorridas.find(
+        (c) => c.paidByFriendId === friendId && c.payerPixKey?.trim()
+      );
+      if (rachaComPix?.payerPixKey?.trim()) return rachaComPix.payerPixKey.trim();
+
+      return '';
+    };
+
+    const formatarDataCurta = (iso?: string) => {
+      if (!iso) return '';
+      const datePart = iso.split('T')[0];
+      const parts = datePart.split('-');
+      if (parts.length !== 3) return datePart;
+      return `${parts[2]}/${parts[1]}`;
+    };
+
+    // 1. Rachas Pendentes do Grupo (quem precisa pagar o quê e quanto)
+    const sortedExpenses = [...(grupo.expenses || [])].sort((a: any, b: any) => {
+      const da = String(a.expense_date || '');
+      const db = String(b.expense_date || '');
+      return da.localeCompare(db);
+    });
+
+    const linhasRachasPendentes: string[] = [];
+
+    for (const exp of sortedExpenses) {
+      const valorTotal = Number(exp.total_amount || 0);
+      const payerFriendId = exp.paid_by_friend_id || null;
+      const payerFullName = payerFriendId
+        ? resolveMemberFullName(payerFriendId, exp.paidByFriend?.name || exp.payer_friend_name)
+        : myName;
+      const payerShort = getShortName(payerFullName);
+      const parts = exp.participants || [];
+
+      const devedores: { nome: string; valor: number }[] = [];
+
+      if (!payerFriendId) {
+        for (const p of parts) {
+          const pend = Number(p.amount_owed || 0) - Number(p.amount_paid || 0);
+          if (pend > 0.005) {
+            const pFull = resolveMemberFullName(p.friend_id, p.friend?.name || p.friend_name);
+            devedores.push({ nome: getShortName(pFull), valor: Number(pend.toFixed(2)) });
+          }
+        }
+      } else {
+        for (const p of parts) {
+          if (p.friend_id === payerFriendId) continue;
+          const pend = Number(p.amount_owed || 0) - Number(p.amount_paid || 0);
+          if (pend > 0.005) {
+            const pFull = resolveMemberFullName(p.friend_id, p.friend?.name || p.friend_name);
+            devedores.push({ nome: getShortName(pFull), valor: Number(pend.toFixed(2)) });
+          }
+        }
+
+        const partSum = parts.reduce((acc: number, p: any) => acc + Number(p.amount_owed || 0), 0);
+        const selfOwed =
+          exp.self_amount_owed !== null &&
+          exp.self_amount_owed !== undefined &&
+          Number(exp.self_amount_owed) > 0
+            ? Number(exp.self_amount_owed)
+            : Math.abs(partSum - valorTotal) <= 0.1 || partSum >= valorTotal - 0.1
+            ? 0
+            : valorTotal / (parts.length + 1);
+        const selfPaid = Number(exp.self_amount_paid || 0);
+        const selfPend = Number((selfOwed - selfPaid).toFixed(2));
+        if (selfPend > 0.005) {
+          devedores.push({ nome: getShortName(myName), valor: selfPend });
+        }
+      }
+
+      if (devedores.length > 0) {
+        const mesmoValor =
+          devedores.length >= 2 &&
+          devedores.every((d) => Math.abs(d.valor - devedores[0].valor) < 0.01);
+        const textoDevedores = mesmoValor
+          ? `${devedores.map((d) => d.nome).join(', ')}: R$ ${moneyConverter(devedores[0].valor)} cada`
+          : devedores.map((d) => `${d.nome}: R$ ${moneyConverter(d.valor)}`).join(' | ');
+
+        const dataCurta = formatarDataCurta(exp.expense_date);
+        const titulo = (exp.title || exp.tag || 'Racha').trim();
+        linhasRachasPendentes.push(
+          `• ${dataCurta ? `${dataCurta} ` : ''}*${titulo}* (R$ ${moneyConverter(valorTotal)} • pg: ${payerShort})\n  ↳ ${textoDevedores}`
+        );
+      }
+    }
+
+    // 2. Transferências e Proposta de Envio Otimizado
+    const rawTransfers = grupo.transfers || [];
+    const directTransfers = rawTransfers.map((t) => {
+      const isFromMe = t.fromName === 'Você' || (myConfig.id && t.fromId === myConfig.id);
+      const isToMe = t.toName === 'Você' || (myConfig.id && t.toId === myConfig.id);
+      const fromKey = isFromMe ? 'self' : t.fromId;
+      const toKey = isToMe ? 'self' : t.toId;
+      const fromFull = isFromMe ? myName : resolveMemberFullName(t.fromId, t.fromName);
+      const toFull = isToMe ? myName : resolveMemberFullName(t.toId, t.toName);
+      const toPix = resolveMemberPix(toKey, toFull, t.toPixKey);
+      return {
+        fromKey,
+        toKey,
+        fromShort: getShortName(fromFull),
+        toShort: getShortName(toFull),
+        toFull,
+        toPix,
+        amount: Number(t.amount.toFixed(2)),
+      };
+    });
+
+    // Algoritmo guloso para proposta de envio otimizado (mínimo de transferências no grupo)
+    const netByKey = new Map<
+      string,
+      { key: string; shortName: string; fullName: string; pix: string; net: number }
+    >();
+
+    for (const dt of directTransfers) {
+      if (!netByKey.has(dt.fromKey)) {
+        netByKey.set(dt.fromKey, {
+          key: dt.fromKey,
+          shortName: dt.fromShort,
+          fullName: dt.fromShort,
+          pix: '',
+          net: 0,
+        });
+      }
+      if (!netByKey.has(dt.toKey)) {
+        netByKey.set(dt.toKey, {
+          key: dt.toKey,
+          shortName: dt.toShort,
+          fullName: dt.toFull,
+          pix: dt.toPix,
+          net: 0,
+        });
+      } else if (dt.toPix && !netByKey.get(dt.toKey)!.pix) {
+        netByKey.get(dt.toKey)!.pix = dt.toPix;
+      }
+
+      netByKey.get(dt.fromKey)!.net = Number((netByKey.get(dt.fromKey)!.net - dt.amount).toFixed(2));
+      netByKey.get(dt.toKey)!.net = Number((netByKey.get(dt.toKey)!.net + dt.amount).toFixed(2));
+    }
+
+    const debtors = Array.from(netByKey.values())
+      .filter((x) => x.net < -0.01)
+      .map((x) => ({ ...x, amount: Math.abs(x.net) }))
+      .sort((a, b) => b.amount - a.amount);
+
+    const creditors = Array.from(netByKey.values())
+      .filter((x) => x.net > 0.01)
+      .map((x) => ({ ...x, amount: x.net }))
+      .sort((a, b) => b.amount - a.amount);
+
+    const optimizedTransfers: {
+      fromKey: string;
+      toKey: string;
+      fromShort: string;
+      toShort: string;
+      toPix: string;
+      amount: number;
+    }[] = [];
+
+    let i = 0;
+    let j = 0;
+    while (i < debtors.length && j < creditors.length) {
+      const d = debtors[i];
+      const c = creditors[j];
+      const amt = Number(Math.min(d.amount, c.amount).toFixed(2));
+      if (amt >= 0.01) {
+        optimizedTransfers.push({
+          fromKey: d.key,
+          toKey: c.key,
+          fromShort: d.shortName,
+          toShort: c.shortName,
+          toPix: c.pix || resolveMemberPix(c.key, c.fullName),
+          amount: amt,
+        });
+      }
+      d.amount = Number((d.amount - amt).toFixed(2));
+      c.amount = Number((c.amount - amt).toFixed(2));
+      if (d.amount < 0.01) i++;
+      if (c.amount < 0.01) j++;
+    }
+
+    if (linhasRachasPendentes.length === 0 && directTransfers.length === 0) {
+      return `📋 *Resumo do Grupo: ${grupo.name}* (RachApp)\n\n✅ Todos os rachas do grupo estão quitados!`;
+    }
+
+    const serializeTransfers = (list: { fromKey: string; toKey: string; amount: number }[]) =>
+      list
+        .map((x) => `${x.fromKey}->${x.toKey}:${x.amount.toFixed(2)}`)
+        .sort()
+        .join('|');
+
+    const hasDifferenceInOptimization =
+      optimizedTransfers.length > 0 &&
+      serializeTransfers(directTransfers) !== serializeTransfers(optimizedTransfers);
+
+    const linhasOtimizadas = (optimizedTransfers.length > 0 ? optimizedTransfers : directTransfers)
+      .map((t) => `• ${t.fromShort} ➔ ${t.toShort}: *R$ ${moneyConverter(t.amount)}*`)
+      .join('\n');
+
+    const linhasDiretas = directTransfers
+      .map((t) => `• ${t.fromShort} ➔ ${t.toShort}: R$ ${moneyConverter(t.amount)}`)
+      .join('\n');
+
+    // 3. Chaves Pix de quem vai receber (sem duplicar)
+    const receiversMap = new Map<string, { name: string; pix: string }>();
+    for (const t of [...optimizedTransfers, ...directTransfers]) {
+      if (!receiversMap.has(t.toKey)) {
+        const pix = t.toPix || resolveMemberPix(t.toKey, t.toShort);
+        receiversMap.set(t.toKey, { name: t.toShort, pix });
+      }
+    }
+
+    const linhasPix = Array.from(receiversMap.values())
+      .map((r) => `• *${r.name}:* ${r.pix || 'Não informada'}`)
+      .join('\n');
+
+    const secoes: string[] = [`📋 *Resumo: ${grupo.name}* (RachApp)`];
+
+    if (linhasRachasPendentes.length > 0) {
+      secoes.push(`🧾 *Rachas Pendentes:*\n${linhasRachasPendentes.join('\n')}`);
+    }
+
+    if (hasDifferenceInOptimization && linhasDiretas) {
+      secoes.push(`📌 *Saldos Diretos:*\n${linhasDiretas}`);
+    }
+
+    if (linhasOtimizadas) {
+      secoes.push(`⚡ *Envio Otimizado:*\n${linhasOtimizadas}`);
+    }
+
+    if (linhasPix) {
+      secoes.push(`🔑 *Chaves Pix:*\n${linhasPix}`);
+    }
+
+    return secoes.join('\n\n');
+  };
+
+  const handleCompartilharResumoGrupo = async () => {
+    if (!grupo) return;
+    const freshConfig = await dbService.settings.get();
+    const myPix = (freshConfig.pix_key || freshConfig.pix || myConfig.pix || '').trim();
+    const myName = (freshConfig.nome || freshConfig.name || myConfig.nome || 'Você').trim();
+    const msg = montarMensagemResumoGrupo({ nome: myName, pix: myPix });
+    openWhatsApp(undefined, msg);
+  };
+
   const handleCobrarGrupo = async () => {
     if (!grupo) return;
     const freshConfig = await dbService.settings.get();
-    const myPix = freshConfig.pix_key || freshConfig.pix || myConfig.pix || '';
-    const myName = freshConfig.nome || freshConfig.name || myConfig.nome || 'Você';
-
+    const myPix = (freshConfig.pix_key || freshConfig.pix || myConfig.pix || '').trim();
+    const myName = (freshConfig.nome || freshConfig.name || myConfig.nome || 'Você').trim();
     const userNet = Number(grupo.userNetBalance || 0);
-    const transfers = grupo.transfers || [];
-
-    const linhasTransferencias = transfers
-      .map((t) => `• ${t.fromName} -> ${t.toName}: R$ ${moneyConverter(t.amount)}`)
-      .join('\n');
-
-    const msg =
-      `*Resumo do Grupo: ${grupo.name} (RachApp)*\n\n` +
-      (linhasTransferencias
-        ? `*Transferências Otimizadas:*\n${linhasTransferencias}\n\n`
-        : 'Todas as contas estão em dia!\n\n') +
-      (myPix ? `*Meu Pix (${myName}):* ${myPix}` : '');
+    const msg = montarMensagemResumoGrupo({ nome: myName, pix: myPix });
 
     setPixModalData({
       isOpen: true,
@@ -216,6 +548,7 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
       recipientName: myName,
       amount: Math.max(0, userNet),
       description: `Grupo ${grupo.name}`,
+      whatsappPhone: undefined,
       whatsappCustomMessage: msg,
     });
   };
@@ -587,19 +920,42 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
                 </span>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2.5">
                 <button
                   onClick={() => setIsAddRideOpen(true)}
-                  className="ds-btn-primary"
+                  className="w-full ds-btn-primary"
                 >
                   <Plus size={18} strokeWidth={2} /> Novo Racha
                 </button>
-                <button
-                  onClick={handleCobrarGrupo}
-                  className="ds-btn-secondary"
-                >
-                  <QrCode size={18} strokeWidth={2} className="text-[var(--primary)]" /> Cobrar
-                </button>
+                <div className="grid grid-cols-2 gap-2.5">
+                  <button
+                    onClick={handleCompartilharResumoGrupo}
+                    className="h-12 bg-[#10B981] hover:bg-[#059669] text-white font-semibold px-3.5 rounded-xl text-body2 flex items-center justify-center gap-1.5 transition-all active:scale-95 truncate shadow-sm"
+                    title="Compartilhar resumo completo do grupo no WhatsApp"
+                  >
+                    <svg
+                      viewBox="0 0 24 24"
+                      width="16"
+                      height="16"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      fill="none"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      className="shrink-0"
+                    >
+                      <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path>
+                    </svg>
+                    <span className="truncate">Resumo Zap</span>
+                  </button>
+                  <button
+                    onClick={handleCobrarGrupo}
+                    className="ds-btn-secondary px-3.5 truncate"
+                  >
+                    <QrCode size={16} strokeWidth={2} className="shrink-0 text-[var(--primary)]" />
+                    <span className="truncate">QR Code Pix</span>
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -864,6 +1220,14 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
                     </div>
                   ))}
                 </div>
+                <button
+                  type="button"
+                  onClick={handleCompartilharResumoGrupo}
+                  className="mt-3 w-full h-11 bg-[#10B981]/10 hover:bg-[#10B981]/20 text-[#10B981] border border-[#10B981]/30 font-semibold rounded-xl text-caption flex items-center justify-center gap-2 transition-all active:scale-95"
+                >
+                  <Share2 size={15} strokeWidth={2} />
+                  <span>Compartilhar Resumo Completo no WhatsApp</span>
+                </button>
               </div>
             )}
 
