@@ -713,7 +713,7 @@ export function AssignReceiptModal({
                 <ShieldCheck size={18} strokeWidth={2} className="text-[var(--primary)] shrink-0" />
                 <span>
                   Ao confirmar, o comprovante ficará salvo nos rachas quitados com{' '}
-                  <strong>{selectedName.split(' ')[0]}</strong> e você será direcionado para a Home.
+                  <strong>{selectedName.split(' ')[0]}</strong> e você será direcionado para o Início.
                 </span>
               </div>
             </div>

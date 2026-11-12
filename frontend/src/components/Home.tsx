@@ -71,14 +71,12 @@ export function Home({
   const [amigoSelecionado, setAmigoSelecionado] = useState<any>(null);
   const [grupoSelecionadoId, setGrupoSelecionadoId] = useState<string | null>(null);
   const [nomeUsuario, setNomeUsuario] = useState('Usuário');
-  const [avatarUsuario, setAvatarUsuario] = useState<string | null>(null);
 
   const carregarDashboard = async (periodo = periodoRef.current, showSpinner = false) => {
     if (showSpinner) setIsLoading(true);
     try {
       const config = await dbService.settings.get();
       setNomeUsuario(config.nome || config.name || 'Usuário');
-      setAvatarUsuario(config.avatar_url || null);
 
       const dados = await dbService.dashboard.get(periodo);
       if (Array.isArray((dados as any).mesesDisponiveis) && (dados as any).mesesDisponiveis.length > 0) {
@@ -148,7 +146,11 @@ export function Home({
   if (isLoading) {
     return (
       <div className="space-y-4">
-        <TopBar title="Início" subtitle="Calculando finanças..." />
+        <TopBar
+          title="Início"
+          subtitle="Calculando finanças..."
+          onNavigateToProfile={onNavigateToProfile}
+        />
         <div className="flex flex-col items-center justify-center h-64 text-[var(--primary)]">
           <LoaderCircle size={40} strokeWidth={2} className="animate-spin mb-4" />
           <p className="text-sm font-medium text-[var(--text-secondary)]">Calculando finanças...</p>
@@ -170,40 +172,22 @@ export function Home({
             ? 'Seu resumo de todos os meses'
             : `Seu resumo de ${formatarMesAno(periodoSelecionado)}`
         }
+        onNavigateToProfile={onNavigateToProfile}
         rightContent={
-          <>
-            {onOpenNotifications && (
-              <button
-                onClick={onOpenNotifications}
-                title="Notificações"
-                className="relative w-10 h-10 rounded-full bg-[var(--bg-surface)] border border-[var(--border-color)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] flex items-center justify-center transition-colors shadow-sm shrink-0 active:scale-95"
-              >
-                <Bell size={18} strokeWidth={2} />
-                {unreadNotifCount > 0 && (
-                  <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-[#F43F5E] text-white text-xs font-bold flex items-center justify-center border-2 border-[var(--bg-app)]">
-                    {unreadNotifCount > 9 ? '9+' : unreadNotifCount}
-                  </span>
-                )}
-              </button>
-            )}
-
+          onOpenNotifications ? (
             <button
-              type="button"
-              onClick={onNavigateToProfile}
-              title="Ir para o meu perfil"
-              className="w-10 h-10 bg-[var(--primary)] text-white rounded-full overflow-hidden flex items-center justify-center font-display font-bold shadow-sm border border-[var(--primary)]/20 shrink-0 cursor-pointer hover:ring-2 hover:ring-[var(--primary)]/40 transition-all active:scale-95"
+              onClick={onOpenNotifications}
+              title="Notificações"
+              className="relative w-10 h-10 rounded-full bg-[var(--bg-surface)] border border-[var(--border-color)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] flex items-center justify-center transition-colors shadow-sm shrink-0 active:scale-95"
             >
-              {avatarUsuario ? (
-                <img
-                  src={avatarUsuario}
-                  alt={nomeUsuario}
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <span className="text-sm uppercase font-bold">{(nomeUsuario || 'U')[0]}</span>
+              <Bell size={18} strokeWidth={2} />
+              {unreadNotifCount > 0 && (
+                <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-[#F43F5E] text-white text-xs font-bold flex items-center justify-center border-2 border-[var(--bg-app)]">
+                  {unreadNotifCount > 9 ? '9+' : unreadNotifCount}
+                </span>
               )}
             </button>
-          </>
+          ) : undefined
         }
       />
 
@@ -255,7 +239,7 @@ export function Home({
             </p>
           </div>
 
-          <div className="flex items-center gap-2 min-w-0">
+          <div className="flex items-center gap-2 w-full sm:w-auto min-w-0">
             <button
               type="button"
               onClick={() =>
@@ -270,7 +254,7 @@ export function Home({
               Todos
             </button>
 
-            <div className="relative min-w-0 max-w-[160px] sm:max-w-[200px]">
+            <div className="relative flex-1 sm:flex-initial sm:min-w-[190px] min-w-0">
               <Calendar
                 size={13}
                 strokeWidth={2}
@@ -309,16 +293,16 @@ export function Home({
                 onNavigateToRachas?.('a_receber');
               }
             }}
-            className={`bg-[var(--emerald-bg)] rounded-2xl p-4 flex flex-col justify-between border border-[var(--emerald-border)] min-w-0 transition-all select-none ${
+            className={`bg-[var(--emerald-bg)] rounded-2xl p-3 sm:p-4 flex flex-col justify-between border border-[var(--emerald-border)] min-w-0 transition-all select-none ${
               onNavigateToRachas ? 'cursor-pointer hover:opacity-90 active:scale-[0.98]' : ''
             }`}
             title="Filtrar rachas a receber"
           >
-            <div className="flex items-center gap-2 mb-2 min-w-0">
-              <div className="w-8 h-8 bg-[#10B981] rounded-full flex items-center justify-center text-white shrink-0 shadow-sm">
-                <TrendingUp size={16} strokeWidth={2} />
+            <div className="flex items-center gap-1.5 sm:gap-2 mb-2 min-w-0">
+              <div className="w-7 h-7 sm:w-8 sm:h-8 bg-[#10B981] rounded-full flex items-center justify-center text-white shrink-0 shadow-sm">
+                <TrendingUp size={15} strokeWidth={2} />
               </div>
-              <p className="text-xs text-[#10B981] font-semibold uppercase tracking-wider truncate">
+              <p className="text-[11px] sm:text-xs text-[#10B981] font-bold uppercase tracking-normal whitespace-nowrap">
                 A receber
               </p>
             </div>
@@ -337,16 +321,16 @@ export function Home({
                 onNavigateToRachas?.('a_pagar');
               }
             }}
-            className={`bg-[var(--rose-bg)] rounded-2xl p-4 flex flex-col justify-between border border-[var(--rose-border)] min-w-0 transition-all select-none ${
+            className={`bg-[var(--rose-bg)] rounded-2xl p-3 sm:p-4 flex flex-col justify-between border border-[var(--rose-border)] min-w-0 transition-all select-none ${
               onNavigateToRachas ? 'cursor-pointer hover:opacity-90 active:scale-[0.98]' : ''
             }`}
             title="Filtrar rachas a pagar"
           >
-            <div className="flex items-center gap-2 mb-2 min-w-0">
-              <div className="w-8 h-8 bg-[#F43F5E] rounded-full flex items-center justify-center text-white shrink-0 shadow-sm">
-                <TrendingDown size={16} strokeWidth={2} />
+            <div className="flex items-center gap-1.5 sm:gap-2 mb-2 min-w-0">
+              <div className="w-7 h-7 sm:w-8 sm:h-8 bg-[#F43F5E] rounded-full flex items-center justify-center text-white shrink-0 shadow-sm">
+                <TrendingDown size={15} strokeWidth={2} />
               </div>
-              <p className="text-xs text-[#F43F5E] font-semibold uppercase tracking-wider truncate">
+              <p className="text-[11px] sm:text-xs text-[#F43F5E] font-bold uppercase tracking-normal whitespace-nowrap">
                 A pagar
               </p>
             </div>

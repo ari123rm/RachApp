@@ -1,15 +1,54 @@
 // src/components/TopBar.tsx
 import { useState, useEffect, useRef, type ReactNode } from 'react';
+import { dbService } from '../services/database';
 
 interface TopBarProps {
   title: string;
   subtitle?: ReactNode;
   rightContent?: ReactNode;
+  showProfileButton?: boolean;
+  onNavigateToProfile?: () => void;
 }
 
-export function TopBar({ title, subtitle, rightContent }: TopBarProps) {
+export function TopBar({
+  title,
+  subtitle,
+  rightContent,
+  showProfileButton = true,
+  onNavigateToProfile,
+}: TopBarProps) {
   const headerRef = useRef<HTMLElement | null>(null);
   const [isScrolled, setIsScrolled] = useState(false);
+  const [userName, setUserName] = useState('U');
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!showProfileButton) return;
+    let mounted = true;
+
+    const loadUser = () => {
+      dbService.auth
+        .getSessionUser()
+        .then((u) => {
+          if (!mounted || !u) return;
+          setUserName(u.name || 'U');
+          setAvatarUrl(u.avatar_url || null);
+        })
+        .catch(() => {});
+    };
+
+    loadUser();
+    const unsub = dbService.sync.subscribe((st) => {
+      if (st.state === 'synced' || st.state === 'pending') {
+        loadUser();
+      }
+    });
+
+    return () => {
+      mounted = false;
+      unsub();
+    };
+  }, [showProfileButton]);
 
   useEffect(() => {
     const el = headerRef.current;
@@ -40,6 +79,14 @@ export function TopBar({ title, subtitle, rightContent }: TopBarProps) {
     };
   }, []);
 
+  const handleProfileClick = () => {
+    if (onNavigateToProfile) {
+      onNavigateToProfile();
+    } else {
+      window.dispatchEvent(new CustomEvent('rachapp:navigate-tab', { detail: 'perfil' }));
+    }
+  };
+
   return (
     <header
       ref={headerRef}
@@ -61,8 +108,28 @@ export function TopBar({ title, subtitle, rightContent }: TopBarProps) {
           )}
         </div>
 
-        {rightContent && (
-          <div className="flex items-center gap-2 shrink-0">{rightContent}</div>
+        {(rightContent || showProfileButton) && (
+          <div className="flex items-center gap-2 shrink-0">
+            {rightContent}
+            {showProfileButton && (
+              <button
+                type="button"
+                onClick={handleProfileClick}
+                title="Ir para o meu perfil"
+                className="w-10 h-10 bg-[var(--primary)] text-white rounded-full overflow-hidden flex items-center justify-center font-display font-bold shadow-sm border border-[var(--primary)]/20 shrink-0 cursor-pointer hover:ring-2 hover:ring-[var(--primary)]/40 transition-all active:scale-95"
+              >
+                {avatarUrl ? (
+                  <img
+                    src={avatarUrl}
+                    alt={userName}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <span className="text-sm uppercase font-bold">{(userName || 'U')[0]}</span>
+                )}
+              </button>
+            )}
+          </div>
         )}
       </div>
     </header>

@@ -8,7 +8,7 @@ import {
   ChevronDown,
   ArrowDownUp,
   Search,
-  SlidersHorizontal,
+  Filter,
   X,
   RotateCcw,
   Calendar,
@@ -396,17 +396,16 @@ export function Viagens({
             <button
               type="button"
               onClick={() => setMostrarFiltros(!mostrarFiltros)}
-              className={`h-10 px-3 rounded-xl transition-all flex items-center gap-1.5 text-xs font-semibold shrink-0 border ${
+              className={`relative w-10 h-10 rounded-full transition-all flex items-center justify-center shrink-0 border shadow-sm active:scale-95 ${
                 mostrarFiltros || totalFiltrosAvancados > 0
-                  ? 'bg-[var(--primary)] text-white border-[var(--primary)] shadow-sm'
+                  ? 'bg-[var(--primary)] text-white border-[var(--primary)]'
                   : 'bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] border-[var(--border-color)]'
               }`}
               title="Filtros avançados"
             >
-              <SlidersHorizontal size={15} strokeWidth={2} />
-              <span className="hidden xs:inline">Filtros</span>
+              <Filter size={17} strokeWidth={2} />
               {totalFiltrosAvancados > 0 && (
-                <span className="px-1.5 py-0.2 rounded-full text-[11px] font-bold bg-white/20 text-white">
+                <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-[#F43F5E] text-white text-[10px] font-bold flex items-center justify-center border-2 border-[var(--bg-app)]">
                   {totalFiltrosAvancados}
                 </span>
               )}
@@ -415,14 +414,14 @@ export function Viagens({
             <button
               type="button"
               onClick={() => setOrdemCrescente(!ordemCrescente)}
-              className={`h-10 w-10 rounded-xl transition-colors flex items-center justify-center shrink-0 border ${
+              className={`w-10 h-10 rounded-full transition-colors flex items-center justify-center shrink-0 border shadow-sm active:scale-95 ${
                 ordemCrescente
                   ? 'bg-[var(--primary-light)] text-[var(--primary)] border-[var(--primary)]/40'
                   : 'bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] border-[var(--border-color)]'
               }`}
               title={ordemCrescente ? 'Mais antigos primeiro' : 'Mais recentes primeiro'}
             >
-              <ArrowDownUp size={16} strokeWidth={2} />
+              <ArrowDownUp size={17} strokeWidth={2} />
             </button>
           </>
         }

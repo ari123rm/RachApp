@@ -367,6 +367,24 @@ function App() {
     setActiveTab(tab);
   };
 
+  useEffect(() => {
+    const onNavigateTab = (e: Event) => {
+      const targetTab = (e as CustomEvent<string>).detail;
+      if (targetTab) {
+        setActiveTab((prev) => {
+          if (prev === targetTab) {
+            tabScrollRefs.current[targetTab]?.scrollTo({ top: 0, behavior: 'smooth' });
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+            return prev;
+          }
+          return targetTab;
+        });
+      }
+    };
+    window.addEventListener('rachapp:navigate-tab', onNavigateTab);
+    return () => window.removeEventListener('rachapp:navigate-tab', onNavigateTab);
+  }, []);
+
   const PULL_THRESHOLD = 52;
 
   // Arraste horizontal (entre abas) e vertical (pull-to-refresh manual no topo)
@@ -613,7 +631,7 @@ function App() {
   // Toast suave de Atualização OTA Pronta (Blue-Green)
   const otaReadyToast =
     (otaStatus === 'ready' || otaStatus === 'applying') && readyBundle ? (
-      <div className="fixed bottom-[calc(5.25rem+env(safe-area-inset-bottom,0px))] left-4 right-4 max-w-md mx-auto z-[95] bg-[var(--bg-surface)] border border-[var(--border-color)] rounded-2xl p-4 shadow-lg animate-fade-in">
+      <div className="fixed bottom-[calc(4rem+max(env(safe-area-inset-bottom,0px),12px)+0.875rem)] left-4 right-4 max-w-md mx-auto z-[95] bg-[var(--bg-surface)] border border-[var(--border-color)] rounded-2xl p-4 shadow-lg animate-fade-in">
         <div className="flex items-start gap-3">
           <div className="w-10 h-10 rounded-full bg-[var(--primary-light)] text-[var(--primary)] flex items-center justify-center shrink-0">
             {otaStatus === 'applying' ? (
@@ -761,7 +779,7 @@ function App() {
               ref={(el) => {
                 tabScrollRefs.current.home = el;
               }}
-              className="w-full h-full overflow-y-auto px-4 sm:px-6 pb-[calc(6rem+env(safe-area-inset-bottom,0px))] max-w-lg md:max-w-xl lg:max-w-2xl mx-auto scrollbar-hide touch-pan-y overscroll-y-contain"
+              className="w-full h-full overflow-y-auto px-4 sm:px-6 pb-[calc(8.5rem+max(env(safe-area-inset-bottom,0px),12px))] max-w-lg md:max-w-xl lg:max-w-2xl mx-auto scrollbar-hide touch-pan-y overscroll-y-contain"
             >
               <Home
                 dataVersion={dataVersion}
@@ -786,7 +804,7 @@ function App() {
               ref={(el) => {
                 tabScrollRefs.current.viagens = el;
               }}
-              className="w-full h-full overflow-y-auto px-4 sm:px-6 pb-[calc(6rem+env(safe-area-inset-bottom,0px))] max-w-lg md:max-w-xl lg:max-w-2xl mx-auto scrollbar-hide touch-pan-y overscroll-y-contain"
+              className="w-full h-full overflow-y-auto px-4 sm:px-6 pb-[calc(8.5rem+max(env(safe-area-inset-bottom,0px),12px))] max-w-lg md:max-w-xl lg:max-w-2xl mx-auto scrollbar-hide touch-pan-y overscroll-y-contain"
             >
               <Viagens
                 dataVersion={dataVersion}
@@ -808,7 +826,7 @@ function App() {
               ref={(el) => {
                 tabScrollRefs.current.amigos = el;
               }}
-              className="w-full h-full overflow-y-auto px-4 sm:px-6 pb-[calc(6rem+env(safe-area-inset-bottom,0px))] max-w-lg md:max-w-xl lg:max-w-2xl mx-auto scrollbar-hide touch-pan-y overscroll-y-contain"
+              className="w-full h-full overflow-y-auto px-4 sm:px-6 pb-[calc(8.5rem+max(env(safe-area-inset-bottom,0px),12px))] max-w-lg md:max-w-xl lg:max-w-2xl mx-auto scrollbar-hide touch-pan-y overscroll-y-contain"
             >
               <Amigos
                 dataVersion={dataVersion}
@@ -830,7 +848,7 @@ function App() {
               ref={(el) => {
                 tabScrollRefs.current.perfil = el;
               }}
-              className="w-full h-full overflow-y-auto px-4 sm:px-6 pb-[calc(6rem+env(safe-area-inset-bottom,0px))] max-w-lg md:max-w-xl lg:max-w-2xl mx-auto scrollbar-hide touch-pan-y overscroll-y-contain"
+              className="w-full h-full overflow-y-auto px-4 sm:px-6 pb-[calc(6rem+max(env(safe-area-inset-bottom,0px),12px))] max-w-lg md:max-w-xl lg:max-w-2xl mx-auto scrollbar-hide touch-pan-y overscroll-y-contain"
             >
               <Perfil
                 dataVersion={dataVersion}
@@ -842,6 +860,7 @@ function App() {
                   setUpdateInfo(info);
                   setIsUpdateModalOpen(true);
                 }}
+                onOpenNotifications={() => setIsNotificationModalOpen(true)}
               />
             </div>
           </div>
@@ -860,7 +879,7 @@ function App() {
                 : 'Adicionar Amigo'
               : 'Novo Racha'
           }
-          className="fixed bottom-[calc(4.75rem+env(safe-area-inset-bottom,0px))] right-4 sm:right-6 md:right-[max(1.5rem,calc(50%-22rem))] w-14 h-14 bg-[var(--primary)] hover:bg-[var(--primary-dark)] text-white rounded-full flex items-center justify-center shadow-lg transition-all active:scale-95 z-40"
+          className="fixed bottom-[calc(4rem+max(env(safe-area-inset-bottom,0px),12px)+0.875rem)] right-4 sm:right-6 md:right-[max(1.5rem,calc(50%-22rem))] w-14 h-14 bg-[var(--primary)] hover:bg-[var(--primary-dark)] text-white rounded-full flex items-center justify-center shadow-lg transition-all active:scale-95 z-40"
         >
           {activeTab === 'amigos' ? (
             amigosSubTab === 'grupos' ? (
