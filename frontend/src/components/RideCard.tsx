@@ -73,11 +73,25 @@ export function formatRideDateHeader(dateStr: string): string {
     'sexta-feira',
     'sábado',
   ];
+  const mesesCurto = [
+    'jan',
+    'fev',
+    'mar',
+    'abr',
+    'mai',
+    'jun',
+    'jul',
+    'ago',
+    'set',
+    'out',
+    'nov',
+    'dez',
+  ];
   const diaSemana = diasSemana[dateObj.getDay()] || '';
-  const dd = String(day).padStart(2, '0');
-  const mm = String(month).padStart(2, '0');
+  const mesNome = mesesCurto[month - 1] || String(month).padStart(2, '0');
   const currentYear = new Date().getFullYear();
-  const dataFormatada = year === currentYear ? `${dd}/${mm}` : `${dd}/${mm}/${year}`;
+  const dataFormatada =
+    year === currentYear ? `${day} de ${mesNome}` : `${day} de ${mesNome} de ${year}`;
   return diaSemana ? `${dataFormatada}, ${diaSemana}` : dataFormatada;
 }
 
@@ -246,18 +260,16 @@ export function RideCard({
         </span>
       </div>
 
-      {/* Meio: Título da despesa + Quem pagou e valor total + Pilha de avatares */}
+      {/* Meio: Título da despesa + Quem pagou + Pilha de avatares com Valor Total */}
       <div className="min-w-0 flex-1">
         <h4 className="font-display font-semibold text-[15px] sm:text-base text-[var(--text-primary)] tracking-tight truncate leading-snug">
           {displayTitle}
         </h4>
-        <p className="text-xs text-[var(--text-secondary)] mt-0.5 truncate tabular-nums">
-          <span>{payerLabel}</span>
-          <span className="mx-1">•</span>
-          <span className="font-semibold text-[var(--text-primary)]">R$ {valorTotal}</span>
+        <p className="text-xs text-[var(--text-secondary)] mt-0.5 truncate">
+          {payerLabel}
         </p>
 
-        {/* Pilha de Avatares */}
+        {/* Pilha de Avatares + Valor Total */}
         <div className="flex items-center gap-2 mt-1.5 min-w-0">
           <div className="flex -space-x-1.5 shrink-0">
             {visibleAvatars.map((p) => (
@@ -280,6 +292,9 @@ export function RideCard({
               </div>
             )}
           </div>
+          <span className="text-[11px] sm:text-xs font-medium text-[var(--text-secondary)] whitespace-nowrap truncate tabular-nums">
+            Total R$ {valorTotal}
+          </span>
         </div>
       </div>
 
