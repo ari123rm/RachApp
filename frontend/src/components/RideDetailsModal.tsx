@@ -3,7 +3,6 @@ import { createPortal } from 'react-dom';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   ChevronLeft,
-  Receipt,
   Calendar,
   Users,
   Trash2,
@@ -26,6 +25,7 @@ import { useModalBackHandler } from '../utils/modalBackHandler';
 import { getAvatarColor } from '../utils/avatarColor';
 import { applyBilateralNetting } from '../utils/netting';
 import { parseReceiptUrls } from '../utils/receiptShare';
+import { getCategoryIcon } from './RideCard';
 
 interface RideDetailsProps {
   ride?: Corrida;
@@ -348,14 +348,20 @@ export function RideDetailsModal({
         <div className="p-5 space-y-5 overflow-y-auto flex-1">
           {/* Card de Resumo (Valor e Título) */}
           <div className="ds-card text-center">
-            <p className="text-[var(--text-secondary)] text-caption uppercase font-semibold tracking-wider mb-1">
-              {activeRide.tag || 'UBER'}
-            </p>
+            {(() => {
+              const ActiveTagIcon = getCategoryIcon(activeRide.tag || activeRide.titulo || 'Uber');
+              return (
+                <div className="inline-flex items-center gap-1.5 text-[var(--text-secondary)] text-caption uppercase font-semibold tracking-wider mb-1">
+                  <ActiveTagIcon size={13} strokeWidth={2} className="text-[var(--primary)]" />
+                  <span>{activeRide.tag || 'UBER'}</span>
+                </div>
+              );
+            })()}
             <h3 className="text-h1 text-[var(--text-primary)] mb-2">{activeRide.titulo}</h3>
 
             {activeRide.groupName && (
               <div className="inline-flex items-center gap-1.5 bg-[var(--primary)]/10 text-[var(--primary)] text-caption font-semibold px-3 py-1 rounded-full mb-3">
-                <UsersRound size={13} strokeWidth={2} /> {activeRide.groupName}
+                <UsersRound size={13} strokeWidth={2} className="text-[var(--primary)]" /> {activeRide.groupName}
               </div>
             )}
 
@@ -376,7 +382,10 @@ export function RideDetailsModal({
               </span>
             </div>
             <div className="flex items-center text-[var(--text-secondary)]">
-              <Receipt size={17} strokeWidth={2} className="text-[var(--primary)] mr-3" />
+              {(() => {
+                const ActiveTagIcon = getCategoryIcon(activeRide.tag || activeRide.titulo || 'Uber');
+                return <ActiveTagIcon size={17} strokeWidth={2} className="text-[var(--primary)] mr-3" />;
+              })()}
               <span className="text-body2">
                 Categoria: <strong className="text-[var(--text-primary)] ml-1">{activeRide.tag || 'Uber'}</strong>
               </span>

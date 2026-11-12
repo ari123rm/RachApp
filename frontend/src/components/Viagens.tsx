@@ -1,6 +1,6 @@
 // src/components/Viagens.tsx
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { RideCard, formatRideDateHeader } from './RideCard';
+import { RideCard, formatRideDateHeader, getCategoryIcon } from './RideCard';
 import { RideDetailsModal } from './RideDetailsModal';
 import { TopBar } from './TopBar';
 import {
@@ -23,6 +23,7 @@ import { dbService } from '../services/database';
 import moneyConverter from '../utils/moneyConverter';
 import { getRideStatusForUser } from '../utils/rideStatus';
 import type { CorridaNettingInfo } from '../utils/netting';
+import { getCustomTags } from '../utils/ridePresets';
 
 function formatDateIso(d: Date): string {
   const year = d.getFullYear();
@@ -216,14 +217,23 @@ export function Viagens({
     }
   };
 
-  // Extrai tags únicas disponíveis dos próprios rachas mais sugestões comuns
+  // Extrai tags únicas disponíveis das tags personalizadas do usuário + rachas existentes
   const tagsDisponiveis = useMemo(() => {
+    const userTags = getCustomTags().map((t) => t.name);
     const fromRides = corridas
       .map((c) => (c.tag || '').trim())
       .filter((t) => t.length > 0);
-    const defaults = ['Uber', '99', 'Pizza', 'Mercado', 'Contas', 'Alimentação', 'Trabalho'];
-    return Array.from(new Set([...fromRides, ...defaults]));
-  }, [corridas]);
+    const combined: string[] = [];
+    const seen = new Set<string>();
+    for (const item of [...userTags, ...fromRides]) {
+      const lower = item.toLowerCase();
+      if (!seen.has(lower)) {
+        seen.add(lower);
+        combined.push(item);
+      }
+    }
+    return combined;
+  }, [corridas, dataVersion]);
 
   // Aplicação dos Filtros
   const corridasFiltradas = useMemo(() => {
@@ -601,23 +611,32 @@ export function Viagens({
               >
                 Todas
               </button>
-              {tagsDisponiveis.map((t) => (
-                <button
-                  key={t}
-                  type="button"
-                  onClick={() => {
-                    setFiltroTag(filtroTag === t ? '' : t);
-                    setItensVisiveis(8);
-                  }}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors border ${
-                    filtroTag.toLowerCase() === t.toLowerCase()
-                      ? 'bg-[var(--primary)] text-white border-[var(--primary)]'
-                      : 'bg-[var(--bg-subtle)] text-[var(--text-secondary)] border-[var(--border-color)] hover:text-[var(--text-primary)]'
-                  }`}
-                >
-                  {t}
-                </button>
-              ))}
+              {tagsDisponiveis.map((t) => {
+                const TagFilterIcon = getCategoryIcon(t);
+                const isSelected = filtroTag.toLowerCase() === t.toLowerCase();
+                return (
+                  <button
+                    key={t}
+                    type="button"
+                    onClick={() => {
+                      setFiltroTag(isSelected ? '' : t);
+                      setItensVisiveis(8);
+                    }}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors border inline-flex items-center gap-1.5 ${
+                      isSelected
+                        ? 'bg-[var(--primary)] text-white border-[var(--primary)]'
+                        : 'bg-[var(--bg-subtle)] text-[var(--text-secondary)] border-[var(--border-color)] hover:text-[var(--text-primary)]'
+                    }`}
+                  >
+                    <TagFilterIcon
+                      size={13}
+                      strokeWidth={2}
+                      className={isSelected ? 'text-white' : 'text-[var(--primary)]'}
+                    />
+                    <span>{t}</span>
+                  </button>
+                );
+              })}
             </div>
           </div>
 

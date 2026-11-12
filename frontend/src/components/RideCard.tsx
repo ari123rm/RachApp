@@ -3,16 +3,11 @@ import {
   Check,
   CheckCircle2,
   Clock,
-  Car,
-  Utensils,
-  ShoppingCart,
-  Home,
-  Briefcase,
-  Receipt,
 } from 'lucide-react';
 import { getAvatarColor } from '../utils/avatarColor';
 import moneyConverter from '../utils/moneyConverter';
 import type { RideUserStatus } from '../utils/rideStatus';
+import { getTagIconComponent } from '../utils/ridePresets';
 
 interface RideProps {
   data: string;
@@ -96,48 +91,7 @@ export function formatRideDateHeader(dateStr: string): string {
 }
 
 export function getCategoryIcon(tag: string) {
-  const lower = (tag || '').toLowerCase();
-  if (
-    lower.includes('transporte') ||
-    lower.includes('uber') ||
-    lower.includes('99') ||
-    lower.includes('carro') ||
-    lower.includes('gasolina') ||
-    lower.includes('viagem')
-  ) {
-    return Car;
-  }
-  if (
-    lower.includes('comida') ||
-    lower.includes('jantar') ||
-    lower.includes('almoço') ||
-    lower.includes('almoco') ||
-    lower.includes('lanche') ||
-    lower.includes('pizza') ||
-    lower.includes('restaurante') ||
-    lower.includes('bar') ||
-    lower.includes('ifood')
-  ) {
-    return Utensils;
-  }
-  if (lower.includes('mercado') || lower.includes('compra') || lower.includes('supermercado')) {
-    return ShoppingCart;
-  }
-  if (
-    lower.includes('casa') ||
-    lower.includes('aluguel') ||
-    lower.includes('luz') ||
-    lower.includes('agua') ||
-    lower.includes('água') ||
-    lower.includes('internet') ||
-    lower.includes('energia')
-  ) {
-    return Home;
-  }
-  if (lower.includes('trabalho') || lower.includes('escritorio') || lower.includes('escritório')) {
-    return Briefcase;
-  }
-  return Receipt;
+  return getTagIconComponent(tag);
 }
 
 export function RideStatusView({

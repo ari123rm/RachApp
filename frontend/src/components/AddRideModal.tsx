@@ -1,12 +1,44 @@
 // src/components/AddRideModal.tsx
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { X, LoaderCircle, UsersRound, Wallet, Percent, DollarSign, Equal, BadgeCheck } from 'lucide-react';
+import {
+  X,
+  LoaderCircle,
+  UsersRound,
+  Wallet,
+  Percent,
+  DollarSign,
+  Equal,
+  BadgeCheck,
+  Plus,
+  Pencil,
+  Check,
+  Trash2,
+  RotateCcw,
+  Sparkles,
+} from 'lucide-react';
 import { dbService } from '../services/database';
 import type { Amigo, Corrida, Grupo } from '../types';
 import moneyConverter from '../utils/moneyConverter';
 import { useModalBackHandler } from '../utils/modalBackHandler';
 import { getAvatarColor } from '../utils/avatarColor';
+import {
+  TAG_ICON_CATEGORIES,
+  TAG_ICON_PRESETS,
+  getCustomTags,
+  upsertCustomTag,
+  deleteCustomTag,
+  resetCustomTagsToDefault,
+  getPresetTitles,
+  addPresetTitle,
+  removePresetTitle,
+  resetPresetTitlesToDefault,
+  getTagIconKey,
+  getIconByKey,
+  inferIconKeyFromText,
+  type CustomTagItem,
+  type TagIconPreset,
+} from '../utils/ridePresets';
 
 interface AddRideModalProps {
   isOpen: boolean;
@@ -38,8 +70,24 @@ export function AddRideModal({
   const [selecionados, setSelecionados] = useState<string[]>([]);
   const [titulo, setTitulo] = useState('');
   const [tag, setTag] = useState('');
+  const [selectedTagIconKey, setSelectedTagIconKey] = useState<string>('car');
   const [groupId, setGroupId] = useState<string>('');
   const [paidByFriendId, setPaidByFriendId] = useState<string>('');
+
+  // Estados de Títulos Pré-configurados e Tags Customizadas do Usuário
+  const [presetTitles, setPresetTitles] = useState<string[]>(() => getPresetTitles());
+  const [isManagingTitles, setIsManagingTitles] = useState(false);
+  const [newPresetTitleInput, setNewPresetTitleInput] = useState('');
+
+  const [customTags, setCustomTags] = useState<CustomTagItem[]>(() => getCustomTags());
+  const [isManagingTags, setIsManagingTags] = useState(false);
+  const [isTagEditorOpen, setIsTagEditorOpen] = useState(false);
+  const [editingTagId, setEditingTagId] = useState<string | null>(null);
+  const [tagEditorName, setTagEditorName] = useState('');
+  const [tagEditorIconKey, setTagEditorIconKey] = useState('car');
+  const [iconCategoryFilter, setIconCategoryFilter] = useState<
+    'todos' | TagIconPreset['category']
+  >('todos');
 
   // Custom Split State
   const [splitMode, setSplitMode] = useState<SplitMode>('equal');
@@ -80,8 +128,14 @@ export function AddRideModal({
   useEffect(() => {
     if (!isOpen) {
       initializedKeyRef.current = null;
+      setIsManagingTitles(false);
+      setIsManagingTags(false);
+      setIsTagEditorOpen(false);
       return;
     }
+
+    setPresetTitles(getPresetTitles());
+    setCustomTags(getCustomTags());
 
     const sessionKey = rideToEdit ? `edit:${rideToEdit.id}` : `new:${defaultGroupId || ''}`;
     if (initializedKeyRef.current === sessionKey) {
@@ -109,8 +163,10 @@ export function AddRideModal({
 
         if (rideToEdit) {
           const totalNum = Number(rideToEdit.valorTotal || 0);
+          const editTag = rideToEdit.tag || 'Uber';
           setTitulo(rideToEdit.titulo || '');
-          setTag(rideToEdit.tag || 'Uber');
+          setTag(editTag);
+          setSelectedTagIconKey(getTagIconKey(editTag));
           setData(rideToEdit.data || getTodayDate());
           setValor(
             totalNum.toLocaleString('pt-BR', {
@@ -149,8 +205,12 @@ export function AddRideModal({
           setSplitMode(temCustom ? 'amount' : 'equal');
           setHasCustomEdits(temCustom);
         } else {
+          const loadedTags = getCustomTags();
+          const initialTag = loadedTags[0]?.name || 'Uber';
+          const initialIcon = loadedTags[0]?.iconKey || 'car';
           setTitulo('');
-          setTag('');
+          setTag(initialTag);
+          setSelectedTagIconKey(initialIcon);
           setData(getTodayDate());
           setValor('');
           setPaidByFriendId('');
@@ -180,8 +240,71 @@ export function AddRideModal({
     carregarDados();
   }, [isOpen, rideToEdit?.id, defaultGroupId]);
 
-  const sugestoesTitulos = ['Eletra', 'IFCE', 'Casa', 'Cinema', 'Pizza', 'Internet', 'Mercado'];
-  const sugestoesTags = ['Uber', 'Pizza', 'Trabalho', 'Contas', 'Mercado'];
+  const handleAddPresetTitle = (rawTitle?: string) => {
+    const target = (rawTitle ?? newPresetTitleInput).trim();
+    if (!target) return;
+    const updated = addPresetTitle(target);
+    setPresetTitles(updated);
+    setTitulo(target);
+    setNewPresetTitleInput('');
+  };
+
+  const handleRemovePresetTitle = (titleToRemove: string) => {
+    const updated = removePresetTitle(titleToRemove);
+    setPresetTitles(updated);
+  };
+
+  const handleResetPresetTitles = () => {
+    const updated = resetPresetTitlesToDefault();
+    setPresetTitles(updated);
+  };
+
+  const handleOpenNewTagEditor = (prefillName = '') => {
+    const initialName = prefillName.trim();
+    setEditingTagId(null);
+    setTagEditorName(initialName);
+    setTagEditorIconKey(initialName ? inferIconKeyFromText(initialName) : selectedTagIconKey || 'car');
+    setIconCategoryFilter('todos');
+    setIsTagEditorOpen(true);
+  };
+
+  const handleOpenEditTagEditor = (tagItem: CustomTagItem) => {
+    setEditingTagId(tagItem.id);
+    setTagEditorName(tagItem.name);
+    setTagEditorIconKey(tagItem.iconKey);
+    setIconCategoryFilter('todos');
+    setIsTagEditorOpen(true);
+  };
+
+  const handleSaveTagFromEditor = () => {
+    const cleanName = tagEditorName.trim();
+    if (!cleanName) {
+      alert('Digite um nome para a tag.');
+      return;
+    }
+    const updated = upsertCustomTag(cleanName, tagEditorIconKey, editingTagId || undefined);
+    setCustomTags(updated);
+    setTag(cleanName);
+    setSelectedTagIconKey(tagEditorIconKey);
+    setIsTagEditorOpen(false);
+    setEditingTagId(null);
+  };
+
+  const handleDeleteCustomTag = (tagItem: CustomTagItem) => {
+    const updated = deleteCustomTag(tagItem.id);
+    setCustomTags(updated);
+    if (tag.toLowerCase() === tagItem.name.toLowerCase()) {
+      const nextTag = updated[0]?.name || 'Uber';
+      const nextIcon = updated[0]?.iconKey || 'car';
+      setTag(nextTag);
+      setSelectedTagIconKey(nextIcon);
+    }
+  };
+
+  const handleResetCustomTags = () => {
+    const updated = resetCustomTagsToDefault();
+    setCustomTags(updated);
+  };
 
   const handleGroupChange = (newGroupId: string) => {
     setGroupId(newGroupId);
@@ -455,9 +578,15 @@ export function AddRideModal({
 
     setIsSaving(true);
     try {
+      const finalTag = (tag || 'Uber').trim();
+      if (finalTag) {
+        const updatedTags = upsertCustomTag(finalTag, selectedTagIconKey);
+        setCustomTags(updatedTags);
+      }
+
       const payload = {
         titulo: titulo.trim(),
-        tag: (tag || 'Uber').trim(),
+        tag: finalTag,
         data,
         valorTotal: valorLimpo,
         participantesIds: selecionados,
@@ -483,6 +612,24 @@ export function AddRideModal({
   };
 
   if (!isOpen) return null;
+
+  const CurrentTagIcon = getIconByKey(selectedTagIconKey);
+  const TagEditorPreviewIcon = getIconByKey(tagEditorIconKey);
+  const canSaveCurrentTitleAsPreset =
+    titulo.trim().length > 0 &&
+    !presetTitles.some((t) => t.toLowerCase() === titulo.trim().toLowerCase());
+
+  const currentTagSavedObj = customTags.find(
+    (t) => t.name.toLowerCase() === tag.trim().toLowerCase()
+  );
+  const canSaveCurrentTagQuick =
+    tag.trim().length > 0 &&
+    (!currentTagSavedObj || currentTagSavedObj.iconKey !== selectedTagIconKey);
+
+  const filteredIconPresets =
+    iconCategoryFilter === 'todos'
+      ? TAG_ICON_PRESETS
+      : TAG_ICON_PRESETS.filter((p) => p.category === iconCategoryFilter);
 
   return createPortal(
     <div
@@ -516,36 +663,153 @@ export function AddRideModal({
           {isEditing ? 'Editar Racha' : 'Adicionar Novo Racha'}
         </h2>
 
-        {/* Campo: Título / Descrição */}
+        {/* Campo: Título / Descrição + Títulos Pré-configurados */}
         <div className="mb-4">
-          <label className="block text-[var(--text-secondary)] text-caption uppercase font-semibold mb-1.5">
-            Título / Descrição
-          </label>
+          <div className="flex items-center justify-between gap-2 mb-1.5">
+            <label className="block text-[var(--text-secondary)] text-caption uppercase font-semibold">
+              Título / Descrição
+            </label>
+            <div className="flex items-center gap-2">
+              {canSaveCurrentTitleAsPreset && (
+                <button
+                  type="button"
+                  onClick={() => handleAddPresetTitle(titulo)}
+                  className="text-caption font-semibold text-[var(--primary)] hover:underline inline-flex items-center gap-1 active:scale-95"
+                  title="Salvar este título nos seus pré-configurados"
+                >
+                  <Plus size={13} strokeWidth={2.5} />
+                  <span>Salvar nos rápidos</span>
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => setIsManagingTitles((prev) => !prev)}
+                className={`text-caption font-semibold px-2 py-0.5 rounded-lg border transition-colors inline-flex items-center gap-1 active:scale-95 ${
+                  isManagingTitles
+                    ? 'bg-[var(--primary)] text-white border-[var(--primary)]'
+                    : 'bg-[var(--bg-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] border-[var(--border-color)]'
+                }`}
+              >
+                <Pencil size={11} strokeWidth={2} />
+                <span>{isManagingTitles ? 'Concluir' : 'Personalizar'}</span>
+              </button>
+            </div>
+          </div>
+
           <div className="bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-xl h-12 px-4 flex items-center text-[var(--text-primary)] mb-2 focus-within:border-[var(--primary)] focus-within:ring-2 focus-within:ring-[var(--primary)]/20 transition-all">
             <input
               type="text"
-              placeholder="Ex: Eletra, Internet Fibra, Jantar..."
+              placeholder="Ex: Jantar, Churrasco, Mercado, Uber..."
               value={titulo}
               onChange={(e) => setTitulo(e.target.value)}
               className="bg-transparent w-full text-[var(--text-primary)] text-body1 outline-none placeholder:text-[var(--text-secondary)]"
             />
-          </div>
-          <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-hide">
-            {sugestoesTitulos.map((sugestao) => (
+            {titulo && (
               <button
-                key={sugestao}
                 type="button"
-                onClick={() => setTitulo(sugestao)}
-                className={`whitespace-nowrap px-3 py-1 rounded-full text-caption font-semibold border transition-colors shrink-0 active:scale-95 ${
-                  titulo === sugestao
-                    ? 'bg-[var(--primary)] border-[var(--primary)] text-white'
-                    : 'bg-[var(--bg-subtle)] border-[var(--border-color)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
-                }`}
+                onClick={() => setTitulo('')}
+                className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] p-1 -mr-1 shrink-0"
+                title="Limpar título"
               >
-                {sugestao}
+                <X size={16} strokeWidth={2} />
               </button>
-            ))}
+            )}
           </div>
+
+          {/* Lista de Títulos Pré-configurados */}
+          <div
+            data-horizontal-scroll="true"
+            className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-hide items-center"
+          >
+            {presetTitles.map((sugestao) => {
+              const isSelected = titulo.trim().toLowerCase() === sugestao.toLowerCase();
+              return (
+                <div
+                  key={sugestao}
+                  className={`inline-flex items-center rounded-full text-caption font-semibold border transition-colors shrink-0 ${
+                    isSelected
+                      ? 'bg-[var(--primary)] border-[var(--primary)] text-white'
+                      : 'bg-[var(--bg-subtle)] border-[var(--border-color)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+                  }`}
+                >
+                  <button
+                    type="button"
+                    onClick={() => setTitulo(sugestao)}
+                    className="whitespace-nowrap px-3 py-1 active:scale-95"
+                  >
+                    {sugestao}
+                  </button>
+                  {isManagingTitles && (
+                    <button
+                      type="button"
+                      onClick={() => handleRemovePresetTitle(sugestao)}
+                      className={`pr-2 pl-0.5 py-1 hover:opacity-80 ${
+                        isSelected ? 'text-white' : 'text-[#F43F5E]'
+                      }`}
+                      title={`Remover "${sugestao}"`}
+                    >
+                      <X size={13} strokeWidth={2.5} />
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+
+            {!isManagingTitles && (
+              <button
+                type="button"
+                onClick={() => setIsManagingTitles(true)}
+                className="whitespace-nowrap px-2.5 py-1 rounded-full text-caption font-semibold border border-dashed border-[var(--primary)]/50 text-[var(--primary)] bg-[var(--primary)]/5 hover:bg-[var(--primary)]/10 transition-colors shrink-0 inline-flex items-center gap-1 active:scale-95"
+              >
+                <Plus size={13} strokeWidth={2.5} />
+                <span>Novo título</span>
+              </button>
+            )}
+          </div>
+
+          {/* Painel de criação/edição de títulos pré-configurados */}
+          {isManagingTitles && (
+            <div
+              data-no-sheet-drag="true"
+              className="mt-2 p-3 rounded-xl bg-[var(--bg-subtle)] border border-[var(--border-color)] space-y-2 animate-fade-in"
+            >
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  placeholder="Novo título rápido (ex: Futebol, Academia...)"
+                  value={newPresetTitleInput}
+                  onChange={(e) => setNewPresetTitleInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleAddPresetTitle();
+                    }
+                  }}
+                  className="flex-1 h-9 px-3 rounded-lg bg-[var(--bg-surface)] border border-[var(--border-color)] focus:border-[var(--primary)] text-caption text-[var(--text-primary)] outline-none"
+                />
+                <button
+                  type="button"
+                  onClick={() => handleAddPresetTitle()}
+                  disabled={!newPresetTitleInput.trim()}
+                  className="h-9 px-3 rounded-lg bg-[var(--primary)] text-white text-caption font-semibold disabled:opacity-40 inline-flex items-center gap-1 shrink-0 active:scale-95"
+                >
+                  <Plus size={14} strokeWidth={2.5} />
+                  <span>Adicionar</span>
+                </button>
+              </div>
+              <div className="flex items-center justify-between text-[11px] text-[var(--text-secondary)]">
+                <span>Toque no "×" em um título acima para removê-lo.</span>
+                <button
+                  type="button"
+                  onClick={handleResetPresetTitles}
+                  className="text-[var(--primary)] hover:underline inline-flex items-center gap-1 font-semibold"
+                >
+                  <RotateCcw size={11} strokeWidth={2} />
+                  <span>Restaurar padrões</span>
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Campo: Valor Total */}
@@ -572,52 +836,325 @@ export function AddRideModal({
           </div>
         </div>
 
-        {/* Grid para Data e Tag */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
-          <div>
-            <label className="block text-[var(--text-secondary)] text-caption uppercase font-semibold mb-1.5">
-              Data
+        {/* Campo: Data */}
+        <div className="mb-4">
+          <label className="block text-[var(--text-secondary)] text-caption uppercase font-semibold mb-1.5">
+            Data
+          </label>
+          <div className="bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-xl h-12 px-4 flex items-center text-[var(--text-primary)] focus-within:border-[var(--primary)]">
+            <input
+              type="date"
+              value={data}
+              onChange={(e) => setData(e.target.value)}
+              className="bg-transparent w-full outline-none text-[var(--text-primary)] text-body2"
+            />
+          </div>
+        </div>
+
+        {/* Campo: Categoria / Tag com escolha de Ícone */}
+        <div className="mb-4">
+          <div className="flex items-center justify-between gap-2 mb-1.5">
+            <label className="block text-[var(--text-secondary)] text-caption uppercase font-semibold">
+              Categoria / Tag
             </label>
-            <div className="bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-xl h-12 px-4 flex items-center text-[var(--text-primary)] focus-within:border-[var(--primary)]">
-              <input
-                type="date"
-                value={data}
-                onChange={(e) => setData(e.target.value)}
-                className="bg-transparent w-full outline-none text-[var(--text-primary)] text-body2"
-              />
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => handleOpenNewTagEditor('')}
+                className="text-caption font-semibold px-2.5 py-0.5 rounded-lg bg-[var(--primary)]/10 text-[var(--primary)] hover:bg-[var(--primary)]/20 transition-colors inline-flex items-center gap-1 active:scale-95"
+              >
+                <Plus size={12} strokeWidth={2.5} />
+                <span>Nova Tag</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsManagingTags((prev) => !prev)}
+                className={`text-caption font-semibold px-2 py-0.5 rounded-lg border transition-colors inline-flex items-center gap-1 active:scale-95 ${
+                  isManagingTags
+                    ? 'bg-[var(--primary)] text-white border-[var(--primary)]'
+                    : 'bg-[var(--bg-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] border-[var(--border-color)]'
+                }`}
+              >
+                <Pencil size={11} strokeWidth={2} />
+                <span>{isManagingTags ? 'Concluir' : 'Editar'}</span>
+              </button>
             </div>
           </div>
 
-          <div>
-            <label className="block text-[var(--text-secondary)] text-caption uppercase font-semibold mb-1.5">
-              Categoria / Tag
-            </label>
-            <div className="bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-xl h-12 px-4 flex items-center text-[var(--text-primary)] mb-1.5 focus-within:border-[var(--primary)]">
-              <input
-                type="text"
-                placeholder="Uber"
-                value={tag}
-                onChange={(e) => setTag(e.target.value)}
-                className="bg-transparent w-full text-[var(--text-primary)] text-body2 outline-none placeholder:text-[var(--text-secondary)]"
-              />
-            </div>
-            <div className="flex flex-wrap gap-1">
-              {sugestoesTags.map((sugestao) => (
-                <button
-                  key={sugestao}
-                  type="button"
-                  onClick={() => setTag(sugestao)}
-                  className={`px-2.5 py-0.5 rounded-lg text-caption font-semibold border transition-colors active:scale-95 ${
-                    tag === sugestao
-                      ? 'bg-[var(--primary)] border-[var(--primary)] text-white'
+          {/* Barra da Tag selecionada + Botão de trocar ícone */}
+          <div className="bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-xl h-12 px-2.5 flex items-center gap-2 text-[var(--text-primary)] mb-2 focus-within:border-[var(--primary)] focus-within:ring-2 focus-within:ring-[var(--primary)]/20 transition-all">
+            <button
+              type="button"
+              onClick={() => {
+                if (currentTagSavedObj) {
+                  handleOpenEditTagEditor(currentTagSavedObj);
+                } else {
+                  handleOpenNewTagEditor(tag);
+                }
+              }}
+              className="w-8 h-8 rounded-lg bg-[var(--primary)]/15 hover:bg-[var(--primary)]/25 text-[var(--primary)] flex items-center justify-center shrink-0 transition-colors active:scale-95"
+              title="Escolher ícone para esta tag"
+            >
+              <CurrentTagIcon size={17} strokeWidth={2} />
+            </button>
+
+            <input
+              type="text"
+              placeholder="Ex: Uber, Churrasco, Futebol..."
+              value={tag}
+              onChange={(e) => {
+                const val = e.target.value;
+                setTag(val);
+                const matched = customTags.find(
+                  (t) => t.name.toLowerCase() === val.trim().toLowerCase()
+                );
+                if (matched) {
+                  setSelectedTagIconKey(matched.iconKey);
+                } else if (val.trim()) {
+                  setSelectedTagIconKey(inferIconKeyFromText(val));
+                }
+              }}
+              className="bg-transparent w-full text-[var(--text-primary)] text-body2 outline-none placeholder:text-[var(--text-secondary)]"
+            />
+
+            {canSaveCurrentTagQuick && (
+              <button
+                type="button"
+                onClick={() => {
+                  const updated = upsertCustomTag(tag.trim(), selectedTagIconKey);
+                  setCustomTags(updated);
+                }}
+                className="h-7 px-2.5 rounded-lg bg-[var(--primary)] text-white text-[11px] font-semibold shrink-0 inline-flex items-center gap-1 active:scale-95"
+                title="Salvar nas suas tags"
+              >
+                <Check size={12} strokeWidth={2.5} />
+                <span>Salvar</span>
+              </button>
+            )}
+          </div>
+
+          {/* Lista de Tags do Usuário com seus Ícones */}
+          <div className="flex flex-wrap gap-1.5 items-center">
+            {customTags.map((tagItem) => {
+              const TagItemIcon = getIconByKey(tagItem.iconKey);
+              const isSelected = tag.trim().toLowerCase() === tagItem.name.toLowerCase();
+              return (
+                <div
+                  key={tagItem.id}
+                  className={`inline-flex items-center rounded-xl text-caption font-semibold border transition-all ${
+                    isSelected
+                      ? 'bg-[var(--primary)] border-[var(--primary)] text-white shadow-sm'
                       : 'bg-[var(--bg-subtle)] border-[var(--border-color)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
                   }`}
                 >
-                  {sugestao}
-                </button>
-              ))}
-            </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTag(tagItem.name);
+                      setSelectedTagIconKey(tagItem.iconKey);
+                    }}
+                    className="px-2.5 py-1.5 inline-flex items-center gap-1.5 active:scale-95"
+                  >
+                    <TagItemIcon
+                      size={14}
+                      strokeWidth={2}
+                      className={isSelected ? 'text-white' : 'text-[var(--primary)]'}
+                    />
+                    <span>{tagItem.name}</span>
+                  </button>
+
+                  {isManagingTags && (
+                    <div className="flex items-center pr-1.5 gap-0.5">
+                      <button
+                        type="button"
+                        onClick={() => handleOpenEditTagEditor(tagItem)}
+                        className={`p-1 rounded hover:bg-black/10 ${
+                          isSelected ? 'text-white' : 'text-[var(--text-secondary)]'
+                        }`}
+                        title={`Editar tag e ícone de "${tagItem.name}"`}
+                      >
+                        <Pencil size={11} strokeWidth={2.2} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteCustomTag(tagItem)}
+                        className={`p-1 rounded hover:bg-black/10 ${
+                          isSelected ? 'text-white' : 'text-[#F43F5E]'
+                        }`}
+                        title={`Excluir "${tagItem.name}"`}
+                      >
+                        <X size={12} strokeWidth={2.5} />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+
+            {!isManagingTags && (
+              <button
+                type="button"
+                onClick={() => handleOpenNewTagEditor('')}
+                className="px-2.5 py-1.5 rounded-xl text-caption font-semibold border border-dashed border-[var(--primary)]/50 text-[var(--primary)] bg-[var(--primary)]/5 hover:bg-[var(--primary)]/10 transition-colors inline-flex items-center gap-1 active:scale-95"
+              >
+                <Plus size={13} strokeWidth={2.5} />
+                <span>Criar Tag</span>
+              </button>
+            )}
           </div>
+
+          {isManagingTags && (
+            <div className="mt-2 flex items-center justify-between text-[11px] text-[var(--text-secondary)] px-1">
+              <span>Toque no lápis para mudar o ícone/nome ou no "×" para apagar.</span>
+              <button
+                type="button"
+                onClick={handleResetCustomTags}
+                className="text-[var(--primary)] hover:underline inline-flex items-center gap-1 font-semibold shrink-0"
+              >
+                <RotateCcw size={11} strokeWidth={2} />
+                <span>Restaurar padrões</span>
+              </button>
+            </div>
+          )}
+
+          {/* Criador / Editor de Tag com Grande Variedade de Presets de Ícones */}
+          {isTagEditorOpen && (
+            <div
+              data-no-sheet-drag="true"
+              className="mt-3 p-4 rounded-2xl bg-[var(--bg-subtle)] border-2 border-[var(--primary)]/40 shadow-md space-y-3.5 animate-fade-in"
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Sparkles size={15} strokeWidth={2} className="text-[var(--primary)]" />
+                  <span className="text-caption font-bold uppercase tracking-wider text-[var(--text-primary)]">
+                    {editingTagId ? 'Editar Tag e Ícone' : 'Criar Nova Tag Personalizada'}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsTagEditorOpen(false)}
+                  className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] p-1 rounded-lg"
+                >
+                  <X size={16} strokeWidth={2} />
+                </button>
+              </div>
+
+              {/* Nome da Tag + Preview em tempo real */}
+              <div className="flex items-center gap-2.5">
+                <div className="w-11 h-11 rounded-xl bg-[var(--primary)] text-white flex items-center justify-center shrink-0 shadow-sm">
+                  <TagEditorPreviewIcon size={22} strokeWidth={2} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <label className="block text-[11px] font-semibold text-[var(--text-secondary)] uppercase mb-1">
+                    Nome da Tag
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Ex: Futebol, Churrasco, Gasolina, Pet..."
+                    value={tagEditorName}
+                    onChange={(e) => setTagEditorName(e.target.value)}
+                    className="w-full h-10 px-3 rounded-xl bg-[var(--bg-surface)] border border-[var(--border-color)] focus:border-[var(--primary)] text-body2 text-[var(--text-primary)] outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* Filtro de Categorias de Ícones */}
+              <div>
+                <label className="block text-[11px] font-semibold text-[var(--text-secondary)] uppercase mb-1.5">
+                  Escolha o Ícone ({TAG_ICON_PRESETS.length} opções disponíveis)
+                </label>
+                <div
+                  data-horizontal-scroll="true"
+                  className="flex gap-1.5 overflow-x-auto pb-1.5 scrollbar-hide"
+                >
+                  {TAG_ICON_CATEGORIES.map((cat) => {
+                    const active = iconCategoryFilter === cat.id;
+                    return (
+                      <button
+                        key={cat.id}
+                        type="button"
+                        onClick={() => setIconCategoryFilter(cat.id)}
+                        className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold whitespace-nowrap border transition-colors shrink-0 ${
+                          active
+                            ? 'bg-[var(--primary)] text-white border-[var(--primary)]'
+                            : 'bg-[var(--bg-surface)] text-[var(--text-secondary)] border-[var(--border-color)] hover:text-[var(--text-primary)]'
+                        }`}
+                      >
+                        {cat.label}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Grade de Presets de Ícones */}
+                <div className="grid grid-cols-4 sm:grid-cols-5 gap-1.5 max-h-52 overflow-y-auto p-1 mt-1 rounded-xl bg-[var(--bg-surface)] border border-[var(--border-color)]">
+                  {filteredIconPresets.map((preset) => {
+                    const PresetIcon = preset.icon;
+                    const isSelectedIcon = tagEditorIconKey === preset.key;
+                    return (
+                      <button
+                        key={preset.key}
+                        type="button"
+                        onClick={() => setTagEditorIconKey(preset.key)}
+                        className={`flex flex-col items-center justify-center gap-1 p-2 rounded-xl border text-center transition-all active:scale-95 ${
+                          isSelectedIcon
+                            ? 'bg-[var(--primary)] text-white border-[var(--primary)] shadow-sm'
+                            : 'bg-[var(--bg-subtle)]/60 hover:bg-[var(--bg-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] border-transparent'
+                        }`}
+                        title={preset.label}
+                      >
+                        <PresetIcon
+                          size={18}
+                          strokeWidth={2}
+                          className={isSelectedIcon ? 'text-white' : 'text-[var(--primary)]'}
+                        />
+                        <span className="text-[10px] font-medium leading-tight truncate w-full">
+                          {preset.label}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Botões do Editor de Tag */}
+              <div className="flex items-center gap-2 pt-1">
+                {editingTagId && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const found = customTags.find((t) => t.id === editingTagId);
+                      if (found) handleDeleteCustomTag(found);
+                      setIsTagEditorOpen(false);
+                      setEditingTagId(null);
+                    }}
+                    className="h-10 px-3 rounded-xl bg-[var(--rose-bg)] border border-[var(--rose-border)] text-[#F43F5E] text-caption font-semibold inline-flex items-center gap-1 active:scale-95"
+                  >
+                    <Trash2 size={14} strokeWidth={2} />
+                    <span>Excluir</span>
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsTagEditorOpen(false);
+                    setEditingTagId(null);
+                  }}
+                  className="flex-1 h-10 rounded-xl bg-[var(--bg-surface)] border border-[var(--border-color)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] text-caption font-semibold active:scale-95"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveTagFromEditor}
+                  className="flex-[1.5] h-10 rounded-xl bg-[var(--primary)] hover:bg-[var(--primary-dark)] text-white text-caption font-semibold inline-flex items-center justify-center gap-1.5 shadow-sm active:scale-95"
+                >
+                  <Check size={15} strokeWidth={2.5} />
+                  <span>{editingTagId ? 'Atualizar Tag' : 'Salvar Tag'}</span>
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Seleção de Grupo (Opcional) */}
