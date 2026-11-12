@@ -18,6 +18,7 @@ import { dbService } from '../services/database';
 import { PixModal } from './PixModal';
 import { ChangePasswordScreen } from './ChangePasswordScreen';
 import { SettingsModal } from './SettingsModal';
+import { TopBar } from './TopBar';
 import { formatPhoneBR, isValidPhoneBR } from '../utils/phoneFormatter';
 import { AvatarEditModal } from './AvatarEditModal';
 import { useTheme } from '../utils/theme';
@@ -165,8 +166,11 @@ export function Perfil({
 
   if (isLoading) {
     return (
-      <div className="flex justify-center items-center h-64">
-        <LoaderCircle size={40} strokeWidth={2} className="animate-spin text-[var(--primary)]" />
+      <div className="space-y-4">
+        <TopBar title="Meu Perfil" subtitle="Seus dados públicos e chave Pix" />
+        <div className="flex justify-center items-center h-64">
+          <LoaderCircle size={40} strokeWidth={2} className="animate-spin text-[var(--primary)]" />
+        </div>
       </div>
     );
   }
@@ -174,31 +178,25 @@ export function Perfil({
   const userInitial = (nome || 'U').trim().charAt(0).toUpperCase();
 
   return (
-    <div className="space-y-5 pb-20">
-      {/* Barra Superior do Perfil com Botão de Configurações */}
-      <header className="flex items-center justify-between gap-2 pt-1">
-        <div>
-          <h1 className="text-xl sm:text-h1 font-display font-bold text-[var(--text-primary)]">
-            Meu Perfil
-          </h1>
-          <p className="text-xs text-[var(--text-secondary)] mt-0.5">
-            Seus dados públicos e chave Pix
-          </p>
-        </div>
-
-        <button
-          type="button"
-          onClick={() => setIsSettingsOpen(true)}
-          className="h-10 px-3.5 rounded-xl bg-[var(--bg-surface)] border border-[var(--border-color)] hover:border-[var(--primary)] text-[var(--text-primary)] font-semibold text-xs flex items-center gap-2 shadow-sm transition-all active:scale-95 relative shrink-0"
-          title="Abrir Configurações"
-        >
-          <Settings size={16} strokeWidth={2} className="text-[var(--primary)]" />
-          <span>Configurações</span>
-          {updateInfo?.isNewer && (
-            <span className="w-2 h-2 rounded-full bg-[#F59E0B] animate-pulse" />
-          )}
-        </button>
-      </header>
+    <div className="space-y-4 pb-20">
+      <TopBar
+        title="Meu Perfil"
+        subtitle="Seus dados públicos e chave Pix"
+        rightContent={
+          <button
+            type="button"
+            onClick={() => setIsSettingsOpen(true)}
+            className="h-10 px-3.5 rounded-xl bg-[var(--bg-surface)] border border-[var(--border-color)] hover:border-[var(--primary)] text-[var(--text-primary)] font-semibold text-xs flex items-center gap-2 shadow-sm transition-all active:scale-95 relative shrink-0"
+            title="Abrir Configurações"
+          >
+            <Settings size={16} strokeWidth={2} className="text-[var(--primary)]" />
+            <span>Configurações</span>
+            {updateInfo?.isNewer && (
+              <span className="w-2 h-2 rounded-full bg-[#F59E0B] animate-pulse" />
+            )}
+          </button>
+        }
+      />
 
       {/* Card Principal do Usuário com Avatar Grande Centralizado */}
       <section className="ds-card p-5 flex flex-col items-center text-center">

@@ -23,6 +23,7 @@ import { AddFriendModal } from './AddFriendModal';
 import { AddGroupModal } from './AddGroupModal';
 import { GroupDetailsModal } from './GroupDetailsModal';
 import { ImportContactsModal } from './ImportContactsModal';
+import { TopBar } from './TopBar';
 import { dbService } from '../services/database';
 import moneyConverter from '../utils/moneyConverter';
 import { getAvatarColor } from '../utils/avatarColor';
@@ -415,22 +416,30 @@ export function Amigos({
 
   if (isLoading) {
     return (
-      <div className="flex flex-col items-center justify-center h-64 text-[var(--primary)]">
-        <LoaderCircle size={40} strokeWidth={2} className="animate-spin mb-4" />
-        <p className="text-sm font-medium text-[var(--text-secondary)]">
-          Carregando amigos e grupos...
-        </p>
+      <div className="space-y-4">
+        <TopBar title="Contatos" subtitle="Carregando amigos e grupos..." />
+        <div className="flex flex-col items-center justify-center h-64 text-[var(--primary)]">
+          <LoaderCircle size={40} strokeWidth={2} className="animate-spin mb-4" />
+          <p className="text-sm font-medium text-[var(--text-secondary)]">
+            Carregando amigos e grupos...
+          </p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6 relative">
-      <header className="mt-1 space-y-4">
-        <div className="flex justify-between items-center gap-2">
-          <h1 className="text-h1 text-[var(--text-primary)]">Contatos</h1>
-        </div>
+    <div className="space-y-4 relative">
+      <TopBar
+        title="Contatos"
+        subtitle={
+          subTab === 'amigos'
+            ? `${amigos.length} ${amigos.length === 1 ? 'amigo cadastrado' : 'amigos cadastrados'}`
+            : `${grupos.length} ${grupos.length === 1 ? 'grupo ativo' : 'grupos ativos'}`
+        }
+      />
 
+      <div className="space-y-3.5">
         {/* Barra de alternância Amigos / Grupos com indicador deslizante */}
         <div className="flex items-center justify-between gap-2">
           <div className="relative bg-[var(--bg-subtle)] p-1 rounded-xl flex items-center border border-[var(--border-color)] flex-1">
@@ -612,7 +621,7 @@ export function Amigos({
             )}
           </div>
         )}
-      </header>
+      </div>
 
       {/* Painel ativo */}
       <div className="w-full">

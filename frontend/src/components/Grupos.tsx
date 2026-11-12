@@ -4,6 +4,7 @@ import { Plus, LoaderCircle, ChevronRight, Users } from 'lucide-react';
 import { dbService } from '../services/database';
 import { AddGroupModal } from './AddGroupModal';
 import { GroupDetailsModal } from './GroupDetailsModal';
+import { TopBar } from './TopBar';
 import { getAvatarColor } from '../utils/avatarColor';
 import type { Grupo } from '../types';
 
@@ -36,24 +37,30 @@ export function Grupos({ onDataChange }: { onDataChange?: () => void }) {
 
   if (isLoading) {
     return (
-      <div className="flex flex-col items-center justify-center h-64 text-[var(--primary)]">
-        <LoaderCircle size={40} strokeWidth={2} className="animate-spin mb-4" />
-        <p className="text-sm font-medium text-[var(--text-secondary)]">Carregando grupos...</p>
+      <div className="space-y-4">
+        <TopBar title="Grupos" subtitle="Carregando grupos..." />
+        <div className="flex flex-col items-center justify-center h-64 text-[var(--primary)]">
+          <LoaderCircle size={40} strokeWidth={2} className="animate-spin mb-4" />
+          <p className="text-sm font-medium text-[var(--text-secondary)]">Carregando grupos...</p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6 relative">
-      <header className="mt-1 flex justify-between items-center">
-        <h1 className="text-h1 text-[var(--text-primary)]">Grupos</h1>
-        <button
-          onClick={() => setIsModalOpen(true)}
-          className="bg-[var(--primary-light)] hover:opacity-90 text-[var(--primary)] px-4 py-2.5 rounded-xl font-semibold flex items-center gap-2 text-sm transition-colors"
-        >
-          <Plus size={16} strokeWidth={2} /> Novo Grupo
-        </button>
-      </header>
+    <div className="space-y-4 relative">
+      <TopBar
+        title="Grupos"
+        subtitle={`${grupos.length} ${grupos.length === 1 ? 'grupo ativo' : 'grupos ativos'}`}
+        rightContent={
+          <button
+            onClick={() => setIsModalOpen(true)}
+            className="h-10 bg-[var(--primary-light)] hover:opacity-90 text-[var(--primary)] px-3.5 rounded-xl font-semibold flex items-center gap-1.5 text-xs transition-colors"
+          >
+            <Plus size={15} strokeWidth={2} /> Novo Grupo
+          </button>
+        }
+      />
 
       {grupos.length === 0 ? (
         <div className="ds-card p-8 text-center">

@@ -757,10 +757,11 @@ function App() {
             }`}
           >
             <div
+              data-tab-scroll="true"
               ref={(el) => {
                 tabScrollRefs.current.home = el;
               }}
-              className="w-full h-full overflow-y-auto px-4 sm:px-6 pt-[max(2.25rem,calc(env(safe-area-inset-top,0px)+0.75rem))] pb-[calc(6rem+env(safe-area-inset-bottom,0px))] max-w-lg md:max-w-xl lg:max-w-2xl mx-auto scrollbar-hide touch-pan-y overscroll-y-contain"
+              className="w-full h-full overflow-y-auto px-4 sm:px-6 pb-[calc(6rem+env(safe-area-inset-bottom,0px))] max-w-lg md:max-w-xl lg:max-w-2xl mx-auto scrollbar-hide touch-pan-y overscroll-y-contain"
             >
               <Home
                 dataVersion={dataVersion}
@@ -781,10 +782,11 @@ function App() {
             }`}
           >
             <div
+              data-tab-scroll="true"
               ref={(el) => {
                 tabScrollRefs.current.viagens = el;
               }}
-              className="w-full h-full overflow-y-auto px-4 sm:px-6 pt-[max(2.25rem,calc(env(safe-area-inset-top,0px)+0.75rem))] pb-[calc(6rem+env(safe-area-inset-bottom,0px))] max-w-lg md:max-w-xl lg:max-w-2xl mx-auto scrollbar-hide touch-pan-y overscroll-y-contain"
+              className="w-full h-full overflow-y-auto px-4 sm:px-6 pb-[calc(6rem+env(safe-area-inset-bottom,0px))] max-w-lg md:max-w-xl lg:max-w-2xl mx-auto scrollbar-hide touch-pan-y overscroll-y-contain"
             >
               <Viagens
                 dataVersion={dataVersion}
@@ -802,10 +804,11 @@ function App() {
             }`}
           >
             <div
+              data-tab-scroll="true"
               ref={(el) => {
                 tabScrollRefs.current.amigos = el;
               }}
-              className="w-full h-full overflow-y-auto px-4 sm:px-6 pt-[max(2.25rem,calc(env(safe-area-inset-top,0px)+0.75rem))] pb-[calc(6rem+env(safe-area-inset-bottom,0px))] max-w-lg md:max-w-xl lg:max-w-2xl mx-auto scrollbar-hide touch-pan-y overscroll-y-contain"
+              className="w-full h-full overflow-y-auto px-4 sm:px-6 pb-[calc(6rem+env(safe-area-inset-bottom,0px))] max-w-lg md:max-w-xl lg:max-w-2xl mx-auto scrollbar-hide touch-pan-y overscroll-y-contain"
             >
               <Amigos
                 dataVersion={dataVersion}
@@ -823,10 +826,11 @@ function App() {
             }`}
           >
             <div
+              data-tab-scroll="true"
               ref={(el) => {
                 tabScrollRefs.current.perfil = el;
               }}
-              className="w-full h-full overflow-y-auto px-4 sm:px-6 pt-[max(2.25rem,calc(env(safe-area-inset-top,0px)+0.75rem))] pb-[calc(6rem+env(safe-area-inset-bottom,0px))] max-w-lg md:max-w-xl lg:max-w-2xl mx-auto scrollbar-hide touch-pan-y overscroll-y-contain"
+              className="w-full h-full overflow-y-auto px-4 sm:px-6 pb-[calc(6rem+env(safe-area-inset-bottom,0px))] max-w-lg md:max-w-xl lg:max-w-2xl mx-auto scrollbar-hide touch-pan-y overscroll-y-contain"
             >
               <Perfil
                 dataVersion={dataVersion}

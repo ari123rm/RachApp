@@ -2,6 +2,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { RideCard, formatRideDateHeader } from './RideCard';
 import { RideDetailsModal } from './RideDetailsModal';
+import { TopBar } from './TopBar';
 import {
   LoaderCircle,
   ChevronDown,
@@ -373,63 +374,59 @@ export function Viagens({
 
   if (isLoading) {
     return (
-      <div className="flex flex-col items-center justify-center h-64 text-[var(--primary)]">
-        <LoaderCircle size={40} strokeWidth={2} className="animate-spin mb-4" />
-        <p className="text-sm font-medium text-[var(--text-secondary)]">Carregando rachas...</p>
+      <div className="space-y-3.5">
+        <TopBar title="Histórico de Rachas" subtitle="Carregando rachas..." />
+        <div className="flex flex-col items-center justify-center h-64 text-[var(--primary)]">
+          <LoaderCircle size={40} strokeWidth={2} className="animate-spin mb-4" />
+          <p className="text-sm font-medium text-[var(--text-secondary)]">Carregando rachas...</p>
+        </div>
       </div>
     );
   }
 
   return (
     <div className="space-y-3.5 relative">
-      {/* Cabeçalho */}
-      <header className="flex justify-between items-center gap-2 min-w-0 pt-1">
-        <div className="min-w-0 flex-1">
-          <h1 className="text-xl sm:text-h1 font-display font-bold text-[var(--text-primary)] truncate">
-            Histórico de Rachas
-          </h1>
-          <p className="text-xs text-[var(--text-secondary)] mt-0.5 truncate">
-            {corridasFiltradas.length}{' '}
-            {corridasFiltradas.length === 1 ? 'racha encontrado' : 'rachas encontrados'}
-          </p>
-        </div>
+      <TopBar
+        title="Histórico de Rachas"
+        subtitle={`${corridasFiltradas.length} ${
+          corridasFiltradas.length === 1 ? 'racha encontrado' : 'rachas encontrados'
+        }`}
+        rightContent={
+          <>
+            <button
+              type="button"
+              onClick={() => setMostrarFiltros(!mostrarFiltros)}
+              className={`h-10 px-3 rounded-xl transition-all flex items-center gap-1.5 text-xs font-semibold shrink-0 border ${
+                mostrarFiltros || totalFiltrosAvancados > 0
+                  ? 'bg-[var(--primary)] text-white border-[var(--primary)] shadow-sm'
+                  : 'bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] border-[var(--border-color)]'
+              }`}
+              title="Filtros avançados"
+            >
+              <SlidersHorizontal size={15} strokeWidth={2} />
+              <span className="hidden xs:inline">Filtros</span>
+              {totalFiltrosAvancados > 0 && (
+                <span className="px-1.5 py-0.2 rounded-full text-[11px] font-bold bg-white/20 text-white">
+                  {totalFiltrosAvancados}
+                </span>
+              )}
+            </button>
 
-        <div className="flex items-center gap-2 shrink-0">
-          {/* Botão para abrir/fechar painel de filtros avançados */}
-          <button
-            type="button"
-            onClick={() => setMostrarFiltros(!mostrarFiltros)}
-            className={`h-10 px-3 rounded-xl transition-all flex items-center gap-1.5 text-xs font-semibold shrink-0 border ${
-              mostrarFiltros || totalFiltrosAvancados > 0
-                ? 'bg-[var(--primary)] text-white border-[var(--primary)] shadow-sm'
-                : 'bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] border-[var(--border-color)]'
-            }`}
-            title="Filtros avançados"
-          >
-            <SlidersHorizontal size={15} strokeWidth={2} />
-            <span className="hidden xs:inline">Filtros</span>
-            {totalFiltrosAvancados > 0 && (
-              <span className="px-1.5 py-0.2 rounded-full text-[11px] font-bold bg-white/20 text-white">
-                {totalFiltrosAvancados}
-              </span>
-            )}
-          </button>
-
-          {/* Botão de Ordenação */}
-          <button
-            type="button"
-            onClick={() => setOrdemCrescente(!ordemCrescente)}
-            className={`h-10 w-10 rounded-xl transition-colors flex items-center justify-center shrink-0 border ${
-              ordemCrescente
-                ? 'bg-[var(--primary-light)] text-[var(--primary)] border-[var(--primary)]/40'
-                : 'bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] border-[var(--border-color)]'
-            }`}
-            title={ordemCrescente ? 'Mais antigos primeiro' : 'Mais recentes primeiro'}
-          >
-            <ArrowDownUp size={16} strokeWidth={2} />
-          </button>
-        </div>
-      </header>
+            <button
+              type="button"
+              onClick={() => setOrdemCrescente(!ordemCrescente)}
+              className={`h-10 w-10 rounded-xl transition-colors flex items-center justify-center shrink-0 border ${
+                ordemCrescente
+                  ? 'bg-[var(--primary-light)] text-[var(--primary)] border-[var(--primary)]/40'
+                  : 'bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] border-[var(--border-color)]'
+              }`}
+              title={ordemCrescente ? 'Mais antigos primeiro' : 'Mais recentes primeiro'}
+            >
+              <ArrowDownUp size={16} strokeWidth={2} />
+            </button>
+          </>
+        }
+      />
 
       {/* Barra de Pesquisa por Texto */}
       <div className="h-12 bg-[var(--bg-surface)] rounded-xl flex items-center px-4 text-[var(--text-secondary)] border border-[var(--border-color)] focus-within:border-[var(--primary)] focus-within:ring-2 focus-within:ring-[var(--primary-focus-ring)] transition-all shadow-sm">

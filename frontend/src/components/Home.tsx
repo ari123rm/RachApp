@@ -16,6 +16,7 @@ import type { AppReleaseInfo } from '../services/updateService';
 import { dbService } from '../services/database';
 import { FriendDetailsModal } from './FriendDetailsModal';
 import { GroupDetailsModal } from './GroupDetailsModal';
+import { TopBar } from './TopBar';
 import moneyConverter from '../utils/moneyConverter';
 import { getAvatarColor, getGroupAvatarColor } from '../utils/avatarColor';
 
@@ -146,9 +147,12 @@ export function Home({
 
   if (isLoading) {
     return (
-      <div className="flex flex-col items-center justify-center h-64 text-[var(--primary)]">
-        <LoaderCircle size={40} strokeWidth={2} className="animate-spin mb-4" />
-        <p className="text-sm font-medium text-[var(--text-secondary)]">Calculando finanças...</p>
+      <div className="space-y-4">
+        <TopBar title="Início" subtitle="Calculando finanças..." />
+        <div className="flex flex-col items-center justify-center h-64 text-[var(--primary)]">
+          <LoaderCircle size={40} strokeWidth={2} className="animate-spin mb-4" />
+          <p className="text-sm font-medium text-[var(--text-secondary)]">Calculando finanças...</p>
+        </div>
       </div>
     );
   }
@@ -158,56 +162,50 @@ export function Home({
   const saldoGeral = Number((totalReceber - totalPagar).toFixed(2));
 
   return (
-    <div className="space-y-6">
-      {/* Cabeçalho */}
-      <header className="flex justify-between items-center mt-1 gap-3 min-w-0">
-        <div className="min-w-0 flex-1">
-          <h1 className="text-h1 text-[var(--text-primary)] truncate">
-            Olá, {nomeUsuario.split(' ')[0]}
-          </h1>
-          <p className="text-body2 text-[var(--text-secondary)] truncate mt-0.5">
-            {periodoSelecionado === 'all'
-              ? 'Seu resumo de todos os meses'
-              : `Seu resumo de ${formatarMesAno(periodoSelecionado)}`}
-          </p>
-        </div>
+    <div className="space-y-5">
+      <TopBar
+        title={`Olá, ${nomeUsuario.split(' ')[0]}`}
+        subtitle={
+          periodoSelecionado === 'all'
+            ? 'Seu resumo de todos os meses'
+            : `Seu resumo de ${formatarMesAno(periodoSelecionado)}`
+        }
+        rightContent={
+          <>
+            {onOpenNotifications && (
+              <button
+                onClick={onOpenNotifications}
+                title="Notificações"
+                className="relative w-10 h-10 rounded-full bg-[var(--bg-surface)] border border-[var(--border-color)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] flex items-center justify-center transition-colors shadow-sm shrink-0 active:scale-95"
+              >
+                <Bell size={18} strokeWidth={2} />
+                {unreadNotifCount > 0 && (
+                  <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-[#F43F5E] text-white text-xs font-bold flex items-center justify-center border-2 border-[var(--bg-app)]">
+                    {unreadNotifCount > 9 ? '9+' : unreadNotifCount}
+                  </span>
+                )}
+              </button>
+            )}
 
-        <div className="flex items-center gap-2.5 shrink-0">
-          {/* Botão de Notificações */}
-          {onOpenNotifications && (
             <button
-              onClick={onOpenNotifications}
-              title="Notificações"
-              className="relative w-10 h-10 rounded-full bg-[var(--bg-surface)] border border-[var(--border-color)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] flex items-center justify-center transition-colors shadow-sm shrink-0 active:scale-95"
+              type="button"
+              onClick={onNavigateToProfile}
+              title="Ir para o meu perfil"
+              className="w-10 h-10 bg-[var(--primary)] text-white rounded-full overflow-hidden flex items-center justify-center font-display font-bold shadow-sm border border-[var(--primary)]/20 shrink-0 cursor-pointer hover:ring-2 hover:ring-[var(--primary)]/40 transition-all active:scale-95"
             >
-              <Bell size={18} strokeWidth={2} />
-              {unreadNotifCount > 0 && (
-                <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-[#F43F5E] text-white text-xs font-bold flex items-center justify-center border-2 border-[var(--bg-app)]">
-                  {unreadNotifCount > 9 ? '9+' : unreadNotifCount}
-                </span>
+              {avatarUsuario ? (
+                <img
+                  src={avatarUsuario}
+                  alt={nomeUsuario}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <span className="text-sm uppercase font-bold">{(nomeUsuario || 'U')[0]}</span>
               )}
             </button>
-          )}
-
-          {/* Avatar Circular 40x40px que leva para a aba do Perfil */}
-          <button
-            type="button"
-            onClick={onNavigateToProfile}
-            title="Ir para o meu perfil"
-            className="w-10 h-10 bg-[var(--primary)] text-white rounded-full overflow-hidden flex items-center justify-center font-display font-bold shadow-sm border border-[var(--primary)]/20 shrink-0 cursor-pointer hover:ring-2 hover:ring-[var(--primary)]/40 transition-all active:scale-95"
-          >
-            {avatarUsuario ? (
-              <img
-                src={avatarUsuario}
-                alt={nomeUsuario}
-                className="w-full h-full object-cover"
-              />
-            ) : (
-              <span className="text-sm uppercase font-bold">{(nomeUsuario || 'U')[0]}</span>
-            )}
-          </button>
-        </div>
-      </header>
+          </>
+        }
+      />
 
       {/* Banner de Atualização Disponível (Opcional / Não-bloqueante) */}
       {updateInfo && updateInfo.isNewer && (
