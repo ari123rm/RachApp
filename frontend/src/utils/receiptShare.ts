@@ -8,6 +8,7 @@ declare global {
       openExternalUrl?: (url: string) => void;
       shareReceipt?: (dataUrl: string, title: string) => void;
       requestContacts?: () => void;
+      takePhoto?: () => void;
     };
     __onNativeSharedReceipt?: (dataUrl: string) => void;
   }

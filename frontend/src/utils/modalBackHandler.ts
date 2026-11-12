@@ -98,6 +98,11 @@ export function useModalBackHandler(isOpen: boolean, onClose: () => void) {
     const canStartDragFromTarget = (target: HTMLElement | null, clientY: number): boolean => {
       if (!target || isClosing) return false;
 
+      // Bloqueia completamente o arraste do modal em áreas marcadas (ex: recorte de foto/avatar)
+      if (target.closest('[data-no-sheet-drag="true"]')) {
+        return false;
+      }
+
       // Se clicou num controle interativo (exceto se o próprio controle for o handle)
       const interactive = target.closest(
         'button, a, input, textarea, select, canvas, [data-no-sheet-drag="true"], [data-horizontal-scroll="true"]'
@@ -142,6 +147,12 @@ export function useModalBackHandler(isOpen: boolean, onClose: () => void) {
 
     const onTouchMove = (e: TouchEvent) => {
       if (!active || e.touches.length !== 1) return;
+      const target = e.target as HTMLElement | null;
+      if (target?.closest('[data-no-sheet-drag="true"]')) {
+        active = false;
+        dragging = false;
+        return;
+      }
       const touch = e.touches[0];
       const dx = touch.clientX - startX;
       const dy = touch.clientY - startY;
@@ -155,7 +166,6 @@ export function useModalBackHandler(isOpen: boolean, onClose: () => void) {
           return;
         }
 
-        const target = e.target as HTMLElement | null;
         if (!startedOnHandle && hasScrolledAncestor(target, node)) {
           active = false;
           return;

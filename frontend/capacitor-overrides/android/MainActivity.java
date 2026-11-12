@@ -1,13 +1,19 @@
 package com.ariel.rachapp;
 
 import android.Manifest;
+import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.database.Cursor;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.graphics.Matrix;
+import android.media.ExifInterface;
 import android.net.Uri;
 import android.os.Bundle;
 import android.provider.ContactsContract;
+import android.provider.MediaStore;
 import android.util.Base64;
 import android.webkit.JavascriptInterface;
 import android.webkit.WebView;
@@ -40,7 +46,11 @@ import java.util.Set;
 public class MainActivity extends BridgeActivity {
     private static String pendingSharedReceipt = null;
     private static final int REQ_READ_CONTACTS = 9401;
+    private static final int REQ_CAMERA = 9402;
     private ActivityResultLauncher<String> contactsPermissionLauncher;
+    private ActivityResultLauncher<String> cameraPermissionLauncher;
+    private ActivityResultLauncher<Intent> cameraCaptureLauncher;
+    private File pendingCameraFile = null;
     private boolean bridgeRegistered = false;
 
     @Keep
@@ -186,6 +196,30 @@ public class MainActivity extends BridgeActivity {
                 }
             });
         }
+
+        @Keep
+        @JavascriptInterface
+        public void takePhoto() {
+            runOnUiThread(() -> {
+                try {
+                    if (ContextCompat.checkSelfPermission(MainActivity.this, Manifest.permission.CAMERA)
+                            == PackageManager.PERMISSION_GRANTED) {
+                        launchNativeCameraIntent();
+                    } else if (cameraPermissionLauncher != null) {
+                        cameraPermissionLauncher.launch(Manifest.permission.CAMERA);
+                    } else {
+                        ActivityCompat.requestPermissions(
+                            MainActivity.this,
+                            new String[]{Manifest.permission.CAMERA},
+                            REQ_CAMERA
+                        );
+                    }
+                } catch (Exception e) {
+                    e.printStackTrace();
+                    dispatchCameraPayload("", "error");
+                }
+            });
+        }
     }
 
     @Override
@@ -198,6 +232,32 @@ public class MainActivity extends BridgeActivity {
                     loadPhoneContactsAndDeliver();
                 } else {
                     dispatchContactsPayload("[]", "permission_denied");
+                }
+            }
+        );
+        cameraPermissionLauncher = registerForActivityResult(
+            new ActivityResultContracts.RequestPermission(),
+            isGranted -> {
+                if (Boolean.TRUE.equals(isGranted)) {
+                    launchNativeCameraIntent();
+                } else {
+                    dispatchCameraPayload("", "permission_denied");
+                }
+            }
+        );
+        cameraCaptureLauncher = registerForActivityResult(
+            new ActivityResultContracts.StartActivityForResult(),
+            result -> {
+                if (result.getResultCode() == Activity.RESULT_OK) {
+                    processCapturedCameraPhoto(pendingCameraFile, result.getData());
+                } else {
+                    if (pendingCameraFile != null && pendingCameraFile.exists()) {
+                        try {
+                            pendingCameraFile.delete();
+                        } catch (Exception ignored) {}
+                    }
+                    pendingCameraFile = null;
+                    dispatchCameraPayload("", "cancelled");
                 }
             }
         );
@@ -243,6 +303,175 @@ public class MainActivity extends BridgeActivity {
             } else {
                 dispatchContactsPayload("[]", "permission_denied");
             }
+        } else if (requestCode == REQ_CAMERA) {
+            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                launchNativeCameraIntent();
+            } else {
+                dispatchCameraPayload("", "permission_denied");
+            }
+        }
+    }
+
+    private void launchNativeCameraIntent() {
+        try {
+            File cacheDir = new File(getCacheDir(), "shared_receipts");
+            if (!cacheDir.exists()) {
+                cacheDir.mkdirs();
+            }
+            pendingCameraFile = new File(cacheDir, "camera_avatar_" + System.currentTimeMillis() + ".jpg");
+            Uri photoUri = FileProvider.getUriForFile(
+                MainActivity.this,
+                getPackageName() + ".fileprovider",
+                pendingCameraFile
+            );
+
+            Intent takePictureIntent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
+            takePictureIntent.putExtra(MediaStore.EXTRA_OUTPUT, photoUri);
+            takePictureIntent.addFlags(
+                Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+            );
+
+            if (cameraCaptureLauncher != null) {
+                cameraCaptureLauncher.launch(takePictureIntent);
+            } else {
+                dispatchCameraPayload("", "error");
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+            dispatchCameraPayload("", "error");
+        }
+    }
+
+    private void processCapturedCameraPhoto(final File photoFile, final Intent dataIntent) {
+        new Thread(() -> {
+            try {
+                Bitmap bitmap = null;
+                int rotationDegrees = 0;
+                boolean flipHorizontal = false;
+
+                if (photoFile != null && photoFile.exists() && photoFile.length() > 0) {
+                    String path = photoFile.getAbsolutePath();
+                    try {
+                        ExifInterface exif = new ExifInterface(path);
+                        int orientation = exif.getAttributeInt(
+                            ExifInterface.TAG_ORIENTATION,
+                            ExifInterface.ORIENTATION_NORMAL
+                        );
+                        switch (orientation) {
+                            case ExifInterface.ORIENTATION_ROTATE_90:
+                                rotationDegrees = 90;
+                                break;
+                            case ExifInterface.ORIENTATION_ROTATE_180:
+                                rotationDegrees = 180;
+                                break;
+                            case ExifInterface.ORIENTATION_ROTATE_270:
+                                rotationDegrees = 270;
+                                break;
+                            case ExifInterface.ORIENTATION_FLIP_HORIZONTAL:
+                                flipHorizontal = true;
+                                break;
+                            case ExifInterface.ORIENTATION_TRANSPOSE:
+                                rotationDegrees = 90;
+                                flipHorizontal = true;
+                                break;
+                            case ExifInterface.ORIENTATION_TRANSVERSE:
+                                rotationDegrees = 270;
+                                flipHorizontal = true;
+                                break;
+                            default:
+                                break;
+                        }
+                    } catch (Exception ignored) {}
+
+                    BitmapFactory.Options boundsOpts = new BitmapFactory.Options();
+                    boundsOpts.inJustDecodeBounds = true;
+                    BitmapFactory.decodeFile(path, boundsOpts);
+
+                    int sampleSize = 1;
+                    int maxDim = Math.max(boundsOpts.outWidth, boundsOpts.outHeight);
+                    while (maxDim / sampleSize > 1600) {
+                        sampleSize *= 2;
+                    }
+
+                    BitmapFactory.Options decodeOpts = new BitmapFactory.Options();
+                    decodeOpts.inSampleSize = sampleSize;
+                    bitmap = BitmapFactory.decodeFile(path, decodeOpts);
+                }
+
+                if (bitmap == null && dataIntent != null && dataIntent.getExtras() != null) {
+                    Object rawData = dataIntent.getExtras().get("data");
+                    if (rawData instanceof Bitmap) {
+                        bitmap = (Bitmap) rawData;
+                    }
+                }
+
+                if (photoFile != null && photoFile.exists()) {
+                    try {
+                        photoFile.delete();
+                    } catch (Exception ignored) {}
+                }
+
+                if (bitmap == null) {
+                    dispatchCameraPayload("", "error");
+                    return;
+                }
+
+                int width = bitmap.getWidth();
+                int height = bitmap.getHeight();
+                int targetMax = 1400;
+                float scale = 1.0f;
+                if (width > targetMax || height > targetMax) {
+                    scale = Math.min((float) targetMax / width, (float) targetMax / height);
+                }
+
+                if (rotationDegrees != 0 || flipHorizontal || scale < 1.0f) {
+                    Matrix matrix = new Matrix();
+                    if (scale < 1.0f) {
+                        matrix.postScale(scale, scale);
+                    }
+                    if (flipHorizontal) {
+                        matrix.postScale(-1.0f, 1.0f);
+                    }
+                    if (rotationDegrees != 0) {
+                        matrix.postRotate(rotationDegrees);
+                    }
+                    Bitmap transformed = Bitmap.createBitmap(bitmap, 0, 0, width, height, matrix, true);
+                    if (transformed != bitmap) {
+                        bitmap.recycle();
+                        bitmap = transformed;
+                    }
+                }
+
+                ByteArrayOutputStream baos = new ByteArrayOutputStream();
+                bitmap.compress(Bitmap.CompressFormat.JPEG, 88, baos);
+                byte[] jpegBytes = baos.toByteArray();
+                bitmap.recycle();
+
+                String base64 = Base64.encodeToString(jpegBytes, Base64.NO_WRAP);
+                String dataUrl = "data:image/jpeg;base64," + base64;
+                dispatchCameraPayload(dataUrl, "ok");
+            } catch (Exception e) {
+                e.printStackTrace();
+                dispatchCameraPayload("", "error");
+            }
+        }).start();
+    }
+
+    private void dispatchCameraPayload(String dataUrl, String status) {
+        try {
+            WebView webView = getBridge() != null ? getBridge().getWebView() : null;
+            if (webView != null) {
+                String quotedUrl = JSONObject.quote(dataUrl != null ? dataUrl : "");
+                String quotedStatus = JSONObject.quote(status != null ? status : "error");
+                String js = "try {" +
+                        "  window.dispatchEvent(new CustomEvent('rachappCameraPhoto', {" +
+                        "    detail: { dataUrl: " + quotedUrl + ", status: " + quotedStatus + " }" +
+                        "  }));" +
+                        "} catch(e) { console.error(e); }";
+                webView.post(() -> webView.evaluateJavascript(js, null));
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
         }
     }
 

@@ -247,6 +247,7 @@ jobs:
               <cache-path name="shared_receipts" path="shared_receipts" />
               <cache-path name="cache_root" path="." />
               <external-cache-path name="ext_cache" path="." />
+              <external-files-path name="my_images" path="." />
               <external-path name="ext_files" path="." />
               <files-path name="internal_files" path="." />
           </paths>
@@ -258,7 +259,7 @@ jobs:
           fi
 
           if [ -f "$MANIFEST" ] && ! grep -q "com.whatsapp" "$MANIFEST"; then
-            sed -i 's/<\/manifest>/<queries><package android:name="com.whatsapp" \/><package android:name="com.whatsapp.w4b" \/><intent><action android:name="android.intent.action.VIEW" \/><data android:scheme="whatsapp" \/><\/intent><intent><action android:name="android.intent.action.VIEW" \/><data android:scheme="https" \/><\/intent><\/queries><\/manifest>/g' "$MANIFEST"
+            sed -i 's/<\/manifest>/<queries><package android:name="com.whatsapp" \/><package android:name="com.whatsapp.w4b" \/><intent><action android:name="android.intent.action.VIEW" \/><data android:scheme="whatsapp" \/><\/intent><intent><action android:name="android.intent.action.VIEW" \/><data android:scheme="https" \/><\/intent><intent><action android:name="android.media.action.IMAGE_CAPTURE" \/><\/intent><\/queries><\/manifest>/g' "$MANIFEST"
           fi
 
       - name: Definir versionCode e versionName no build.gradle

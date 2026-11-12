@@ -12,6 +12,7 @@ import {
   LoaderCircle,
   Move,
   Upload,
+  Image as ImageIcon,
 } from 'lucide-react';
 import { useModalBackHandler } from '../utils/modalBackHandler';
 
@@ -48,6 +49,8 @@ export function AvatarEditModal({
   const [viewportSize, setViewportSize] = useState(280);
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const cameraInputRef = useRef<HTMLInputElement | null>(null);
+  const cameraListenerCleanupRef = useRef<(() => void) | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const dragStartRef = useRef<{ x: number; y: number; offsetX: number; offsetY: number }>({
     x: 0,
@@ -66,8 +69,20 @@ export function AvatarEditModal({
       setIsDragging(false);
       setIsSaving(false);
       setIsDeleting(false);
+    } else if (cameraListenerCleanupRef.current) {
+      cameraListenerCleanupRef.current();
+      cameraListenerCleanupRef.current = null;
     }
   }, [isOpen, currentAvatarUrl]);
+
+  useEffect(() => {
+    return () => {
+      if (cameraListenerCleanupRef.current) {
+        cameraListenerCleanupRef.current();
+        cameraListenerCleanupRef.current = null;
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (isOpen && containerRef.current) {
@@ -126,6 +141,7 @@ export function AvatarEditModal({
   };
 
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    e.stopPropagation();
     if (e.pointerType === 'mouse' && e.button !== 0) return;
     if (!imageSrc || !imageDimensions) return;
     try {
@@ -141,6 +157,7 @@ export function AvatarEditModal({
   };
 
   const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    e.stopPropagation();
     if (!isDragging) return;
     const dx = e.clientX - dragStartRef.current.x;
     const dy = e.clientY - dragStartRef.current.y;
@@ -150,6 +167,7 @@ export function AvatarEditModal({
   };
 
   const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    e.stopPropagation();
     if (isDragging) {
       try {
         (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
@@ -159,6 +177,7 @@ export function AvatarEditModal({
   };
 
   const handleTouchStart = (e: React.TouchEvent) => {
+    e.stopPropagation();
     if (e.touches.length === 2) {
       const dist = Math.hypot(
         e.touches[0].clientX - e.touches[1].clientX,
@@ -170,6 +189,10 @@ export function AvatarEditModal({
   };
 
   const handleTouchMove = (e: React.TouchEvent) => {
+    e.stopPropagation();
+    if (e.cancelable) {
+      e.preventDefault();
+    }
     if (e.touches.length === 2 && touchDistanceRef.current !== null) {
       const dist = Math.hypot(
         e.touches[0].clientX - e.touches[1].clientX,
@@ -180,7 +203,8 @@ export function AvatarEditModal({
     }
   };
 
-  const handleTouchEnd = () => {
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    e.stopPropagation();
     touchDistanceRef.current = null;
   };
 
@@ -205,6 +229,60 @@ export function AvatarEditModal({
       alert('Erro ao carregar a imagem selecionada.');
     };
     reader.readAsDataURL(file);
+  };
+
+  const handleTakePhoto = () => {
+    if (
+      typeof window !== 'undefined' &&
+      typeof window.AndroidReceiptBridge?.takePhoto === 'function'
+    ) {
+      if (cameraListenerCleanupRef.current) {
+        cameraListenerCleanupRef.current();
+        cameraListenerCleanupRef.current = null;
+      }
+
+      const onCameraPhoto = (ev: Event) => {
+        if (cameraListenerCleanupRef.current) {
+          cameraListenerCleanupRef.current();
+          cameraListenerCleanupRef.current = null;
+        }
+        const detail = (
+          ev as CustomEvent<{
+            dataUrl?: string;
+            status?: 'ok' | 'cancelled' | 'permission_denied' | 'error';
+          }>
+        ).detail;
+
+        if (detail?.status === 'ok' && detail.dataUrl) {
+          setImageSrc(detail.dataUrl);
+          setZoom(1);
+          setOffset({ x: 0, y: 0 });
+        } else if (detail?.status === 'permission_denied') {
+          alert(
+            'Permissão de câmera negada. Habilite o acesso à câmera nas configurações do celular para tirar a foto.'
+          );
+        } else if (detail?.status === 'error') {
+          cameraInputRef.current?.click();
+        }
+      };
+
+      window.addEventListener('rachappCameraPhoto', onCameraPhoto);
+      cameraListenerCleanupRef.current = () => {
+        window.removeEventListener('rachappCameraPhoto', onCameraPhoto);
+      };
+
+      try {
+        window.AndroidReceiptBridge.takePhoto();
+        return;
+      } catch {
+        if (cameraListenerCleanupRef.current) {
+          cameraListenerCleanupRef.current();
+          cameraListenerCleanupRef.current = null;
+        }
+      }
+    }
+
+    cameraInputRef.current?.click();
   };
 
   const handleReset = () => {
@@ -320,10 +398,10 @@ export function AvatarEditModal({
         <p className="text-body2 text-[var(--text-secondary)] mb-5">
           {hasPhoto
             ? 'Arraste a foto e use o zoom para enquadrar perfeitamente.'
-            : 'Selecione uma imagem do seu dispositivo para recortar.'}
+            : 'Tire uma foto com a câmera ou selecione uma imagem da galeria.'}
         </p>
 
-        {/* Input oculto para carregar arquivo */}
+        {/* Input oculto para carregar arquivo da galeria */}
         <input
           ref={fileInputRef}
           type="file"
@@ -332,11 +410,22 @@ export function AvatarEditModal({
           className="hidden"
         />
 
+        {/* Input oculto para tirar foto com a câmera nativa (fallback HTML5/WebView) */}
+        <input
+          ref={cameraInputRef}
+          type="file"
+          accept="image/*"
+          capture="user"
+          onChange={handleFileSelect}
+          className="hidden"
+        />
+
         {/* Área do Recortador / Viewport Quadrado */}
         {hasPhoto ? (
-          <div className="flex flex-col items-center">
+          <div data-no-sheet-drag="true" className="flex flex-col items-center">
             <div
               ref={containerRef}
+              data-no-sheet-drag="true"
               onPointerDown={handlePointerDown}
               onPointerMove={handlePointerMove}
               onPointerUp={handlePointerUp}
@@ -344,6 +433,7 @@ export function AvatarEditModal({
               onTouchStart={handleTouchStart}
               onTouchMove={handleTouchMove}
               onTouchEnd={handleTouchEnd}
+              onTouchCancel={handleTouchEnd}
               className={`w-[260px] h-[260px] sm:w-[280px] sm:h-[280px] relative rounded-2xl overflow-hidden bg-slate-950 border-2 border-[var(--primary)] select-none touch-none shadow-md cursor-grab ${
                 isDragging ? 'cursor-grabbing' : ''
               }`}
@@ -440,7 +530,10 @@ export function AvatarEditModal({
             </div>
 
             {/* Controles de Zoom */}
-            <div className="w-full max-w-[280px] mt-3 bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-xl p-2.5 flex items-center gap-2.5">
+            <div
+              data-no-sheet-drag="true"
+              className="w-full max-w-[280px] mt-3 bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-xl p-2.5 flex items-center gap-2.5"
+            >
               <button
                 type="button"
                 onClick={() => handleZoomChange(zoom - 0.2)}
@@ -492,9 +585,11 @@ export function AvatarEditModal({
             <div className="w-16 h-16 rounded-full bg-[var(--primary)]/10 flex items-center justify-center text-[var(--primary)] mb-3 group-hover:scale-105 transition-transform">
               <Camera size={28} strokeWidth={2} />
             </div>
-            <p className="text-[var(--text-primary)] font-semibold text-body2 mb-1">Escolher imagem</p>
+            <p className="text-[var(--text-primary)] font-semibold text-body2 mb-1">
+              Adicionar foto
+            </p>
             <p className="text-[var(--text-secondary)] text-caption">
-              Toque para selecionar uma foto da galeria
+              Tire uma foto com a câmera ou escolha da sua galeria
             </p>
           </div>
         )}
@@ -522,48 +617,69 @@ export function AvatarEditModal({
                 )}
               </button>
 
-              <div className="flex items-center gap-2">
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={handleTakePhoto}
+                  disabled={isSaving || isDeleting}
+                  className="h-12 px-3 bg-[var(--bg-subtle)] hover:bg-[var(--border-color)] text-[var(--text-primary)] text-body2 font-semibold rounded-xl flex items-center justify-center gap-1.5 border border-[var(--border-color)] transition-colors active:scale-95 disabled:opacity-50"
+                >
+                  <Camera size={16} strokeWidth={2} className="text-[var(--primary)] shrink-0" />
+                  <span>Tirar foto</span>
+                </button>
+
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
                   disabled={isSaving || isDeleting}
-                  className="flex-1 h-12 px-3 bg-[var(--bg-subtle)] hover:bg-[var(--border-color)] text-[var(--text-primary)] text-body2 font-semibold rounded-xl flex items-center justify-center gap-1.5 border border-[var(--border-color)] transition-colors active:scale-95 disabled:opacity-50"
+                  className="h-12 px-3 bg-[var(--bg-subtle)] hover:bg-[var(--border-color)] text-[var(--text-primary)] text-body2 font-semibold rounded-xl flex items-center justify-center gap-1.5 border border-[var(--border-color)] transition-colors active:scale-95 disabled:opacity-50"
                 >
-                  <Camera size={16} strokeWidth={2} className="text-[var(--primary)]" />
-                  <span>Trocar foto</span>
+                  <ImageIcon size={16} strokeWidth={2} className="text-[var(--primary)] shrink-0" />
+                  <span>Galeria</span>
                 </button>
-
-                {onDelete && (
-                  <button
-                    type="button"
-                    onClick={handleDelete}
-                    disabled={isSaving || isDeleting}
-                    className="flex-1 h-12 px-3 bg-[var(--rose-bg)] hover:opacity-90 text-[#F43F5E] text-body2 font-semibold rounded-xl flex items-center justify-center gap-1.5 border border-[var(--rose-border)] transition-colors active:scale-95 disabled:opacity-50"
-                  >
-                    {isDeleting ? (
-                      <>
-                        <LoaderCircle size={16} strokeWidth={2} className="animate-spin" />
-                        <span>Apagando...</span>
-                      </>
-                    ) : (
-                      <>
-                        <Trash2 size={16} strokeWidth={2} />
-                        <span>Apagar imagem</span>
-                      </>
-                    )}
-                  </button>
-                )}
               </div>
+
+              {onDelete && (
+                <button
+                  type="button"
+                  onClick={handleDelete}
+                  disabled={isSaving || isDeleting}
+                  className="w-full h-11 px-3 bg-[var(--rose-bg)] hover:opacity-90 text-[#F43F5E] text-body2 font-semibold rounded-xl flex items-center justify-center gap-1.5 border border-[var(--rose-border)] transition-colors active:scale-95 disabled:opacity-50"
+                >
+                  {isDeleting ? (
+                    <>
+                      <LoaderCircle size={16} strokeWidth={2} className="animate-spin" />
+                      <span>Apagando...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 size={16} strokeWidth={2} />
+                      <span>Apagar imagem</span>
+                    </>
+                  )}
+                </button>
+              )}
             </>
           ) : (
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              className="w-full ds-btn-primary"
-            >
-              <Upload size={18} strokeWidth={2} />
-              <span>Selecionar foto</span>
-            </button>
+            <>
+              <button
+                type="button"
+                onClick={handleTakePhoto}
+                className="w-full ds-btn-primary"
+              >
+                <Camera size={18} strokeWidth={2} />
+                <span>Tirar foto</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="w-full h-12 px-4 bg-[var(--bg-subtle)] hover:bg-[var(--border-color)] text-[var(--text-primary)] text-body2 font-semibold rounded-xl flex items-center justify-center gap-2 border border-[var(--border-color)] transition-colors active:scale-95"
+              >
+                <Upload size={18} strokeWidth={2} className="text-[var(--primary)]" />
+                <span>Escolher da galeria</span>
+              </button>
+            </>
           )}
 
           <button
@@ -580,3 +696,4 @@ export function AvatarEditModal({
     document.body
   );
 }
+

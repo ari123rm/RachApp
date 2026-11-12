@@ -3,6 +3,7 @@
     <cache-path name="shared_receipts" path="shared_receipts" />
     <cache-path name="cache_root" path="." />
     <external-cache-path name="ext_cache" path="." />
+    <external-files-path name="my_images" path="." />
     <external-path name="ext_files" path="." />
     <files-path name="internal_files" path="." />
 </paths>
