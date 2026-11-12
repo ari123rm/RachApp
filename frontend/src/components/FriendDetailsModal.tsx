@@ -18,7 +18,7 @@ import moneyConverter from '../utils/moneyConverter';
 import { AddFriendModal } from './AddFriendModal';
 import { PixModal } from './PixModal';
 import { PayWithReceiptModal, ReceiptViewerModal } from './ReceiptModals';
-import { RideCard } from './RideCard';
+import { RideCard, formatRideDateHeader } from './RideCard';
 import { RideDetailsModal } from './RideDetailsModal';
 import { generatePixCopiaECola } from '../utils/pixGenerator';
 import { formatPhoneBR, openWhatsApp, phonesMatchBR, stripCountryCode } from '../utils/phoneFormatter';
@@ -692,8 +692,8 @@ export function FriendDetailsModal({
               )}
             </div>
           ) : (
-            <div className="space-y-3 pb-4">
-              {corridasDoAmigo.map((corridaItem) => {
+            <div className="space-y-2.5 pb-4">
+              {corridasDoAmigo.map((corridaItem, idx) => {
                 const corridaCompleta: Corrida =
                   corridaItem.rawCorrida ||
                   todasCorridas.find((c) => c.id === corridaItem.id) || {
@@ -705,6 +705,18 @@ export function FriendDetailsModal({
                     participantesIds: [],
                   };
 
+                const prevItem = idx > 0 ? corridasDoAmigo[idx - 1] : null;
+                const prevData = prevItem
+                  ? (
+                      prevItem.rawCorrida?.data ||
+                      todasCorridas.find((c) => c.id === prevItem.id)?.data ||
+                      prevItem.data ||
+                      ''
+                    ).slice(0, 10)
+                  : '';
+                const currentData = (corridaCompleta.data || '').slice(0, 10);
+                const showDateHeader = idx === 0 || currentData !== prevData;
+
                 const userStatus = getRideStatusForUser(
                   corridaCompleta,
                   todasCorridas,
@@ -714,10 +726,10 @@ export function FriendDetailsModal({
 
                 const corridaParticipantes = [
                   { id: 0, nome: 'Você', cor: '#0F766E', avatar_url: myAvatarUrl },
-                  ...(corridaCompleta.participantesIds || []).map((pid: string, idx: number) => {
+                  ...(corridaCompleta.participantesIds || []).map((pid: string, pIdx: number) => {
                     const f = todosAmigos.find((a) => a.id === pid);
                     return {
-                      id: pid || idx + 1,
+                      id: pid || pIdx + 1,
                       nome: f?.nome || f?.name || 'Amigo',
                       cor: f?.cor || f?.color || '#0ea5e9',
                       avatar_url: f?.avatar_url || null,
@@ -726,17 +738,26 @@ export function FriendDetailsModal({
                 ];
 
                 return (
-                  <RideCard
-                    key={corridaItem.id}
-                    data={corridaCompleta.data}
-                    tag={corridaCompleta.tag}
-                    titulo={corridaCompleta.titulo}
-                    valorTotal={moneyConverter(corridaCompleta.valorTotal)}
-                    paidByName={corridaCompleta.paidByName}
-                    userStatus={userStatus}
-                    participantes={corridaParticipantes}
-                    onClick={() => setCorridaSelecionada(corridaCompleta)}
-                  />
+                  <div key={corridaItem.id} className="space-y-1.5">
+                    {showDateHeader && (
+                      <div className={`flex items-center gap-2.5 px-0.5 ${idx > 0 ? 'pt-1.5' : ''}`}>
+                        <span className="font-display text-xs font-bold tracking-wide text-[var(--primary)] whitespace-nowrap">
+                          {formatRideDateHeader(corridaCompleta.data)}
+                        </span>
+                        <div className="h-px flex-1 bg-[var(--border-color)]" />
+                      </div>
+                    )}
+                    <RideCard
+                      data={corridaCompleta.data}
+                      tag={corridaCompleta.tag}
+                      titulo={corridaCompleta.titulo}
+                      valorTotal={moneyConverter(corridaCompleta.valorTotal)}
+                      paidByName={corridaCompleta.paidByName}
+                      userStatus={userStatus}
+                      participantes={corridaParticipantes}
+                      onClick={() => setCorridaSelecionada(corridaCompleta)}
+                    />
+                  </div>
                 );
               })}
             </div>

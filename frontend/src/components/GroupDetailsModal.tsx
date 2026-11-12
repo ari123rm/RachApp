@@ -28,7 +28,7 @@ import { AvatarEditModal } from './AvatarEditModal';
 import { PixModal } from './PixModal';
 import { PayWithReceiptModal } from './ReceiptModals';
 import { RideDetailsModal } from './RideDetailsModal';
-import { RideCard } from './RideCard';
+import { RideCard, formatRideDateHeader } from './RideCard';
 import { formatPhoneBR, openWhatsApp, phonesMatchBR, stripCountryCode } from '../utils/phoneFormatter';
 import { generatePixCopiaECola } from '../utils/pixGenerator';
 import { useModalBackHandler } from '../utils/modalBackHandler';
@@ -1338,20 +1338,42 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
                   </p>
                 </div>
               ) : (
-                <div className="space-y-3">
-                  {expensesFiltradas.map(({ expense, corridaCompleta, userStatus, corridaParticipantes }) => (
-                    <RideCard
-                      key={expense.id}
-                      data={corridaCompleta.data}
-                      tag={corridaCompleta.tag}
-                      titulo={corridaCompleta.titulo}
-                      valorTotal={moneyConverter(corridaCompleta.valorTotal)}
-                      paidByName={corridaCompleta.paidByName}
-                      userStatus={userStatus}
-                      participantes={corridaParticipantes}
-                      onClick={() => setCorridaSelecionada(corridaCompleta)}
-                    />
-                  ))}
+                <div className="space-y-2.5">
+                  {expensesFiltradas.map(
+                    ({ expense, corridaCompleta, userStatus, corridaParticipantes }, idx) => {
+                      const prevDateKey =
+                        idx > 0
+                          ? (expensesFiltradas[idx - 1].corridaCompleta.data || '').slice(0, 10)
+                          : '';
+                      const currentDateKey = (corridaCompleta.data || '').slice(0, 10);
+                      const showDateHeader = idx === 0 || currentDateKey !== prevDateKey;
+
+                      return (
+                        <div key={expense.id} className="space-y-1.5">
+                          {showDateHeader && (
+                            <div
+                              className={`flex items-center gap-2.5 px-0.5 ${idx > 0 ? 'pt-1.5' : ''}`}
+                            >
+                              <span className="font-display text-xs font-bold tracking-wide text-[var(--primary)] whitespace-nowrap">
+                                {formatRideDateHeader(corridaCompleta.data)}
+                              </span>
+                              <div className="h-px flex-1 bg-[var(--border-color)]" />
+                            </div>
+                          )}
+                          <RideCard
+                            data={corridaCompleta.data}
+                            tag={corridaCompleta.tag}
+                            titulo={corridaCompleta.titulo}
+                            valorTotal={moneyConverter(corridaCompleta.valorTotal)}
+                            paidByName={corridaCompleta.paidByName}
+                            userStatus={userStatus}
+                            participantes={corridaParticipantes}
+                            onClick={() => setCorridaSelecionada(corridaCompleta)}
+                          />
+                        </div>
+                      );
+                    }
+                  )}
                 </div>
               )}
             </div>

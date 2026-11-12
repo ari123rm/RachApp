@@ -53,6 +53,34 @@ export function formatRideDate(dateStr: string): string {
   return `${parseInt(day, 10)} ${mName} ${year.slice(-2)}`;
 }
 
+export function formatRideDateHeader(dateStr: string): string {
+  if (!dateStr) return 'Sem data';
+  const clean = dateStr.slice(0, 10);
+  const parts = clean.split('-');
+  if (parts.length !== 3) return dateStr;
+  const year = Number(parts[0]);
+  const month = Number(parts[1]);
+  const day = Number(parts[2]);
+  if (!year || !month || !day) return dateStr;
+
+  const dateObj = new Date(year, month - 1, day);
+  const diasSemana = [
+    'domingo',
+    'segunda-feira',
+    'terça-feira',
+    'quarta-feira',
+    'quinta-feira',
+    'sexta-feira',
+    'sábado',
+  ];
+  const diaSemana = diasSemana[dateObj.getDay()] || '';
+  const dd = String(day).padStart(2, '0');
+  const mm = String(month).padStart(2, '0');
+  const currentYear = new Date().getFullYear();
+  const dataFormatada = year === currentYear ? `${dd}/${mm}` : `${dd}/${mm}/${year}`;
+  return diaSemana ? `${dataFormatada}, ${diaSemana}` : dataFormatada;
+}
+
 export function getCategoryIcon(tag: string) {
   const lower = (tag || '').toLowerCase();
   if (
@@ -158,7 +186,6 @@ export function RideStatusView({
 }
 
 export function RideCard({
-  data,
   tag,
   titulo,
   valorTotal,
@@ -167,16 +194,18 @@ export function RideCard({
   paidByName,
   onClick,
 }: RideProps) {
-  const cleanTag = (tag || '').trim();
+  const cleanTag = (tag || '').trim() || 'Uber';
   const cleanTitle = (titulo || '').trim();
+  const displayTitle = cleanTitle || cleanTag;
 
-  let displayTitle = cleanTitle;
-  if (cleanTag && !cleanTitle.toLowerCase().startsWith(cleanTag.toLowerCase())) {
-    displayTitle = `${cleanTag} - ${cleanTitle}`;
-  }
-
-  const formattedDate = formatRideDate(data);
   const CategoryIcon = getCategoryIcon(cleanTag || displayTitle);
+
+  const tagFontSizeClass =
+    cleanTag.length > 10
+      ? 'text-[9px] sm:text-[10px] tracking-tighter'
+      : cleanTag.length > 7
+      ? 'text-[9.5px] sm:text-[10.5px] tracking-tight'
+      : 'text-[10px] sm:text-[11px]';
 
   // Ordena para que os amigos apareçam primeiro nos avatares e 'Você' fique por último
   const amigos = participantes.filter((p) => p.nome !== 'Você');
@@ -197,36 +226,45 @@ export function RideCard({
     ? 'Pago por você'
     : firstPayerName
     ? `Pago por ${firstPayerName}`
-    : cleanTag || 'Despesa';
+    : 'Pago por você';
 
   return (
     <div
       onClick={onClick}
-      className="ds-card p-3.5 sm:p-4 flex items-center justify-between gap-3 transition-all cursor-pointer hover:border-[var(--primary)]/40 active:scale-[0.99]"
+      className="ds-card !px-3 !py-2.5 sm:!px-3.5 sm:!py-3 flex items-center justify-between gap-2.5 sm:gap-3 transition-all cursor-pointer hover:border-[var(--primary)]/40 active:scale-[0.99]"
     >
-      {/* Esquerda: Ícone da categoria da despesa */}
-      <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-[var(--bg-subtle)] text-[var(--primary)] flex items-center justify-center shrink-0 border border-[var(--border-color)]">
-        <CategoryIcon size={20} strokeWidth={2} />
+      {/* Esquerda: Ícone da categoria + Nome da tag embaixo */}
+      <div className="flex flex-col items-center justify-center gap-1 shrink-0 min-w-[46px] max-w-[72px] sm:max-w-[84px]">
+        <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-[var(--bg-subtle)] text-[var(--primary)] flex items-center justify-center shrink-0 border border-[var(--border-color)]">
+          <CategoryIcon size={18} strokeWidth={2} />
+        </div>
+        <span
+          className={`${tagFontSizeClass} font-semibold text-[var(--text-secondary)] leading-none whitespace-nowrap truncate max-w-full text-center`}
+          title={cleanTag}
+        >
+          {cleanTag}
+        </span>
       </div>
 
-      {/* Meio: Título da despesa + Quem pagou e data + Pilha de avatares */}
+      {/* Meio: Título da despesa + Quem pagou e valor total + Pilha de avatares */}
       <div className="min-w-0 flex-1">
-        <h4 className="font-display font-semibold text-[15px] sm:text-[17px] text-[var(--text-primary)] tracking-tight truncate leading-snug">
+        <h4 className="font-display font-semibold text-[15px] sm:text-base text-[var(--text-primary)] tracking-tight truncate leading-snug">
           {displayTitle}
         </h4>
-        <p className="text-xs text-[var(--text-secondary)] mt-0.5 truncate">
-          {payerLabel}
-          {formattedDate ? ` • ${formattedDate}` : ''}
+        <p className="text-xs text-[var(--text-secondary)] mt-0.5 truncate tabular-nums">
+          <span>{payerLabel}</span>
+          <span className="mx-1">•</span>
+          <span className="font-semibold text-[var(--text-primary)]">R$ {valorTotal}</span>
         </p>
 
-        {/* Pilha de Avatares + Valor Total sem truncamento quebrado */}
-        <div className="flex items-center gap-2 mt-2 min-w-0">
+        {/* Pilha de Avatares */}
+        <div className="flex items-center gap-2 mt-1.5 min-w-0">
           <div className="flex -space-x-1.5 shrink-0">
             {visibleAvatars.map((p) => (
               <div
                 key={p.id}
                 style={p.avatar_url ? undefined : { backgroundColor: getAvatarColor(p.cor) }}
-                className="w-6 h-6 sm:w-7 sm:h-7 rounded-full overflow-hidden flex items-center justify-center border-2 border-[var(--bg-surface)] text-[10px] sm:text-xs font-semibold text-white shrink-0 shadow-sm"
+                className="w-5 h-5 sm:w-6 sm:h-6 rounded-full overflow-hidden flex items-center justify-center border-2 border-[var(--bg-surface)] text-[10px] font-semibold text-white shrink-0 shadow-sm"
                 title={p.nome}
               >
                 {p.avatar_url ? (
@@ -237,14 +275,11 @@ export function RideCard({
               </div>
             ))}
             {extraCount > 0 && (
-              <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-[var(--bg-subtle)] text-[var(--text-secondary)] font-semibold text-[10px] sm:text-xs flex items-center justify-center border-2 border-[var(--bg-surface)] shrink-0">
+              <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-[var(--bg-subtle)] text-[var(--text-secondary)] font-semibold text-[10px] flex items-center justify-center border-2 border-[var(--bg-surface)] shrink-0">
                 +{extraCount}
               </div>
             )}
           </div>
-          <span className="text-[11px] sm:text-xs font-medium text-[var(--text-secondary)] whitespace-nowrap truncate tabular-nums">
-            Total R$ {valorTotal}
-          </span>
         </div>
       </div>
 

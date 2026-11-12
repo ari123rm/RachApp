@@ -1,6 +1,6 @@
 // src/components/Viagens.tsx
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { RideCard } from './RideCard';
+import { RideCard, formatRideDateHeader } from './RideCard';
 import { RideDetailsModal } from './RideDetailsModal';
 import {
   LoaderCircle,
@@ -302,23 +302,16 @@ export function Viagens({
   const corridasPaginadas = corridasOrdenadas.slice(0, itensVisiveis);
   const temMaisCorridas = itensVisiveis < corridasOrdenadas.length;
 
-  const anoAtual = new Date().getFullYear();
-  const mesAtual = new Date().getMonth() + 1;
-
-  const corridasAgrupadas = useMemo(() => {
+  const corridasAgrupadasPorData = useMemo(() => {
     return corridasPaginadas.reduce((grupos, corrida) => {
-      const [ano, mes] = (corrida.data || '').split('-');
-      const dataObj = new Date(Number(ano) || anoAtual, (Number(mes) || mesAtual) - 1, 1);
-      const nomeMes = dataObj.toLocaleString('pt-BR', { month: 'long' });
-      const chaveMes = `${nomeMes.charAt(0).toUpperCase() + nomeMes.slice(1)} ${ano || anoAtual}`;
-
-      if (!grupos[chaveMes]) {
-        grupos[chaveMes] = [];
+      const chaveData = (corrida.data || '').slice(0, 10) || 'sem-data';
+      if (!grupos[chaveData]) {
+        grupos[chaveData] = [];
       }
-      grupos[chaveMes].push(corrida);
+      grupos[chaveData].push(corrida);
       return grupos;
     }, {} as Record<string, Corrida[]>);
-  }, [corridasPaginadas, anoAtual, mesAtual]);
+  }, [corridasPaginadas]);
 
   // Conta apenas os filtros avançados do painel (Amigo, Tag e Período)
   // para não duplicar visualmente os botões rápidos de status nem a barra de busca
@@ -766,18 +759,18 @@ export function Viagens({
             )}
           </div>
         ) : (
-          <div className="space-y-5">
-            {Object.entries(corridasAgrupadas).map(([mes, corridasDoMes]) => (
-              <div key={mes}>
-                <div className="flex items-center gap-2 mb-2.5 px-0.5">
-                  <h3 className="font-display text-xs font-bold tracking-wider text-[var(--primary)] uppercase">
-                    {mes}
+          <div className="space-y-4">
+            {Object.entries(corridasAgrupadasPorData).map(([dataKey, corridasDoDia]) => (
+              <div key={dataKey}>
+                <div className="flex items-center gap-2.5 mb-2 px-0.5">
+                  <h3 className="font-display text-xs font-bold tracking-wide text-[var(--primary)] whitespace-nowrap">
+                    {formatRideDateHeader(dataKey)}
                   </h3>
-                  <span className="w-1.5 h-1.5 rounded-full bg-[var(--primary)] shrink-0" />
+                  <div className="h-px flex-1 bg-[var(--border-color)]" />
                 </div>
 
-                <div className="space-y-3">
-                  {corridasDoMes.map((corrida) => {
+                <div className="space-y-2.5">
+                  {corridasDoDia.map((corrida) => {
                     const userStatus = getRideStatusForUser(corrida, corridas, amigos, nettingCache);
                     return (
                       <RideCard
