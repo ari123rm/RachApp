@@ -1,11 +1,14 @@
 // src/components/TopBar.tsx
 import { useState, useEffect, useRef, type ReactNode } from 'react';
+import { Bell } from 'lucide-react';
 import { dbService } from '../services/database';
 
 interface TopBarProps {
   title: string;
   subtitle?: ReactNode;
   rightContent?: ReactNode;
+  showNotificationButton?: boolean;
+  onOpenNotifications?: () => void;
   showProfileButton?: boolean;
   onNavigateToProfile?: () => void;
 }
@@ -14,6 +17,8 @@ export function TopBar({
   title,
   subtitle,
   rightContent,
+  showNotificationButton = true,
+  onOpenNotifications,
   showProfileButton = true,
   onNavigateToProfile,
 }: TopBarProps) {
@@ -21,34 +26,50 @@ export function TopBar({
   const [isScrolled, setIsScrolled] = useState(false);
   const [userName, setUserName] = useState('U');
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [unreadNotifCount, setUnreadNotifCount] = useState(0);
 
   useEffect(() => {
-    if (!showProfileButton) return;
+    if (!showProfileButton && !showNotificationButton) return;
     let mounted = true;
 
-    const loadUser = () => {
-      dbService.auth
-        .getSessionUser()
-        .then((u) => {
-          if (!mounted || !u) return;
-          setUserName(u.name || 'U');
-          setAvatarUrl(u.avatar_url || null);
-        })
-        .catch(() => {});
+    const loadHeaderData = () => {
+      if (showProfileButton) {
+        dbService.auth
+          .getSessionUser()
+          .then((u) => {
+            if (!mounted || !u) return;
+            setUserName(u.name || 'U');
+            setAvatarUrl(u.avatar_url || null);
+          })
+          .catch(() => {});
+      }
+
+      if (showNotificationButton) {
+        dbService.notifications
+          .getUnreadCount()
+          .then((count) => {
+            if (mounted) setUnreadNotifCount(count);
+          })
+          .catch(() => {});
+      }
     };
 
-    loadUser();
+    loadHeaderData();
     const unsub = dbService.sync.subscribe((st) => {
       if (st.state === 'synced' || st.state === 'pending') {
-        loadUser();
+        loadHeaderData();
       }
     });
+
+    const onNotifUpdated = () => loadHeaderData();
+    window.addEventListener('rachapp:notifications-updated', onNotifUpdated);
 
     return () => {
       mounted = false;
       unsub();
+      window.removeEventListener('rachapp:notifications-updated', onNotifUpdated);
     };
-  }, [showProfileButton]);
+  }, [showProfileButton, showNotificationButton]);
 
   useEffect(() => {
     const el = headerRef.current;
@@ -79,6 +100,14 @@ export function TopBar({
     };
   }, []);
 
+  const handleNotificationsClick = () => {
+    if (onOpenNotifications) {
+      onOpenNotifications();
+    } else {
+      window.dispatchEvent(new CustomEvent('rachapp:open-notifications'));
+    }
+  };
+
   const handleProfileClick = () => {
     if (onNavigateToProfile) {
       onNavigateToProfile();
@@ -108,8 +137,23 @@ export function TopBar({
           )}
         </div>
 
-        {(rightContent || showProfileButton) && (
+        {(showNotificationButton || rightContent || showProfileButton) && (
           <div className="flex items-center gap-2 shrink-0">
+            {showNotificationButton && (
+              <button
+                type="button"
+                onClick={handleNotificationsClick}
+                title="Notificações"
+                className="relative w-10 h-10 rounded-full bg-[var(--bg-surface)] border border-[var(--border-color)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] flex items-center justify-center transition-colors shadow-sm shrink-0 active:scale-95"
+              >
+                <Bell size={18} strokeWidth={2} />
+                {unreadNotifCount > 0 && (
+                  <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-[#F43F5E] text-white text-xs font-bold flex items-center justify-center border-2 border-[var(--bg-app)]">
+                    {unreadNotifCount > 9 ? '9+' : unreadNotifCount}
+                  </span>
+                )}
+              </button>
+            )}
             {rightContent}
             {showProfileButton && (
               <button

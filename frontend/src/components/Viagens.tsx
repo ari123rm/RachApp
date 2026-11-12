@@ -391,68 +391,67 @@ export function Viagens({
         subtitle={`${corridasFiltradas.length} ${
           corridasFiltradas.length === 1 ? 'racha encontrado' : 'rachas encontrados'
         }`}
-        rightContent={
-          <>
-            <button
-              type="button"
-              onClick={() => setMostrarFiltros(!mostrarFiltros)}
-              className={`relative w-10 h-10 rounded-full transition-all flex items-center justify-center shrink-0 border shadow-sm active:scale-95 ${
-                mostrarFiltros || totalFiltrosAvancados > 0
-                  ? 'bg-[var(--primary)] text-white border-[var(--primary)]'
-                  : 'bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] border-[var(--border-color)]'
-              }`}
-              title="Filtros avançados"
-            >
-              <Filter size={17} strokeWidth={2} />
-              {totalFiltrosAvancados > 0 && (
-                <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-[#F43F5E] text-white text-[10px] font-bold flex items-center justify-center border-2 border-[var(--bg-app)]">
-                  {totalFiltrosAvancados}
-                </span>
-              )}
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setOrdemCrescente(!ordemCrescente)}
-              className={`w-10 h-10 rounded-full transition-colors flex items-center justify-center shrink-0 border shadow-sm active:scale-95 ${
-                ordemCrescente
-                  ? 'bg-[var(--primary-light)] text-[var(--primary)] border-[var(--primary)]/40'
-                  : 'bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] border-[var(--border-color)]'
-              }`}
-              title={ordemCrescente ? 'Mais antigos primeiro' : 'Mais recentes primeiro'}
-            >
-              <ArrowDownUp size={17} strokeWidth={2} />
-            </button>
-          </>
-        }
       />
 
-      {/* Barra de Pesquisa por Texto */}
-      <div className="h-12 bg-[var(--bg-surface)] rounded-xl flex items-center px-4 text-[var(--text-secondary)] border border-[var(--border-color)] focus-within:border-[var(--primary)] focus-within:ring-2 focus-within:ring-[var(--primary-focus-ring)] transition-all shadow-sm">
-        <Search size={18} strokeWidth={2} className="mr-3 text-[var(--text-secondary)] shrink-0" />
-        <input
-          type="text"
-          placeholder="Buscar por nome, tag ou amigo..."
-          value={busca}
-          onChange={(e) => {
-            setBusca(e.target.value);
-            setItensVisiveis(8);
-          }}
-          className="bg-transparent w-full outline-none text-[var(--text-primary)] placeholder:text-[var(--text-secondary)] text-sm"
-        />
-        {busca && (
-          <button
-            type="button"
-            onClick={() => {
-              setBusca('');
+      {/* Barra de Pesquisa + Botões de Filtro e Ordenação ao lado */}
+      <div className="flex items-center gap-2">
+        <div className="flex-1 min-w-0 h-11 bg-[var(--bg-surface)] rounded-xl flex items-center px-3.5 text-[var(--text-secondary)] border border-[var(--border-color)] focus-within:border-[var(--primary)] focus-within:ring-2 focus-within:ring-[var(--primary-focus-ring)] transition-all shadow-sm">
+          <Search size={18} strokeWidth={2} className="mr-2.5 text-[var(--text-secondary)] shrink-0" />
+          <input
+            type="text"
+            placeholder="Buscar racha, tag ou amigo..."
+            value={busca}
+            onChange={(e) => {
+              setBusca(e.target.value);
               setItensVisiveis(8);
             }}
-            className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] p-1"
-            title="Limpar busca"
-          >
-            <X size={16} strokeWidth={2} />
-          </button>
-        )}
+            className="bg-transparent w-full min-w-0 outline-none text-[var(--text-primary)] placeholder:text-[var(--text-secondary)] text-sm"
+          />
+          {busca && (
+            <button
+              type="button"
+              onClick={() => {
+                setBusca('');
+                setItensVisiveis(8);
+              }}
+              className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] p-1 shrink-0"
+              title="Limpar busca"
+            >
+              <X size={16} strokeWidth={2} />
+            </button>
+          )}
+        </div>
+
+        <button
+          type="button"
+          onClick={() => setMostrarFiltros(!mostrarFiltros)}
+          className={`relative w-11 h-11 rounded-full transition-all flex items-center justify-center shrink-0 border shadow-sm active:scale-95 ${
+            mostrarFiltros || totalFiltrosAvancados > 0
+              ? 'bg-[var(--primary)] text-white border-[var(--primary)]'
+              : 'bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] border-[var(--border-color)]'
+          }`}
+          title="Filtros avançados"
+        >
+          <Filter size={17} strokeWidth={2} />
+          {totalFiltrosAvancados > 0 && (
+            <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-[#F43F5E] text-white text-[10px] font-bold flex items-center justify-center border-2 border-[var(--bg-app)]">
+              {totalFiltrosAvancados}
+            </span>
+          )}
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setOrdemCrescente(!ordemCrescente)}
+          className={`w-11 h-11 rounded-full transition-colors flex items-center justify-center shrink-0 border shadow-sm active:scale-95 ${
+            ordemCrescente
+              ? 'bg-[var(--primary-light)] text-[var(--primary)] border-[var(--primary)]/40'
+              : 'bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] border-[var(--border-color)]'
+          }`}
+          title={ordemCrescente ? 'Mais antigos primeiro' : 'Mais recentes primeiro'}
+        >
+          <ArrowDownUp size={17} strokeWidth={2} />
+        </button>
       </div>
 
       {/* Botões de Filtros Rápidos de Status (Tudo, A Pagar, A Receber, Quitados) */}

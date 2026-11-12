@@ -13,7 +13,6 @@ import {
   X,
   Settings,
   Palette,
-  Bell,
 } from 'lucide-react';
 import { dbService } from '../services/database';
 import { PixModal } from './PixModal';
@@ -64,7 +63,6 @@ export function Perfil({
   const [testPixAmount, setTestPixAmount] = useState(10);
   const [isPasswordScreenOpen, setIsPasswordScreenOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [unreadNotifCount, setUnreadNotifCount] = useState(0);
   const [syncStatus, setSyncStatus] = useState<SyncStatus>({
     state: 'synced',
     pendingCount: 0,
@@ -85,28 +83,13 @@ export function Perfil({
         setPix(loadedPix);
         setAvatarUrl(user.avatar_url || null);
         setSavedDados({ nome: loadedNome, telefone: loadedTel, pix: loadedPix });
-
-        try {
-          const notifCount = await dbService.notifications.getUnreadCount();
-          setUnreadNotifCount(notifCount);
-        } catch {
-          // Ignora erro de contagem
-        }
       } finally {
         setIsLoading(false);
       }
     };
     carregarPerfil();
 
-    const unsub = dbService.sync.subscribe((st) => {
-      setSyncStatus(st);
-      if (st.state === 'synced') {
-        dbService.notifications
-          .getUnreadCount()
-          .then(setUnreadNotifCount)
-          .catch(() => {});
-      }
-    });
+    const unsub = dbService.sync.subscribe((st) => setSyncStatus(st));
     return () => unsub();
   }, [dataVersion]);
 
@@ -189,6 +172,7 @@ export function Perfil({
         <TopBar
           title="Meu Perfil"
           subtitle="Seus dados públicos e chave Pix"
+          onOpenNotifications={onOpenNotifications}
           showProfileButton={false}
         />
         <div className="flex justify-center items-center h-64">
@@ -205,37 +189,20 @@ export function Perfil({
       <TopBar
         title="Meu Perfil"
         subtitle="Seus dados públicos e chave Pix"
+        onOpenNotifications={onOpenNotifications}
         showProfileButton={false}
         rightContent={
-          <>
-            {onOpenNotifications && (
-              <button
-                type="button"
-                onClick={onOpenNotifications}
-                title="Notificações"
-                className="relative w-10 h-10 rounded-full bg-[var(--bg-surface)] border border-[var(--border-color)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] flex items-center justify-center transition-colors shadow-sm shrink-0 active:scale-95"
-              >
-                <Bell size={18} strokeWidth={2} />
-                {unreadNotifCount > 0 && (
-                  <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-[#F43F5E] text-white text-xs font-bold flex items-center justify-center border-2 border-[var(--bg-app)]">
-                    {unreadNotifCount > 9 ? '9+' : unreadNotifCount}
-                  </span>
-                )}
-              </button>
+          <button
+            type="button"
+            onClick={() => setIsSettingsOpen(true)}
+            className="relative w-10 h-10 rounded-full bg-[var(--bg-surface)] border border-[var(--border-color)] hover:border-[var(--primary)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] flex items-center justify-center shadow-sm transition-all active:scale-95 shrink-0"
+            title="Abrir Configurações"
+          >
+            <Settings size={18} strokeWidth={2} />
+            {updateInfo?.isNewer && (
+              <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-[#F59E0B] border-2 border-[var(--bg-app)] animate-pulse" />
             )}
-
-            <button
-              type="button"
-              onClick={() => setIsSettingsOpen(true)}
-              className="relative w-10 h-10 rounded-full bg-[var(--bg-surface)] border border-[var(--border-color)] hover:border-[var(--primary)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] flex items-center justify-center shadow-sm transition-all active:scale-95 shrink-0"
-              title="Abrir Configurações"
-            >
-              <Settings size={18} strokeWidth={2} />
-              {updateInfo?.isNewer && (
-                <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-[#F59E0B] border-2 border-[var(--bg-app)] animate-pulse" />
-              )}
-            </button>
-          </>
+          </button>
         }
       />
 

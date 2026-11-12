@@ -9,7 +9,6 @@ import {
   Download,
   Calendar,
   ChevronDown,
-  Bell,
   CheckCircle2,
 } from 'lucide-react';
 import type { AppReleaseInfo } from '../services/updateService';
@@ -64,7 +63,6 @@ export function Home({
     amigosDevedores: [] as any[],
     gruposPendentes: [] as any[],
   });
-  const [unreadNotifCount, setUnreadNotifCount] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const isFirstLoadRef = useRef(true);
 
@@ -88,13 +86,6 @@ export function Home({
         amigosDevedores: dados.amigosDevedores || [],
         gruposPendentes: (dados as any).gruposPendentes || [],
       });
-
-      try {
-        const notifCount = await dbService.notifications.getUnreadCount();
-        setUnreadNotifCount(notifCount);
-      } catch {
-        // Ignora erro de contagem
-      }
     } catch (error) {
       console.error('Erro ao carregar Dashboard:', error);
     } finally {
@@ -149,6 +140,7 @@ export function Home({
         <TopBar
           title="Início"
           subtitle="Calculando finanças..."
+          onOpenNotifications={onOpenNotifications}
           onNavigateToProfile={onNavigateToProfile}
         />
         <div className="flex flex-col items-center justify-center h-64 text-[var(--primary)]">
@@ -172,23 +164,8 @@ export function Home({
             ? 'Seu resumo de todos os meses'
             : `Seu resumo de ${formatarMesAno(periodoSelecionado)}`
         }
+        onOpenNotifications={onOpenNotifications}
         onNavigateToProfile={onNavigateToProfile}
-        rightContent={
-          onOpenNotifications ? (
-            <button
-              onClick={onOpenNotifications}
-              title="Notificações"
-              className="relative w-10 h-10 rounded-full bg-[var(--bg-surface)] border border-[var(--border-color)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] flex items-center justify-center transition-colors shadow-sm shrink-0 active:scale-95"
-            >
-              <Bell size={18} strokeWidth={2} />
-              {unreadNotifCount > 0 && (
-                <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-[#F43F5E] text-white text-xs font-bold flex items-center justify-center border-2 border-[var(--bg-app)]">
-                  {unreadNotifCount > 9 ? '9+' : unreadNotifCount}
-                </span>
-              )}
-            </button>
-          ) : undefined
-        }
       />
 
       {/* Banner de Atualização Disponível (Opcional / Não-bloqueante) */}

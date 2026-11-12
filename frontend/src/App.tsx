@@ -136,7 +136,10 @@ function App() {
   } | null>(null);
   const isTouchSwipingRef = useRef(false);
 
-  const refreshData = () => setDataVersion((prev) => prev + 1);
+  const refreshData = () => {
+    setDataVersion((prev) => prev + 1);
+    window.dispatchEvent(new CustomEvent('rachapp:notifications-updated'));
+  };
 
   // Inicializa o banco SQLite local e verifica se há sessão ativa
   useEffect(() => {
@@ -381,8 +384,13 @@ function App() {
         });
       }
     };
+    const onOpenNotif = () => setIsNotificationModalOpen(true);
     window.addEventListener('rachapp:navigate-tab', onNavigateTab);
-    return () => window.removeEventListener('rachapp:navigate-tab', onNavigateTab);
+    window.addEventListener('rachapp:open-notifications', onOpenNotif);
+    return () => {
+      window.removeEventListener('rachapp:navigate-tab', onNavigateTab);
+      window.removeEventListener('rachapp:open-notifications', onOpenNotif);
+    };
   }, []);
 
   const PULL_THRESHOLD = 52;
