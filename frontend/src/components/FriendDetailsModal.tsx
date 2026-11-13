@@ -184,6 +184,7 @@ export function FriendDetailsModal({
 
       const checkIfFriendIsParticipant = (c: any) => {
         return (c.participantesIds || []).some((pid: string) => {
+          if (c.statusParticipantes?.[pid] === 'REJECTED') return false;
           if (matchingFriendIds.has(pid)) return true;
           const f = todosAmigosData.find((a) => a.id === pid);
           if (f) {
@@ -209,6 +210,8 @@ export function FriendDetailsModal({
 
       const corridasFormatadas = todasCorridasData
         .map((corrida) => {
+          if (corrida.selfStatus === 'REJECTED') return null;
+
           const amigoFoiPagador = checkIfFriendIsPayer(corrida);
           const amigoEhParticipante = checkIfFriendIsParticipant(corrida);
 
@@ -219,7 +222,27 @@ export function FriendDetailsModal({
           }
 
           const pid =
-            corrida.participantesIds.find((id) => matchingFriendIds.has(id)) || atualizado.id;
+            corrida.participantesIds.find(
+              (id) => corrida.statusParticipantes?.[id] !== 'REJECTED' && matchingFriendIds.has(id)
+            ) ||
+            corrida.participantesIds.find((id) => {
+              if (corrida.statusParticipantes?.[id] === 'REJECTED') return false;
+              const f = todosAmigosData.find((a) => a.id === id);
+              if (!f) return false;
+              const fPhone = stripCountryCode(f.telefone || f.phone || '');
+              const fName = (f.nome || f.name || '').trim().toLowerCase();
+              return (
+                (effectivePhone && fPhone && phonesMatchBR(fPhone, effectivePhone)) ||
+                (effectiveName && fName && fName === effectiveName)
+              );
+            }) ||
+            corrida.participantesIds.find((id) => matchingFriendIds.has(id)) ||
+            atualizado.id;
+
+          if (!amigoFoiPagador && corrida.statusParticipantes?.[pid] === 'REJECTED') {
+            return null;
+          }
+
           const qtdPessoas = (corrida.participantesIds?.length || 0) + 1;
 
           const parte =
@@ -754,6 +777,8 @@ export function FriendDetailsModal({
                       valorTotal={moneyConverter(corridaCompleta.valorTotal)}
                       paidByName={corridaCompleta.paidByName}
                       userStatus={userStatus}
+                      selfStatus={corridaCompleta.selfStatus}
+                      recusados={corridaCompleta.recusados}
                       participantes={corridaParticipantes}
                       onClick={() => setCorridaSelecionada(corridaCompleta)}
                     />
@@ -888,11 +913,8 @@ export function FriendDetailsModal({
         }}
         onUpdated={async () => {
           await carregarCorridas();
-          if (corridaSelecionada) {
-            const all = await dbService.corridas.getAll();
-            const fresh = all.find((c) => c.id === corridaSelecionada.id);
-            if (fresh) setCorridaSelecionada(fresh);
-          }
+          const all = await dbService.corridas.getAll();
+          setCorridaSelecionada((prev) => (prev ? all.find((c) => c.id === prev.id) || null : null));
           if (update) update();
         }}
       />

@@ -922,11 +922,11 @@ export class FriendService {
         const part = exp.participants?.find((p: any) => p.friend_id === friend.id);
         if (!exp.paid_by_friend_id) {
           // Você pagou: amigo te deve a parte dele
-          if (part) {
+          if (part && part.status !== 'REJECTED') {
             const pending = Number(part.amount_owed) - Number(part.amount_paid);
             if (pending > 0.005) divida += pending;
           }
-        } else if (exp.paid_by_friend_id === friend.id) {
+        } else if (exp.paid_by_friend_id === friend.id && exp.self_status !== 'REJECTED') {
           // Este amigo pagou: Você deve a sua parte para ele
           const totalParts = (exp.participants?.length || 0) + 1;
           const selfOwed =

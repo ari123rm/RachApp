@@ -117,6 +117,32 @@ export class FinanciesController {
     }
   }
 
+  static async acceptExpense(req: Request, res: Response) {
+    try {
+      const userId = req.user?.userId;
+      if (!userId) return res.status(401).json({ error: 'Usuário não autenticado.' });
+
+      const { id } = req.params;
+      const result = await ExpenseService.acceptExpense(userId, id);
+      res.status(200).json(result);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  }
+
+  static async rejectExpense(req: Request, res: Response) {
+    try {
+      const userId = req.user?.userId;
+      if (!userId) return res.status(401).json({ error: 'Usuário não autenticado.' });
+
+      const { id } = req.params;
+      const result = await ExpenseService.rejectExpense(userId, id);
+      res.status(200).json(result);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  }
+
   static async getBalances(req: Request, res: Response) {
     try {
       const { groupId } = req.params;

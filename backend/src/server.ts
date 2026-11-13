@@ -27,6 +27,9 @@ async function ensureDatabaseSchema() {
     await prisma.$executeRawUnsafe(`ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "fcm_token" TEXT;`);
     await prisma.$executeRawUnsafe(`ALTER TABLE "Friend" ADD COLUMN IF NOT EXISTS "avatar_url" TEXT;`);
     await prisma.$executeRawUnsafe(`ALTER TABLE "Group" ADD COLUMN IF NOT EXISTS "avatar_url" TEXT;`);
+    await prisma.$executeRawUnsafe(
+      `ALTER TABLE "ExpenseParticipant" ADD COLUMN IF NOT EXISTS "status" TEXT NOT NULL DEFAULT 'ACCEPTED';`
+    );
 
     await prisma.$executeRawUnsafe(`
       CREATE TABLE IF NOT EXISTS "Notification" (
@@ -37,10 +40,15 @@ async function ensureDatabaseSchema() {
         "message" TEXT NOT NULL,
         "data" JSONB,
         "read" BOOLEAN NOT NULL DEFAULT false,
+        "read_at" TIMESTAMP(3),
         "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
         CONSTRAINT "Notification_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE
       );
     `);
+
+    await prisma.$executeRawUnsafe(
+      `ALTER TABLE "Notification" ADD COLUMN IF NOT EXISTS "read_at" TIMESTAMP(3);`
+    );
 
     await prisma.$executeRawUnsafe(`
       CREATE INDEX IF NOT EXISTS "Notification_user_id_created_at_idx" ON "Notification"("user_id", "created_at");

@@ -18,6 +18,7 @@ router.post('/invitations/:id/reject', GroupController.rejectInvitation);
 router.get('/:id', GroupController.getById);
 router.put('/:id', GroupController.update);
 router.delete('/:id', GroupController.delete);
+router.post('/:id/leave', GroupController.leave);
 router.post('/:id/members', GroupController.addMember);
 router.delete('/:id/members/:memberId', GroupController.removeMember);
 

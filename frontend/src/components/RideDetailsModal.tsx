@@ -15,6 +15,10 @@ import {
   LoaderCircle,
   CheckCircle2,
   X,
+  AlertTriangle,
+  Clock,
+  ThumbsUp,
+  ThumbsDown,
 } from 'lucide-react';
 import type { Corrida } from '../types';
 import moneyConverter from '../utils/moneyConverter';
@@ -51,6 +55,7 @@ export function RideDetailsModal({
   const [myAvatarUrl, setMyAvatarUrl] = useState<string | null>(null);
   const [nettingMap, setNettingMap] = useState<Map<string, any>>(new Map());
   const [updatingFriendId, setUpdatingFriendId] = useState<string | null>(null);
+  const [isRespondingInvite, setIsRespondingInvite] = useState(false);
   const [feedbackMsg, setFeedbackMsg] = useState<{ text: string; type: 'success' | 'info' } | null>(null);
   const [receiptToView, setReceiptToView] = useState<{
     isOpen: boolean;
@@ -216,6 +221,7 @@ export function RideDetailsModal({
       if (!base) return base;
       const novosPagamentos = { ...(base.pagamentos || {}), [amigoId]: novoValor };
       const allPaid = (base.participantesIds || []).every((pid) => {
+        if (base.statusParticipantes?.[pid] === 'REJECTED') return false;
         const owed = base.valoresDevidos?.[pid] ?? valorDivididoPadrao;
         return (novosPagamentos[pid] || 0) >= owed - 0.01;
       });
@@ -277,6 +283,53 @@ export function RideDetailsModal({
       alert('Erro ao registrar comprovante.');
     }
   };
+
+  const handleAcceptRide = async () => {
+    if (isRespondingInvite || !activeRide) return;
+    setIsRespondingInvite(true);
+    try {
+      await dbService.corridas.accept(activeRide.id);
+      const acceptedRide = { ...activeRide, selfStatus: 'ACCEPTED' as const };
+      setCurrentRide(acceptedRide);
+      await atualizarNettingEModal(acceptedRide);
+      setFeedbackMsg({
+        text: 'Racha aceito com sucesso!',
+        type: 'success',
+      });
+      onUpdated?.();
+    } catch (err: any) {
+      alert(err?.message || 'Não foi possível aceitar o racha.');
+    } finally {
+      setIsRespondingInvite(false);
+    }
+  };
+
+  const handleRejectRide = async () => {
+    if (isRespondingInvite || !activeRide) return;
+    if (
+      !window.confirm(
+        'Deseja recusar este racha? Sua parte continuará sinalizada como pendente para os demais participantes (sem redistribuição).'
+      )
+    ) {
+      return;
+    }
+    setIsRespondingInvite(true);
+    try {
+      await dbService.corridas.reject(activeRide.id);
+      onUpdated?.();
+      onClose();
+    } catch (err: any) {
+      alert(err?.message || 'Não foi possível recusar o racha.');
+    } finally {
+      setIsRespondingInvite(false);
+    }
+  };
+
+  const showPendingInvite =
+    activeRide.selfStatus === 'PENDING' && !voceEhPagador && activeRide.isCreator === false;
+  const isSelfRejected = activeRide.selfStatus === 'REJECTED' && !voceEhPagador;
+  const isSelfSettled = meuValorPago >= minhaParte - 0.01;
+  const recusadosList = activeRide.recusados || [];
 
   const nonPayerFriendsCount = effectiveParticipantes.filter(
     (item: any) => item.id !== activeRide.paidByFriendId
@@ -416,6 +469,95 @@ export function RideDetailsModal({
             </div>
           )}
 
+          {/* Banner de Convite Pendente de Aceite */}
+          {showPendingInvite && (
+            <div className="p-4 rounded-2xl bg-[var(--amber-bg)] border border-[var(--amber-border)] space-y-3 animate-fade-in">
+              <div className="flex items-start gap-2.5">
+                <Clock size={18} strokeWidth={2} className="text-[#F59E0B] shrink-0 mt-0.5" />
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-display font-bold text-[var(--text-primary)]">
+                    Convite de racha pendente
+                  </p>
+                  <p className="text-xs text-[var(--text-secondary)] mt-0.5 leading-relaxed">
+                    Sua parte neste racha é de{' '}
+                    <strong className="text-[var(--text-primary)]">
+                      R$ {moneyConverter(minhaParte)}
+                    </strong>
+                    . Se você recusar, esse valor ficará pendente para os demais participantes (sem redistribuição).
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2.5">
+                <button
+                  type="button"
+                  disabled={isRespondingInvite || isSelfSettled}
+                  onClick={handleRejectRide}
+                  title={
+                    isSelfSettled
+                      ? 'Não é possível recusar um racha já quitado'
+                      : 'Recusar participação neste racha'
+                  }
+                  className="flex-1 h-10 rounded-xl border border-[var(--rose-border)] bg-[var(--rose-bg)] text-[#F43F5E] text-xs font-semibold flex items-center justify-center gap-1.5 transition-all active:scale-95 disabled:opacity-50"
+                >
+                  <ThumbsDown size={14} strokeWidth={2} />
+                  <span>Recusar</span>
+                </button>
+                <button
+                  type="button"
+                  disabled={isRespondingInvite}
+                  onClick={handleAcceptRide}
+                  className="flex-1 h-10 rounded-xl bg-[var(--primary)] hover:bg-[var(--primary-dark)] text-white text-xs font-semibold flex items-center justify-center gap-1.5 shadow-sm transition-all active:scale-95 disabled:opacity-50"
+                >
+                  {isRespondingInvite ? (
+                    <LoaderCircle size={14} strokeWidth={2} className="animate-spin" />
+                  ) : (
+                    <ThumbsUp size={14} strokeWidth={2} />
+                  )}
+                  <span>Aceitar</span>
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Banner informando que Você recusou este racha (visualizado via Grupo) */}
+          {isSelfRejected && (
+            <div className="p-3.5 rounded-2xl bg-[var(--rose-bg)] border border-[var(--rose-border)] space-y-1 animate-fade-in">
+              <div className="flex items-center gap-2 text-[#F43F5E]">
+                <AlertTriangle size={16} strokeWidth={2.2} className="shrink-0" />
+                <p className="text-xs font-display font-bold uppercase tracking-wide">
+                  Você recusou este racha
+                </p>
+              </div>
+              <p className="text-xs text-[var(--text-primary)] leading-relaxed">
+                Sua parte de R$ {moneyConverter(minhaParte)} não entra no seu saldo, mas continua sinalizada como pendência para os demais participantes (sem redistribuição).
+              </p>
+            </div>
+          )}
+
+          {/* Alerta de Participante(s) que Recusaram (parte fica pendente sem redistribuição) */}
+          {recusadosList.length > 0 && (
+            <div className="p-3.5 rounded-2xl bg-[var(--rose-bg)] border border-[var(--rose-border)] space-y-1.5 animate-fade-in">
+              <div className="flex items-center gap-2 text-[#F43F5E]">
+                <AlertTriangle size={16} strokeWidth={2.2} className="shrink-0" />
+                <p className="text-xs font-display font-bold uppercase tracking-wide">
+                  {recusadosList.length === 1
+                    ? 'Participante recusou este racha'
+                    : 'Participantes recusaram este racha'}
+                </p>
+              </div>
+              <p className="text-xs text-[var(--text-primary)] leading-relaxed">
+                {recusadosList.length === 1
+                  ? `${recusadosList[0].nome} recusou participar. A parte de R$ ${moneyConverter(
+                      recusadosList[0].valor
+                    )} ficou como pendência no racha e não foi redistribuída para ninguém.`
+                  : `${recusadosList
+                      .map((r) => `${r.nome} (R$ ${moneyConverter(r.valor)})`)
+                      .join(', ')} recusaram participar. Essas partes ficaram pendentes no racha e não foram redistribuídas.`}
+              </p>
+            </div>
+          )}
+
           {/* Divisão da Conta */}
           <div>
             <div className="flex items-center justify-between mb-3 text-[var(--text-primary)]">
@@ -434,8 +576,15 @@ export function RideDetailsModal({
                   valorNumerico > 0 ? ((valorParte / valorNumerico) * 100).toFixed(1) : '0';
                 const valorPago = activeRide.pagamentos?.[p.id] || 0;
                 const isFriendPayer = activeRide.paidByFriendId === p.id;
+                const partStatus = isFriendPayer
+                  ? 'ACCEPTED'
+                  : activeRide.statusParticipantes?.[p.id] || 'ACCEPTED';
+                const isRejectedPart = !isFriendPayer && partStatus === 'REJECTED';
+                const isPendingPart = !isFriendPayer && partStatus === 'PENDING';
                 const pNetting = nettingMap.get(p.id);
-                const isQuitado = isFriendPayer || valorPago >= valorParte - 0.01 || !!pNetting?.isQuitada;
+                const isQuitado =
+                  !isRejectedPart &&
+                  (isFriendPayer || valorPago >= valorParte - 0.01 || !!pNetting?.isQuitada);
                 const receiptDoAmigo = isFriendPayer
                   ? null
                   : activeRide.comprovantes?.[p.id] ||
@@ -461,7 +610,9 @@ export function RideDetailsModal({
                       }
                     }}
                     className={`flex justify-between items-center bg-[var(--bg-surface)] p-3.5 rounded-2xl border transition-all gap-2.5 ${
-                      receiptDoAmigo
+                      isRejectedPart
+                        ? 'border-[var(--rose-border)] bg-[var(--rose-bg)]/20'
+                        : receiptDoAmigo
                         ? 'border-[var(--primary)]/40 hover:border-[var(--primary)] cursor-pointer active:scale-[0.99]'
                         : 'border-[var(--border-color)]'
                     }`}
@@ -492,6 +643,16 @@ export function RideDetailsModal({
                           {isFriendPayer && (
                             <span className="text-caption bg-[var(--primary)]/10 text-[var(--primary)] px-2 py-0.5 rounded-full font-semibold shrink-0">
                               Pagador
+                            </span>
+                          )}
+                          {isRejectedPart && (
+                            <span className="text-[11px] bg-[var(--rose-bg)] text-[#F43F5E] border border-[var(--rose-border)] px-2 py-0.5 rounded-full font-semibold shrink-0">
+                              Recusou
+                            </span>
+                          )}
+                          {isPendingPart && (
+                            <span className="text-[11px] bg-[var(--amber-bg)] text-[#F59E0B] border border-[var(--amber-border)] px-2 py-0.5 rounded-full font-semibold shrink-0">
+                              Aguardando aceite
                             </span>
                           )}
                           {receiptsDoAmigo.length === 1 && (
@@ -533,7 +694,12 @@ export function RideDetailsModal({
                         </div>
 
                         {!isFriendPayer &&
-                          (voceEhPagador ? (
+                          (isRejectedPart ? (
+                            <span className="text-caption font-semibold text-[#F43F5E] mt-0.5 flex items-center gap-1">
+                              <AlertTriangle size={12} strokeWidth={2} />
+                              <span>Recusou (parte pendente s/ redistribuição)</span>
+                            </span>
+                          ) : voceEhPagador ? (
                             isUpdatingThisFriend ? (
                               <span className="text-caption text-[var(--text-secondary)] flex items-center gap-1 mt-0.5 animate-pulse">
                                 <LoaderCircle size={12} strokeWidth={2} className="animate-spin text-[var(--primary)]" />
@@ -599,7 +765,11 @@ export function RideDetailsModal({
                       <p className="text-caption text-[var(--text-secondary)] mb-0.5">
                         Parte dele(a) ({pctParte}%)
                       </p>
-                      <p className="font-display font-bold text-[var(--text-primary)] text-body2 tabular-nums">
+                      <p
+                        className={`font-display font-bold text-body2 tabular-nums ${
+                          isRejectedPart ? 'text-[#F43F5E] line-through opacity-80' : 'text-[var(--text-primary)]'
+                        }`}
+                      >
                         R$ {moneyConverter(valorParte)}
                       </p>
                     </div>
@@ -645,6 +815,16 @@ export function RideDetailsModal({
                               Pagador
                             </span>
                           )}
+                          {showPendingInvite && (
+                            <span className="text-[11px] bg-[var(--amber-bg)] text-[#F59E0B] border border-[var(--amber-border)] px-2 py-0.5 rounded-full font-semibold shrink-0">
+                              A aceitar
+                            </span>
+                          )}
+                          {isSelfRejected && (
+                            <span className="text-[11px] bg-[var(--rose-bg)] text-[#F43F5E] border border-[var(--rose-border)] px-2 py-0.5 rounded-full font-semibold shrink-0">
+                              Recusou
+                            </span>
+                          )}
                           {selfReceipts.length === 1 && (
                             <button
                               type="button"
@@ -683,7 +863,17 @@ export function RideDetailsModal({
                             ))}
                         </div>
                         {!voceEhPagador &&
-                          (isSelfQuitado ? (
+                          (isSelfRejected ? (
+                            <span className="text-caption font-semibold text-[#F43F5E] mt-0.5 flex items-center gap-1">
+                              <AlertTriangle size={12} strokeWidth={2} />
+                              <span>Recusado (sem pendência no seu saldo)</span>
+                            </span>
+                          ) : showPendingInvite && !isSelfQuitado ? (
+                            <span className="text-caption font-semibold text-[#F59E0B] mt-0.5 flex items-center gap-1">
+                              <Clock size={12} strokeWidth={2} />
+                              <span>• Aguardando seu aceite (aceite acima antes de pagar)</span>
+                            </span>
+                          ) : isSelfQuitado ? (
                             <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                               <span className="text-caption font-semibold flex items-center gap-1 text-[#10B981]">
                                 <Check size={12} strokeWidth={2.5} />{' '}
@@ -730,7 +920,11 @@ export function RideDetailsModal({
                         Sua parte (
                         {valorNumerico > 0 ? ((minhaParte / valorNumerico) * 100).toFixed(1) : '0'}%)
                       </p>
-                      <p className="font-display font-bold text-[var(--text-primary)] text-body2 tabular-nums">
+                      <p
+                        className={`font-display font-bold text-body2 tabular-nums ${
+                          isSelfRejected ? 'text-[#F43F5E] line-through opacity-80' : 'text-[var(--text-primary)]'
+                        }`}
+                      >
                         R$ {moneyConverter(minhaParte)}
                       </p>
                     </div>

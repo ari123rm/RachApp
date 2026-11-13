@@ -149,4 +149,17 @@ export class GroupController {
       res.status(400).json({ error: error.message });
     }
   }
+
+  static async leave(req: Request, res: Response) {
+    try {
+      const { id } = req.params;
+      const userId = req.user?.userId;
+      if (!userId) return res.status(401).json({ error: 'Não autorizado.' });
+
+      const result = await GroupService.leaveGroup(userId, id);
+      res.status(200).json(result);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  }
 }

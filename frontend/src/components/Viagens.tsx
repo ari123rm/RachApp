@@ -17,6 +17,9 @@ import {
   TrendingDown,
   TrendingUp,
   CheckCircle2,
+  Clock,
+  ThumbsUp,
+  ThumbsDown,
 } from 'lucide-react';
 import type { Corrida, Amigo } from '../types';
 import { dbService } from '../services/database';
@@ -52,6 +55,7 @@ export function Viagens({
   const [myAvatarUrl, setMyAvatarUrl] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [corridaSelecionadaId, setCorridaSelecionadaId] = useState<string | null>(null);
+  const [respondingInviteId, setRespondingInviteId] = useState<string | null>(null);
 
   const nettingCache = useMemo(
     () => new Map<string, Map<string, CorridaNettingInfo>>(),
@@ -82,6 +86,14 @@ export function Viagens({
     }
   };
 
+  const convitesPendentes = useMemo(
+    () =>
+      corridas.filter(
+        (c) => c.selfStatus === 'PENDING' && Boolean(c.paidByFriendId) && c.isCreator === false
+      ),
+    [corridas]
+  );
+
   const contagens = useMemo(() => {
     let aPagar = 0;
     let aReceber = 0;
@@ -89,11 +101,13 @@ export function Viagens({
 
     for (const c of corridas) {
       const st = getRideStatusForUser(c, corridas, amigos, nettingCache);
+      const hasRecusados = (c.recusados?.length || 0) > 0;
+      const isInvitePending = c.selfStatus === 'PENDING' && Boolean(c.paidByFriendId);
       if (st.amountYouOwe > 0.005) {
         aPagar++;
       } else if (st.amountOwedToYou > 0.005) {
         aReceber++;
-      } else {
+      } else if (!hasRecusados && !isInvitePending) {
         quitados++;
       }
     }
@@ -217,6 +231,43 @@ export function Viagens({
     }
   };
 
+  const handleAcceptInvite = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (respondingInviteId) return;
+    setRespondingInviteId(id);
+    try {
+      await dbService.corridas.accept(id);
+      await carregarDados(false);
+      if (onDataChange) onDataChange();
+    } catch (err: any) {
+      alert(err?.message || 'Não foi possível aceitar o racha.');
+    } finally {
+      setRespondingInviteId(null);
+    }
+  };
+
+  const handleRejectInvite = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (respondingInviteId) return;
+    if (
+      !window.confirm(
+        'Deseja recusar este racha? Sua parte continuará sinalizada como pendente para os demais participantes (sem redistribuição).'
+      )
+    ) {
+      return;
+    }
+    setRespondingInviteId(id);
+    try {
+      await dbService.corridas.reject(id);
+      await carregarDados(false);
+      if (onDataChange) onDataChange();
+    } catch (err: any) {
+      alert(err?.message || 'Não foi possível recusar o racha.');
+    } finally {
+      setRespondingInviteId(null);
+    }
+  };
+
   // Extrai tags únicas disponíveis das tags personalizadas do usuário + rachas existentes
   const tagsDisponiveis = useMemo(() => {
     const userTags = getCustomTags().map((t) => t.name);
@@ -241,6 +292,8 @@ export function Viagens({
       // 0. Filtro de Status (Tudo, A Pagar, A Receber, Quitados)
       if (filtroStatus !== 'tudo') {
         const userStatus = getRideStatusForUser(c, corridas, amigos, nettingCache);
+        const hasRecusados = (c.recusados?.length || 0) > 0;
+        const isInvitePending = c.selfStatus === 'PENDING' && Boolean(c.paidByFriendId);
         if (filtroStatus === 'a_pagar' && !(userStatus.amountYouOwe > 0.005)) {
           return false;
         }
@@ -249,10 +302,12 @@ export function Viagens({
         }
         if (
           filtroStatus === 'quitados' &&
-          !(
-            userStatus.status === 'quitado' ||
-            (userStatus.status === 'pagante' && userStatus.amountOwedToYou <= 0.005)
-          )
+          (hasRecusados ||
+            isInvitePending ||
+            !(
+              userStatus.status === 'quitado' ||
+              (userStatus.status === 'pagante' && userStatus.amountOwedToYou <= 0.005)
+            ))
         ) {
           return false;
         }
@@ -749,6 +804,106 @@ export function Viagens({
         </div>
       )}
 
+      {/* Convites de Racha Pendentes */}
+      {convitesPendentes.length > 0 && (
+        <section className="ds-card p-4 border-[#F59E0B]/40 space-y-3 animate-fade-in">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 min-w-0">
+              <Clock className="text-[#F59E0B] shrink-0" size={18} strokeWidth={2} />
+              <h2 className="text-sm font-display font-bold text-[var(--text-primary)] uppercase tracking-wider truncate">
+                Convites de Racha ({convitesPendentes.length})
+              </h2>
+            </div>
+            <span className="text-xs text-[#F59E0B] font-semibold bg-[var(--amber-bg)] border border-[var(--amber-border)] px-2.5 py-0.5 rounded-full shrink-0">
+              A aceitar
+            </span>
+          </div>
+          <p className="text-xs text-[var(--text-secondary)]">
+            Aceite ou recuse os rachas em que você foi adicionado. Se recusar, sua parte ficará como pendência no racha sem redistribuição.
+          </p>
+
+          <div className="space-y-2.5 pt-0.5">
+            {convitesPendentes.map((inv) => {
+              const isResponding = respondingInviteId === inv.id;
+              const InviteTagIcon = getCategoryIcon(inv.tag || inv.titulo || 'Uber');
+              const totalPessoasInv = (inv.participantesIds?.length || 0) + 1;
+              const minhaParteInv =
+                inv.selfAmountOwed !== undefined && inv.selfAmountOwed !== null
+                  ? Number(inv.selfAmountOwed)
+                  : totalPessoasInv > 0
+                  ? Number(inv.valorTotal || 0) / totalPessoasInv
+                  : Number(inv.valorTotal || 0);
+              const isSettledInv = Number(inv.selfAmountPaid || 0) >= minhaParteInv - 0.01;
+              const payerFirstName = (inv.paidByName || 'Amigo').trim().split(/\s+/)[0];
+
+              return (
+                <div
+                  key={inv.id}
+                  onClick={() => setCorridaSelecionadaId(inv.id)}
+                  className="bg-[var(--bg-subtle)] p-3.5 rounded-xl border border-[var(--border-color)] hover:border-[var(--primary)]/40 transition-colors cursor-pointer space-y-2.5"
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                      <div className="w-9 h-9 rounded-full bg-[var(--bg-surface)] text-[var(--primary)] border border-[var(--border-color)] flex items-center justify-center shrink-0">
+                        <InviteTagIcon size={16} strokeWidth={2} />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-display font-semibold text-[var(--text-primary)] truncate">
+                          {inv.titulo || inv.tag || 'Racha'}
+                        </p>
+                        <p className="text-xs text-[var(--text-secondary)] truncate">
+                          Pago por <strong className="text-[var(--text-primary)]">{payerFirstName}</strong>
+                          {inv.groupName ? ` • ${inv.groupName}` : ''} • {formatRideDateHeader(inv.data).split(',')[0]}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="text-right shrink-0">
+                      <span className="text-[10px] uppercase font-semibold text-[var(--text-secondary)] block">
+                        Sua parte
+                      </span>
+                      <span className="font-display font-bold text-sm text-[#F59E0B] tabular-nums">
+                        R$ {moneyConverter(minhaParteInv)}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      disabled={Boolean(respondingInviteId) || isSettledInv}
+                      onClick={(e) => handleRejectInvite(inv.id, e)}
+                      title={
+                        isSettledInv
+                          ? 'Não é possível recusar um racha já quitado'
+                          : 'Recusar racha'
+                      }
+                      className="flex-1 h-9 rounded-xl border border-[var(--rose-border)] bg-[var(--rose-bg)] text-[#F43F5E] text-xs font-semibold flex items-center justify-center gap-1.5 transition-all active:scale-95 disabled:opacity-50"
+                    >
+                      <ThumbsDown size={13} strokeWidth={2} />
+                      <span>Recusar</span>
+                    </button>
+                    <button
+                      type="button"
+                      disabled={Boolean(respondingInviteId)}
+                      onClick={(e) => handleAcceptInvite(inv.id, e)}
+                      className="flex-1 h-9 rounded-xl bg-[var(--primary)] hover:bg-[var(--primary-dark)] text-white text-xs font-semibold flex items-center justify-center gap-1.5 shadow-sm transition-all active:scale-95 disabled:opacity-50"
+                    >
+                      {isResponding ? (
+                        <LoaderCircle size={13} strokeWidth={2} className="animate-spin" />
+                      ) : (
+                        <ThumbsUp size={13} strokeWidth={2} />
+                      )}
+                      <span>Aceitar</span>
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
       {/* Lista de Rachas */}
       <div className="mt-3 pb-28">
         {corridasPaginadas.length === 0 ? (
@@ -795,6 +950,8 @@ export function Viagens({
                         valorTotal={moneyConverter(corrida.valorTotal)}
                         userStatus={userStatus}
                         paidByName={corrida.paidByName}
+                        selfStatus={corrida.selfStatus}
+                        recusados={corrida.recusados}
                         participantes={[
                           { id: 0, nome: 'Você', cor: '#0F766E', avatar_url: myAvatarUrl },
                           ...getParticipantesCompletos(corrida.participantesIds).map((a, idx) => ({
@@ -832,8 +989,8 @@ export function Viagens({
         participantes={getParticipantesCompletos(corridaSelecionada?.participantesIds || [])}
         onClose={() => setCorridaSelecionadaId(null)}
         onDelete={deletarCorrida}
-        onUpdated={() => {
-          carregarDados();
+        onUpdated={async () => {
+          await carregarDados(false);
           if (onDataChange) onDataChange();
         }}
       />

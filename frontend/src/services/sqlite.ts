@@ -179,6 +179,7 @@ function createSchema(db: Database) {
       self_amount_owed REAL DEFAULT 0,
       self_amount_paid REAL DEFAULT 0,
       self_receipt_url TEXT,
+      self_status TEXT DEFAULT 'ACCEPTED',
       expense_date TEXT NOT NULL,
       synced INTEGER DEFAULT 0
     );
@@ -189,6 +190,7 @@ function createSchema(db: Database) {
       amount_owed REAL NOT NULL,
       amount_paid REAL DEFAULT 0,
       receipt_url TEXT,
+      status TEXT DEFAULT 'ACCEPTED',
       PRIMARY KEY (expense_id, friend_id)
     );
 
@@ -209,6 +211,7 @@ function createSchema(db: Database) {
       message TEXT NOT NULL,
       data TEXT,
       read INTEGER DEFAULT 0,
+      read_at TEXT,
       created_at TEXT NOT NULL
     );
   `);
@@ -224,6 +227,7 @@ function createSchema(db: Database) {
         message TEXT NOT NULL,
         data TEXT,
         read INTEGER DEFAULT 0,
+        read_at TEXT,
         created_at TEXT NOT NULL
       )
     `);
@@ -243,7 +247,25 @@ function createSchema(db: Database) {
   }
 
   try {
+    db.run("ALTER TABLE expenses ADD COLUMN self_status TEXT DEFAULT 'ACCEPTED'");
+  } catch {
+    // Coluna já existe
+  }
+
+  try {
     db.run('ALTER TABLE expense_participants ADD COLUMN receipt_url TEXT');
+  } catch {
+    // Coluna já existe
+  }
+
+  try {
+    db.run("ALTER TABLE expense_participants ADD COLUMN status TEXT DEFAULT 'ACCEPTED'");
+  } catch {
+    // Coluna já existe
+  }
+
+  try {
+    db.run('ALTER TABLE notifications ADD COLUMN read_at TEXT');
   } catch {
     // Coluna já existe
   }

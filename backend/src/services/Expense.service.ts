@@ -80,11 +80,13 @@ export class ExpenseService {
     if (exp.user_id === userId) {
       return {
         ...exp,
+        self_status: 'ACCEPTED',
         owner: stripFriendAvatar(exp.owner),
         paidByFriend: stripFriendAvatar(exp.paidByFriend),
         participants: Array.isArray(exp.participants)
           ? exp.participants.map((p: any) => ({
               ...p,
+              status: p.status || 'ACCEPTED',
               friend: stripFriendAvatar(p.friend),
             }))
           : [],
@@ -115,6 +117,7 @@ export class ExpenseService {
 
     const myOwed = myPart ? Number(myPart.amount_owed) : defaultShare;
     const myPaid = iAmPayer ? myOwed : myPart ? Number(myPart.amount_paid || 0) : 0;
+    const myStatus = iAmPayer && !myPart ? 'ACCEPTED' : (myPart?.status || 'ACCEPTED');
 
     let transformedPaidByFriend: any = null;
     let transformedPaidByFriendId: string | null = null;
@@ -158,6 +161,7 @@ export class ExpenseService {
         amount_owed: ownerOwed,
         amount_paid: ownerPaid,
         receipt_url: !exp.paid_by_friend_id ? null : exp.self_receipt_url || null,
+        status: 'ACCEPTED',
         friend: stripFriendAvatar(ownerLocalFriend),
       },
     ];
@@ -190,6 +194,7 @@ export class ExpenseService {
             amount_owed: Number(p.amount_owed),
             amount_paid: Number(p.amount_paid),
             receipt_url: isThisParticipantPayer ? null : p.receipt_url || null,
+            status: p.status || 'ACCEPTED',
             friend: stripFriendAvatar(participantFriend),
           });
         }
@@ -208,6 +213,7 @@ export class ExpenseService {
       self_amount_owed: myOwed,
       self_amount_paid: myPaid,
       self_receipt_url: iAmPayer ? null : myPart?.receipt_url || null,
+      self_status: myStatus,
       participants: transformedParticipants,
     };
   }
@@ -263,9 +269,12 @@ export class ExpenseService {
 
     const filteredExpenses = expenses.filter((exp) => {
       if (exp.user_id === userId) return true;
-      const isDirectParticipantOrPayer =
-        Boolean(exp.paid_by_friend_id && reverseSet.has(exp.paid_by_friend_id)) ||
-        (exp.participants || []).some((p) => reverseSet.has(p.friend_id));
+      const myPart = (exp.participants || []).find((p) => reverseSet.has(p.friend_id));
+      const iAmPayer = Boolean(exp.paid_by_friend_id && reverseSet.has(exp.paid_by_friend_id));
+      if (myPart && (myPart as any).status === 'REJECTED' && !iAmPayer) {
+        return false;
+      }
+      const isDirectParticipantOrPayer = iAmPayer || Boolean(myPart);
       if (isDirectParticipantOrPayer) return true;
       if (!exp.group_id || !exp.group) return true;
       if (exp.group.created_by === userId) return true;
@@ -453,6 +462,10 @@ export class ExpenseService {
         ? mappedPaidBy
         : null;
 
+    const allUsers = await prisma.user.findMany({
+      select: { id: true, name: true, phone: true },
+    });
+
     const expense = await prisma.expense.create({
       data: {
         ...(canUseProvidedId && data.id ? { id: data.id } : {}),
@@ -478,11 +491,16 @@ export class ExpenseService {
               : customPaid !== undefined
               ? Math.min(owedForFriend, Number(customPaid))
               : 0;
+            const friendObj = userFriends.find((f) => f.id === friendId);
+            const targetUser = friendObj?.phone
+              ? allUsers.find((u) => u.id !== data.userId && phonesMatch(u.phone, friendObj.phone))
+              : null;
             return {
               friend_id: friendId,
               amount_owed: owedForFriend,
               amount_paid: amountPaid,
-            };
+              status: isFriendPayer ? 'ACCEPTED' : targetUser ? 'PENDING' : 'ACCEPTED',
+            } as any;
           }),
         },
       },
@@ -502,9 +520,6 @@ export class ExpenseService {
         select: { id: true, name: true, phone: true, pix_key: true, avatar_url: true },
       });
       const creatorName = creator?.name || 'Um amigo';
-      const allUsers = await prisma.user.findMany({
-        select: { id: true, name: true, phone: true },
-      });
 
       for (const p of expense.participants) {
         const friendPhone = p.friend?.phone;
@@ -519,13 +534,16 @@ export class ExpenseService {
             await this.ensureParticipantLink(creator, targetUser, expense, p.friend_id);
           }
 
+          const isTargetPayer = expense.paid_by_friend_id === p.friend_id;
           const amountOwedNum = Number(p.amount_owed);
           const formatted = amountOwedNum.toFixed(2).replace('.', ',');
           await NotificationService.createNotification({
             userId: targetUser.id,
             type: 'EXPENSE_ADDED',
-            title: 'Novo racha adicionado',
-            message: `${creatorName} adicionou você ao racha "${expense.title}" (sua parte: R$ ${formatted})`,
+            title: isTargetPayer ? 'Novo racha registrado' : 'Novo racha pendente de aceite',
+            message: isTargetPayer
+              ? `${creatorName} registrou o racha "${expense.title}" com você como pagador (sua parte: R$ ${formatted}).`
+              : `${creatorName} adicionou você ao racha "${expense.title}" (sua parte: R$ ${formatted}). Toque para aceitar ou recusar.`,
             data: {
               expenseId: expense.id,
               groupId: expense.group_id,
@@ -662,9 +680,15 @@ export class ExpenseService {
 
     const existingPaidMap = new Map<string, number>();
     const existingReceiptMap = new Map<string, string | null>();
+    const existingStatusMap = new Map<string, string>();
     existing.participants.forEach((p: any) => {
       existingPaidMap.set(p.friend_id, Number(p.amount_paid));
       existingReceiptMap.set(p.friend_id, p.receipt_url || null);
+      existingStatusMap.set(p.friend_id, p.status || 'ACCEPTED');
+    });
+
+    const allUsers = await prisma.user.findMany({
+      select: { id: true, name: true, phone: true },
     });
 
     const parsedDate = data.expenseDate ? new Date(data.expenseDate) : existing.expense_date;
@@ -696,12 +720,25 @@ export class ExpenseService {
                 ? Number(remappedPagamentos[friendId])
                 : existingPaidMap.get(friendId) || 0;
             const amountPaid = isFriendPayer ? owedForFriend : Math.min(owedForFriend, prevPaid);
+            const friendObj = userFriends.find((f) => f.id === friendId);
+            const targetUser = friendObj?.phone
+              ? allUsers.find((u) => u.id !== userId && phonesMatch(u.phone, friendObj.phone))
+              : null;
+            const prevStatus = existingStatusMap.get(friendId);
+            const nextStatus = isFriendPayer
+              ? 'ACCEPTED'
+              : prevStatus
+              ? prevStatus
+              : targetUser
+              ? 'PENDING'
+              : 'ACCEPTED';
             return {
               friend_id: friendId,
               amount_owed: owedForFriend,
               amount_paid: amountPaid,
               receipt_url: existingReceiptMap.get(friendId) || null,
-            };
+              status: nextStatus,
+            } as any;
           }),
         },
       },
@@ -719,9 +756,7 @@ export class ExpenseService {
         where: { id: userId },
         select: { id: true, name: true, phone: true, pix_key: true, avatar_url: true },
       });
-      const allUsers = await prisma.user.findMany({
-        select: { id: true, name: true, phone: true },
-      });
+      const creatorName = creator?.name || 'Um amigo';
       for (const p of updated.participants) {
         const friendPhone = p.friend?.phone;
         if (!friendPhone) continue;
@@ -732,7 +767,23 @@ export class ExpenseService {
           if (creator) {
             await this.ensureParticipantLink(creator, targetUser, updated, p.friend_id);
           }
-          notifySync(targetUser.id, 'EXPENSE_UPDATED');
+          const isNewPending = !existingStatusMap.has(p.friend_id) && (p as any).status === 'PENDING';
+          if (isNewPending) {
+            const formatted = Number(p.amount_owed).toFixed(2).replace('.', ',');
+            await NotificationService.createNotification({
+              userId: targetUser.id,
+              type: 'EXPENSE_ADDED',
+              title: 'Novo racha pendente de aceite',
+              message: `${creatorName} adicionou você ao racha "${updated.title}" (sua parte: R$ ${formatted}). Toque para aceitar ou recusar.`,
+              data: {
+                expenseId: updated.id,
+                groupId: updated.group_id,
+                amount: Number(p.amount_owed),
+              },
+            });
+          } else {
+            notifySync(targetUser.id, 'EXPENSE_UPDATED');
+          }
         }
       }
     } catch (err) {
@@ -740,6 +791,218 @@ export class ExpenseService {
     }
 
     return updated;
+  }
+
+  // 3.1 Aceitar participação em um racha
+  static async acceptExpense(userId: string, expenseId: string) {
+    const reverseContext = await FriendService.syncReverseLinks(userId);
+    const { reverseFriendIds, currentUser } = reverseContext;
+
+    const expense: any = await prisma.expense.findUnique({
+      where: { id: expenseId },
+      include: {
+        owner: { select: { id: true, name: true, phone: true } },
+        participants: { include: { friend: true } },
+      },
+    });
+
+    if (!expense) {
+      throw new Error('Racha não encontrado.');
+    }
+
+    if (expense.user_id === userId) {
+      return { message: 'Você é o criador deste racha.' };
+    }
+
+    const myPart = (expense.participants || []).find((p: any) =>
+      reverseFriendIds.includes(p.friend_id)
+    );
+
+    if (!myPart) {
+      throw new Error('Participação não encontrada neste racha.');
+    }
+
+    const wasAlreadyAccepted = myPart.status === 'ACCEPTED';
+
+    await prisma.expenseParticipant.update({
+      where: {
+        expense_id_friend_id: {
+          expense_id: expenseId,
+          friend_id: myPart.friend_id,
+        },
+      },
+      data: {
+        status: 'ACCEPTED',
+      } as any,
+    });
+
+    try {
+      await NotificationService.markAsReadByExpense(userId, expenseId);
+    } catch {
+      // ignore
+    }
+
+    // Notifica o criador e sincroniza
+    if (!wasAlreadyAccepted) {
+      try {
+        const acceptorName = currentUser?.name || myPart.friend?.name || 'Um participante';
+        await NotificationService.createNotification({
+          userId: expense.user_id,
+          type: 'EXPENSE_ACCEPTED',
+          title: 'Racha aceito',
+          message: `${acceptorName} aceitou participar do racha "${expense.title}".`,
+          data: {
+            expenseId: expense.id,
+            groupId: expense.group_id,
+          },
+        });
+        await this.emitRealtimeExpenseToUser(expense.user_id, expense.id);
+
+        const allUsers = await prisma.user.findMany({ select: { id: true, phone: true } });
+        for (const p of expense.participants) {
+          if (p.friend_id === myPart.friend_id || !p.friend?.phone) continue;
+          const otherUser = allUsers.find(
+            (u) => u.id !== userId && u.id !== expense.user_id && phonesMatch(u.phone, p.friend.phone)
+          );
+          if (otherUser) {
+            await this.emitRealtimeExpenseToUser(otherUser.id, expense.id);
+            notifySync(otherUser.id, 'EXPENSE_ACCEPTED');
+          }
+        }
+      } catch (err) {
+        console.warn('Erro ao notificar aceite de racha:', err);
+      }
+    }
+
+    return { message: 'Racha aceito com sucesso!', expenseId };
+  }
+
+  // 3.2 Recusar participação em um racha (a parte fica pendente para o restante dos participantes, sem redistribuir)
+  static async rejectExpense(userId: string, expenseId: string) {
+    const reverseContext = await FriendService.syncReverseLinks(userId);
+    const { reverseFriendIds, currentUser } = reverseContext;
+
+    const expense: any = await prisma.expense.findUnique({
+      where: { id: expenseId },
+      include: {
+        owner: { select: { id: true, name: true, phone: true } },
+        paidByFriend: true,
+        participants: { include: { friend: true } },
+      },
+    });
+
+    if (!expense) {
+      throw new Error('Racha não encontrado.');
+    }
+
+    if (expense.user_id === userId) {
+      throw new Error('O criador do racha não pode recusá-lo; exclua ou edite o racha.');
+    }
+
+    const myPart = (expense.participants || []).find((p: any) =>
+      reverseFriendIds.includes(p.friend_id)
+    );
+
+    if (!myPart) {
+      throw new Error('Participação não encontrada neste racha.');
+    }
+
+    const iAmPayer = Boolean(
+      expense.paid_by_friend_id && reverseFriendIds.includes(expense.paid_by_friend_id)
+    );
+    if (iAmPayer) {
+      throw new Error('Quem pagou o racha não possui parte pendente para recusar.');
+    }
+
+    const isAlreadySettled =
+      Number(myPart.amount_paid || 0) >= Number(myPart.amount_owed || 0) - 0.01;
+
+    if (isAlreadySettled) {
+      throw new Error('Não é possível recusar um racha que já foi quitado por você.');
+    }
+
+    if (myPart.status === 'REJECTED') {
+      return { message: 'Racha já recusado anteriormente.', expenseId };
+    }
+
+    await prisma.expenseParticipant.update({
+      where: {
+        expense_id_friend_id: {
+          expense_id: expenseId,
+          friend_id: myPart.friend_id,
+        },
+      },
+      data: {
+        status: 'REJECTED',
+      } as any,
+    });
+
+    try {
+      await NotificationService.markAsReadByExpense(userId, expenseId);
+    } catch {
+      // ignore
+    }
+
+    try {
+      const rejectorName = currentUser?.name || myPart.friend?.name || 'Um participante';
+      const formattedShare = Number(myPart.amount_owed || 0)
+        .toFixed(2)
+        .replace('.', ',');
+
+      await NotificationService.createNotification({
+        userId: expense.user_id,
+        type: 'EXPENSE_REJECTED',
+        title: 'Participante recusou o racha',
+        message: `${rejectorName} recusou o racha "${expense.title}". A parte de R$ ${formattedShare} ficou pendente para os demais participantes.`,
+        data: {
+          expenseId: expense.id,
+          groupId: expense.group_id,
+          amount: Number(myPart.amount_owed || 0),
+        },
+      });
+      await this.emitRealtimeExpenseToUser(expense.user_id, expense.id);
+
+      // Notifica outros participantes registrados (e credor/pagador, se distinto do criador)
+      const allUsers = await prisma.user.findMany({ select: { id: true, phone: true } });
+      const payerPhone = (expense as any).paidByFriend?.phone || null;
+      const payerUser = payerPhone
+        ? allUsers.find((u) => u.id !== userId && u.id !== expense.user_id && phonesMatch(u.phone, payerPhone))
+        : null;
+
+      if (payerUser) {
+        await NotificationService.createNotification({
+          userId: payerUser.id,
+          type: 'EXPENSE_REJECTED',
+          title: 'Participante recusou o racha',
+          message: `${rejectorName} recusou o racha "${expense.title}". A parte de R$ ${formattedShare} ficou pendente para os demais participantes.`,
+          data: {
+            expenseId: expense.id,
+            groupId: expense.group_id,
+            amount: Number(myPart.amount_owed || 0),
+          },
+        });
+        await this.emitRealtimeExpenseToUser(payerUser.id, expense.id);
+      }
+
+      for (const p of expense.participants) {
+        if (p.friend_id === myPart.friend_id || !p.friend?.phone) continue;
+        const otherUser = allUsers.find(
+          (u) =>
+            u.id !== userId &&
+            u.id !== expense.user_id &&
+            u.id !== payerUser?.id &&
+            phonesMatch(u.phone, p.friend.phone)
+        );
+        if (otherUser) {
+          await this.emitRealtimeExpenseToUser(otherUser.id, expense.id);
+          notifySync(otherUser.id, 'EXPENSE_REJECTED');
+        }
+      }
+    } catch (err) {
+      console.warn('Erro ao notificar recusa de racha:', err);
+    }
+
+    return { message: 'Racha recusado. Sua parte ficou sinalizada como pendente no racha.', expenseId };
   }
 
   // 4. Excluir uma despesa
@@ -796,7 +1059,7 @@ export class ExpenseService {
     }
   }
 
-  private static async emitRealtimeExpenseToUser(targetUserId: string, expenseId: string) {
+  static async emitRealtimeExpenseToUser(targetUserId: string, expenseId: string) {
     try {
       const freshExp = await prisma.expense.findUnique({
         where: { id: expenseId },
@@ -1240,6 +1503,7 @@ export class ExpenseService {
       const exp = await this.transformExpenseForUser(rawExp, effectiveUserId, reverseContext);
 
       exp.participants.forEach((p: any) => {
+        if (p.status === 'REJECTED') return;
         if (p.friend && !entityMeta[p.friend_id]) {
           entityMeta[p.friend_id] = {
             id: p.friend.id,
@@ -1258,6 +1522,7 @@ export class ExpenseService {
 
       if (!payerFriendId) {
         exp.participants.forEach((part: any) => {
+          if (part.status === 'REJECTED') return;
           const pending = Number(part.amount_owed) - Number(part.amount_paid);
           if (pending > 0.005) {
             netBalances[ownerKey] = (netBalances[ownerKey] || 0) + pending;
@@ -1278,7 +1543,7 @@ export class ExpenseService {
         }
 
         exp.participants.forEach((part: any) => {
-          if (part.friend_id === payerFriendId) return;
+          if (part.friend_id === payerFriendId || part.status === 'REJECTED') return;
           const pending = Number(part.amount_owed) - Number(part.amount_paid);
           if (pending > 0.005) {
             netBalances[payerFriendId] = (netBalances[payerFriendId] || 0) + pending;
@@ -1295,7 +1560,7 @@ export class ExpenseService {
             ? 0
             : Number(exp.total_amount) / (exp.participants.length + 1);
         const selfPaid = Number(exp.self_amount_paid || 0);
-        const selfPending = selfOwed - selfPaid;
+        const selfPending = exp.self_status === 'REJECTED' ? 0 : selfOwed - selfPaid;
 
         if (selfPending > 0.005) {
           netBalances[payerFriendId] = (netBalances[payerFriendId] || 0) + selfPending;
@@ -1413,12 +1678,12 @@ export class ExpenseService {
     for (const expense of filtered) {
       if (!expense.paid_by_friend_id) {
         const part = (expense.participants || []).find((p: any) => p.friend_id === debtorFriendId);
-        if (part) {
+        if (part && part.status !== 'REJECTED') {
           const pending = Math.max(0, Number(part.amount_owed) - Number(part.amount_paid));
           dividaBruta += pending;
           filaAmigo.push({ id: expense.id, restante: pending });
         }
-      } else if (expense.paid_by_friend_id === debtorFriendId) {
+      } else if (expense.paid_by_friend_id === debtorFriendId && (expense as any).self_status !== 'REJECTED') {
         const totalParts = (expense.participants?.length || 0) + 1;
         const selfOwed =
           expense.self_amount_owed !== null && expense.self_amount_owed !== undefined && Number(expense.self_amount_owed) > 0

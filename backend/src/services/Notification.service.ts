@@ -63,9 +63,32 @@ export class NotificationService {
   }
 
   /**
+   * Remove automaticamente notificações já lidas há mais de 1 semana (7 dias)
+   */
+  static async cleanupExpiredReadNotifications(userId: string) {
+    try {
+      const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+      await prisma.notification.deleteMany({
+        where: {
+          user_id: userId,
+          read: true,
+          OR: [
+            { read_at: { lte: sevenDaysAgo } },
+            { read_at: null, created_at: { lte: sevenDaysAgo } },
+          ],
+        },
+      });
+    } catch (err) {
+      console.warn('Erro ao limpar notificações antigas já lidas:', err);
+    }
+  }
+
+  /**
    * Lista as notificações do usuário, ordenadas pelas mais recentes
    */
   static async listNotifications(userId: string, limit = 50) {
+    await this.cleanupExpiredReadNotifications(userId);
+
     const [notifications, unreadCount] = await Promise.all([
       prisma.notification.findMany({
         where: { user_id: userId },
@@ -91,9 +114,11 @@ export class NotificationService {
       where: {
         id: notificationId,
         user_id: userId,
+        OR: [{ read: false }, { read_at: null }],
       },
       data: {
         read: true,
+        read_at: new Date(),
       },
     });
   }
@@ -129,6 +154,7 @@ export class NotificationService {
         },
         data: {
           read: true,
+          read_at: new Date(),
         },
       });
     }
@@ -147,6 +173,7 @@ export class NotificationService {
       },
       data: {
         read: true,
+        read_at: new Date(),
       },
     });
   }

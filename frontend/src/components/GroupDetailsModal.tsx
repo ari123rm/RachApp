@@ -18,6 +18,7 @@ import {
   TrendingDown,
   TrendingUp,
   Share2,
+  LogOut,
 } from 'lucide-react';
 import { dbService } from '../services/database';
 import moneyConverter from '../utils/moneyConverter';
@@ -56,6 +57,7 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
   }>({ nome: 'Você', pix: '', avatar_url: null });
 
   const [isLoading, setIsLoading] = useState(false);
+  const [isLeavingGroup, setIsLeavingGroup] = useState(false);
   const [isAddingMemberId, setIsAddingMemberId] = useState<string | null>(null);
   const [showAddMemberSection, setShowAddMemberSection] = useState(false);
 
@@ -166,6 +168,27 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
       onClose();
     } catch {
       alert('Erro ao excluir grupo.');
+    }
+  };
+
+  const handleLeaveGroup = async () => {
+    if (!grupo || isLeavingGroup) return;
+    if (
+      !window.confirm(
+        `Deseja sair do grupo "${grupo.name}"? Rachas em aberto em que você ainda não quitou sua parte ficarão recusados e sinalizados como pendência para os demais participantes (sem redistribuição). Rachas já quitados não serão alterados.`
+      )
+    ) {
+      return;
+    }
+    setIsLeavingGroup(true);
+    try {
+      await dbService.grupos.leave(grupo.id);
+      if (onChanged) onChanged();
+      onClose();
+    } catch (err: any) {
+      alert(err?.response?.data?.error || err?.message || 'Erro ao sair do grupo.');
+    } finally {
+      setIsLeavingGroup(false);
     }
   };
 
@@ -332,6 +355,7 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
 
       if (!payerFriendId) {
         for (const p of parts) {
+          if ((p.status || 'ACCEPTED') === 'REJECTED') continue;
           const pend = Number(p.amount_owed || 0) - Number(p.amount_paid || 0);
           if (pend > 0.005) {
             const pFull = resolveMemberFullName(p.friend_id, p.friend?.name || p.friend_name);
@@ -340,7 +364,7 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
         }
       } else {
         for (const p of parts) {
-          if (p.friend_id === payerFriendId) continue;
+          if (p.friend_id === payerFriendId || (p.status || 'ACCEPTED') === 'REJECTED') continue;
           const pend = Number(p.amount_owed || 0) - Number(p.amount_paid || 0);
           if (pend > 0.005) {
             const pFull = resolveMemberFullName(p.friend_id, p.friend?.name || p.friend_name);
@@ -358,7 +382,10 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
             ? 0
             : valorTotal / (parts.length + 1);
         const selfPaid = Number(exp.self_amount_paid || 0);
-        const selfPend = Number((selfOwed - selfPaid).toFixed(2));
+        const selfPend =
+          (exp.self_status || 'ACCEPTED') === 'REJECTED'
+            ? 0
+            : Number((selfOwed - selfPaid).toFixed(2));
         if (selfPend > 0.005) {
           devedores.push({ nome: getShortName(myName), valor: selfPend });
         }
@@ -639,9 +666,40 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
     if (!grupo?.expenses) return [];
     return grupo.expenses.map((expense: any) => {
       const valorTotalExp = Number(expense.total_amount || 0);
+      const expParts = Array.isArray(expense.participants) ? expense.participants : [];
+      const expCreatorId = expense.created_by_user_id || expense.user_id || '';
+      const isCreatorFallback =
+        expense.is_creator !== undefined
+          ? Boolean(expense.is_creator)
+          : Boolean(
+              !expCreatorId ||
+                !myConfig.id ||
+                expCreatorId === myConfig.id ||
+                expCreatorId === 'me'
+            );
+      const statusParticipantesFallback: Record<string, 'PENDING' | 'ACCEPTED' | 'REJECTED'> = {};
+      const recusadosFallback: Array<{ id: string; nome: string; valor: number }> = [];
+      for (const p of expParts) {
+        const st = (p.status || 'ACCEPTED') as 'PENDING' | 'ACCEPTED' | 'REJECTED';
+        statusParticipantesFallback[p.friend_id] = st;
+        if (st === 'REJECTED') {
+          recusadosFallback.push({
+            id: p.friend_id,
+            nome: p.friend?.name || p.friend_name || 'Participante',
+            valor: Number(p.amount_owed || 0),
+          });
+        }
+      }
+
       const corridaCompleta: Corrida =
         todasCorridas.find((c) => c.id === expense.id) || {
           id: expense.id,
+          isCreator: isCreatorFallback,
+          created_by_user_id: expCreatorId,
+          original_owner_id: expense.original_owner_id || expCreatorId,
+          selfStatus: (expense.self_status || 'ACCEPTED') as 'PENDING' | 'ACCEPTED' | 'REJECTED',
+          statusParticipantes: statusParticipantesFallback,
+          recusados: recusadosFallback,
           titulo: expense.title || 'Racha',
           valorTotal: valorTotalExp,
           selfAmountOwed:
@@ -656,21 +714,17 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
           groupId: grupo.id,
           groupName: grupo.name,
           paidByFriendId: expense.paid_by_friend_id || null,
-          paidByName: expense.paidByFriend?.name || 'Amigo',
-          participantesIds: (expense.participants || []).map(
-            (p: any) => p.friend_id
-          ),
+          paidByName: expense.paid_by_friend_id
+            ? expense.paidByFriend?.name || expense.payer_friend_name || 'Amigo'
+            : 'Você',
+          payerPhone: expense.payer_friend_phone || expense.paidByFriend?.phone || null,
+          payerPixKey: expense.payer_friend_pix || expense.paidByFriend?.pix_key || null,
+          participantesIds: expParts.map((p: any) => p.friend_id),
           pagamentos: Object.fromEntries(
-            (expense.participants || []).map((p: any) => [
-              p.friend_id,
-              Number(p.amount_paid || 0),
-            ])
+            expParts.map((p: any) => [p.friend_id, Number(p.amount_paid || 0)])
           ),
           valoresDevidos: Object.fromEntries(
-            (expense.participants || []).map((p: any) => [
-              p.friend_id,
-              Number(p.amount_owed || 0),
-            ])
+            expParts.map((p: any) => [p.friend_id, Number(p.amount_owed || 0)])
           ),
         };
 
@@ -701,7 +755,16 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
         corridaParticipantes,
       };
     });
-  }, [grupo?.expenses, todasCorridas, todosAmigos, nettingCache, grupo?.id, grupo?.name, myConfig.avatar_url]);
+  }, [
+    grupo?.expenses,
+    todasCorridas,
+    todosAmigos,
+    nettingCache,
+    grupo?.id,
+    grupo?.name,
+    myConfig.id,
+    myConfig.avatar_url,
+  ]);
 
   const contagensGrupo = useMemo(() => {
     let aPagar = 0;
@@ -709,11 +772,19 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
     let quitados = 0;
 
     for (const item of expensesWithStatus) {
-      if (item.userStatus.amountYouOwe > 0.005) {
+      const hasRecusados = (item.corridaCompleta.recusados?.length || 0) > 0;
+      const isInvitePending =
+        item.corridaCompleta.selfStatus === 'PENDING' &&
+        Boolean(item.corridaCompleta.paidByFriendId);
+      const isSelfRejected =
+        item.corridaCompleta.selfStatus === 'REJECTED' &&
+        Boolean(item.corridaCompleta.paidByFriendId);
+
+      if (item.userStatus.amountYouOwe > 0.005 && !isSelfRejected) {
         aPagar++;
       } else if (item.userStatus.amountOwedToYou > 0.005) {
         aReceber++;
-      } else {
+      } else if (!hasRecusados && !isInvitePending && !isSelfRejected) {
         quitados++;
       }
     }
@@ -753,16 +824,27 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
 
   const expensesFiltradas = useMemo(() => {
     return expensesWithStatus.filter((item) => {
+      const hasRecusados = (item.corridaCompleta.recusados?.length || 0) > 0;
+      const isInvitePending =
+        item.corridaCompleta.selfStatus === 'PENDING' &&
+        Boolean(item.corridaCompleta.paidByFriendId);
+      const isSelfRejected =
+        item.corridaCompleta.selfStatus === 'REJECTED' &&
+        Boolean(item.corridaCompleta.paidByFriendId);
+
       if (filtroStatusGrupo === 'a_pagar') {
-        return item.userStatus.amountYouOwe > 0.005;
+        return item.userStatus.amountYouOwe > 0.005 && !isSelfRejected;
       }
       if (filtroStatusGrupo === 'a_receber') {
         return item.userStatus.amountOwedToYou > 0.005;
       }
       if (filtroStatusGrupo === 'quitados') {
         return (
-          item.userStatus.status === 'quitado' ||
-          (item.userStatus.status === 'pagante' && item.userStatus.amountOwedToYou <= 0.005)
+          !hasRecusados &&
+          !isInvitePending &&
+          !isSelfRejected &&
+          (item.userStatus.status === 'quitado' ||
+            (item.userStatus.status === 'pagante' && item.userStatus.amountOwedToYou <= 0.005))
         );
       }
       return true;
@@ -826,20 +908,35 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
           </button>
           <h2 className="text-h2 text-[var(--text-primary)] truncate px-2">Detalhes do Grupo</h2>
           <div className="flex items-center gap-1 shrink-0">
-            <button
-              onClick={() => setIsEditGroupOpen(true)}
-              className="p-2 text-[var(--text-secondary)] hover:bg-[var(--bg-subtle)] hover:text-[var(--text-primary)] rounded-full transition-colors"
-              title="Editar Grupo"
-            >
-              <Pencil size={18} strokeWidth={2} />
-            </button>
-            <button
-              onClick={handleDeleteGroup}
-              className="p-2 text-[#F43F5E] hover:bg-[var(--rose-bg)] rounded-full transition-colors"
-              title="Excluir Grupo"
-            >
-              <Trash2 size={18} strokeWidth={2} />
-            </button>
+            {isGroupCreator ? (
+              <>
+                <button
+                  onClick={() => setIsEditGroupOpen(true)}
+                  className="p-2 text-[var(--text-secondary)] hover:bg-[var(--bg-subtle)] hover:text-[var(--text-primary)] rounded-full transition-colors"
+                  title="Editar Grupo"
+                >
+                  <Pencil size={18} strokeWidth={2} />
+                </button>
+                <button
+                  onClick={handleDeleteGroup}
+                  className="p-2 text-[#F43F5E] hover:bg-[var(--rose-bg)] rounded-full transition-colors"
+                  title="Excluir Grupo"
+                >
+                  <Trash2 size={18} strokeWidth={2} />
+                </button>
+              </>
+            ) : (
+              <button
+                type="button"
+                onClick={handleLeaveGroup}
+                disabled={isLeavingGroup}
+                className="px-2.5 py-1.5 text-xs font-semibold text-[#F43F5E] hover:bg-[var(--rose-bg)] rounded-full transition-colors flex items-center gap-1 disabled:opacity-50"
+                title="Sair do Grupo"
+              >
+                <LogOut size={15} strokeWidth={2} />
+                <span>Sair</span>
+              </button>
+            )}
           </div>
         </div>
 
@@ -1367,6 +1464,8 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
                             valorTotal={moneyConverter(corridaCompleta.valorTotal)}
                             paidByName={corridaCompleta.paidByName}
                             userStatus={userStatus}
+                            selfStatus={corridaCompleta.selfStatus}
+                            recusados={corridaCompleta.recusados}
                             participantes={corridaParticipantes}
                             onClick={() => setCorridaSelecionada(corridaCompleta)}
                           />
@@ -1377,6 +1476,24 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
                 </div>
               )}
             </div>
+
+            {!isGroupCreator && (
+              <div className="pt-2">
+                <button
+                  type="button"
+                  onClick={handleLeaveGroup}
+                  disabled={isLeavingGroup}
+                  className="w-full h-12 rounded-xl border border-[var(--rose-border)] bg-[var(--rose-bg)] text-[#F43F5E] font-semibold text-body2 flex items-center justify-center gap-2 transition-all active:scale-95 disabled:opacity-50"
+                >
+                  {isLeavingGroup ? (
+                    <LoaderCircle size={18} strokeWidth={2} className="animate-spin" />
+                  ) : (
+                    <LogOut size={18} strokeWidth={2} />
+                  )}
+                  <span>Sair do Grupo</span>
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -1444,11 +1561,10 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
         }}
         onUpdated={async () => {
           await carregarDetalhes();
-          if (corridaSelecionada) {
-            const all = await dbService.corridas.getAll();
-            const fresh = all.find((c) => c.id === corridaSelecionada.id);
-            if (fresh) setCorridaSelecionada(fresh);
-          }
+          const all = await dbService.corridas.getAll();
+          setCorridaSelecionada((prev) =>
+            prev ? all.find((c) => c.id === prev.id) || null : null
+          );
           if (onChanged) onChanged();
         }}
       />

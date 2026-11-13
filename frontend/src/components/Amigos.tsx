@@ -274,6 +274,15 @@ export function Amigos({
   };
 
   const handleRecusarGrupo = async (invId: string) => {
+    const targetInv = convitesGrupo.find((i) => i.id === invId);
+    const groupLabel = targetInv?.group?.name ? `"${targetInv.group.name}"` : 'este grupo';
+    if (
+      !window.confirm(
+        `Deseja recusar o convite para ${groupLabel}? Rachas em aberto em que você ainda não quitou sua parte ficarão recusados e sinalizados como pendência para os demais membros (sem redistribuição). Rachas já quitados não serão alterados.`
+      )
+    ) {
+      return;
+    }
     setActionLoadingId(invId);
     try {
       await dbService.grupos.rejectInvitation(invId);

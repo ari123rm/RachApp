@@ -1012,11 +1012,8 @@ function App() {
           refreshData();
         }}
         onUpdated={async () => {
-          if (selectedRideForModal) {
-            const all = await dbService.corridas.getAll();
-            const fresh = all.find((c) => c.id === selectedRideForModal.id);
-            if (fresh) setSelectedRideForModal(fresh);
-          }
+          const all = await dbService.corridas.getAll();
+          setSelectedRideForModal((prev) => (prev ? all.find((c) => c.id === prev.id) || null : null));
           refreshData();
         }}
       />

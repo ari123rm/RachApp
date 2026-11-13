@@ -66,6 +66,7 @@ export function applyBilateralNetting(
 
   const isFriendParticipant = (c: any) => {
     return (c.participantesIds || []).some((pid: string) => {
+      if (c.statusParticipantes?.[pid] === 'REJECTED') return false;
       if (matchingFriendIds.has(pid)) return true;
       const f = allFriends.find((a) => a.id === pid);
       if (f) {
@@ -81,6 +82,7 @@ export function applyBilateralNetting(
   // Filtra as corridas que envolvem este amigo e ordena cronologicamente (ASC)
   const cronologicas = [...corridas]
     .filter((c) => {
+      if (c.selfStatus === 'REJECTED') return false;
       const amigoPagou = isFriendPayer(c);
       const amigoParticipou = isFriendParticipant(c);
       if (!amigoPagou && !amigoParticipou) return false;
@@ -114,7 +116,24 @@ export function applyBilateralNetting(
     if (!amigoPagou) {
       // Você pagou, o amigo é participante
       const pid =
-        (c.participantesIds || []).find((id: string) => matchingFriendIds.has(id)) || targetFriend.id;
+        (c.participantesIds || []).find(
+          (id: string) => c.statusParticipantes?.[id] !== 'REJECTED' && matchingFriendIds.has(id)
+        ) ||
+        (c.participantesIds || []).find((id: string) => {
+          if (c.statusParticipantes?.[id] === 'REJECTED') return false;
+          const f = allFriends.find((a) => a.id === id);
+          if (!f) return false;
+          const fPhone = stripCountryCode(f.telefone || f.phone || '');
+          const fName = (f.nome || f.name || '').trim().toLowerCase();
+          return (
+            (targetPhone && fPhone && phonesMatchBR(fPhone, targetPhone)) ||
+            (targetName && fName && fName === targetName)
+          );
+        }) ||
+        targetFriend.id;
+      if (pid && c.statusParticipantes?.[pid] === 'REJECTED') {
+        continue;
+      }
       const parteAmigo =
         c.valoresDevidos?.[pid] !== undefined
           ? Number(c.valoresDevidos[pid])

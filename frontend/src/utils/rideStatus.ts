@@ -68,10 +68,20 @@ export function getRideStatusForUser(
   const meuValorPago = Number(corrida.selfAmountPaid || 0);
   const voceEhPagante = !corrida.paidByFriendId;
 
+  if (!voceEhPagante && corrida.selfStatus === 'REJECTED') {
+    return {
+      status: 'quitado',
+      amountYouOwe: 0,
+      amountOwedToYou: 0,
+      myShare: 0,
+    };
+  }
+
   if (voceEhPagante) {
     let totalTeDevem = 0;
 
     for (const pid of participantesIds) {
+      if (corrida.statusParticipantes?.[pid] === 'REJECTED') continue;
       const parteAmigo =
         corrida.valoresDevidos && corrida.valoresDevidos[pid] !== undefined
           ? Number(corrida.valoresDevidos[pid])

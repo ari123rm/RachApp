@@ -342,76 +342,66 @@ export class GroupService {
   }
 
   static async removeFriendsFromGroupExpenses(groupId: string, friendIds: string[]) {
-    if (!groupId || !friendIds.length) return;
+    const rejectedExpenses: Array<{
+      expenseId: string;
+      title: string;
+      ownerId: string;
+      paidByPhone?: string | null;
+      amount: number;
+    }> = [];
+    if (!groupId || !friendIds.length) return rejectedExpenses;
 
     const friendIdSet = new Set(friendIds);
 
     const expenses = await prisma.expense.findMany({
       where: { group_id: groupId },
       include: {
-        participants: true,
+        paidByFriend: true,
+        participants: {
+          include: { friend: true },
+        },
       },
     });
 
     for (const exp of expenses) {
-      const hasParticipant = exp.participants.some((p) => friendIdSet.has(p.friend_id));
-      const hasPayer = exp.paid_by_friend_id && friendIdSet.has(exp.paid_by_friend_id);
-
-      if (!hasParticipant && !hasPayer) {
+      const matchingParticipants = exp.participants.filter((p) => friendIdSet.has(p.friend_id));
+      if (matchingParticipants.length === 0) {
         continue;
       }
 
-      if (hasPayer) {
-        await prisma.expense.update({
-          where: { id: exp.id },
-          data: { paid_by_friend_id: null },
-        });
-      }
+      for (const part of matchingParticipants) {
+        const isPayer = Boolean(exp.paid_by_friend_id && exp.paid_by_friend_id === part.friend_id);
+        const isAlreadyPaid =
+          isPayer || Number(part.amount_paid || 0) >= Number(part.amount_owed || 0) - 0.01;
 
-      if (hasParticipant) {
-        await prisma.expenseParticipant.deleteMany({
-          where: {
-            expense_id: exp.id,
-            friend_id: { in: friendIds },
-          },
-        });
-
-        const remainingParticipants = exp.participants.filter(
-          (p) => !friendIdSet.has(p.friend_id)
-        );
-
-        if (remainingParticipants.length === 0) {
-          await prisma.expense.delete({
-            where: { id: exp.id },
-          });
-        } else {
-          const totalPeople = remainingParticipants.length + 1;
-          const newSplitAmount = Number((Number(exp.total_amount) / totalPeople).toFixed(2));
-
-          await prisma.expense.update({
-            where: { id: exp.id },
-            data: {
-              self_amount_owed: newSplitAmount,
-              self_amount_paid: hasPayer ? newSplitAmount : (exp.paid_by_friend_id ? 0 : newSplitAmount),
+        // Apenas se o racha NÃO tiver sido quitado pela pessoa, sua parte fica como recusada/pendente
+        // sem redistribuir para os demais participantes
+        if (!isAlreadyPaid && (part as any).status !== 'REJECTED') {
+          await prisma.expenseParticipant.update({
+            where: {
+              expense_id_friend_id: {
+                expense_id: exp.id,
+                friend_id: part.friend_id,
+              },
             },
+            data: {
+              status: 'REJECTED',
+            } as any,
           });
-
-          for (const rem of remainingParticipants) {
-            await prisma.expenseParticipant.update({
-              where: {
-                expense_id_friend_id: {
-                  expense_id: exp.id,
-                  friend_id: rem.friend_id,
-                },
-              },
-              data: {
-                amount_owed: newSplitAmount,
-              },
+          if (!rejectedExpenses.some((re) => re.expenseId === exp.id)) {
+            rejectedExpenses.push({
+              expenseId: exp.id,
+              title: exp.title,
+              ownerId: exp.user_id,
+              paidByPhone: exp.paidByFriend?.phone || null,
+              amount: Number(part.amount_owed || 0),
             });
           }
         }
       }
     }
+
+    return rejectedExpenses;
   }
 
   static async rejectInvitation(userId: string, invitationId: string) {
@@ -421,7 +411,7 @@ export class GroupService {
         user_id: userId,
       },
       include: {
-        group: { select: { created_by: true } },
+        group: { select: { id: true, name: true, created_by: true } },
       },
     });
 
@@ -447,19 +437,250 @@ export class GroupService {
       }
     }
 
-    if (targetFriendIds.size > 0) {
-      await this.removeFriendsFromGroupExpenses(groupId, Array.from(targetFriendIds));
-    }
+    const rejectedExpenses =
+      targetFriendIds.size > 0
+        ? await this.removeFriendsFromGroupExpenses(groupId, Array.from(targetFriendIds))
+        : [];
 
     await prisma.groupMember.delete({
       where: { id: invitationId },
     });
 
+    const rejectorName = user?.name || 'Um convidado';
+
     if (member.group?.created_by) {
+      try {
+        await NotificationService.createNotification({
+          userId: member.group.created_by,
+          type: 'GROUP_INVITE_REJECTED',
+          title: 'Convite de grupo recusado',
+          message:
+            rejectedExpenses.length > 0
+              ? `${rejectorName} recusou o convite para o grupo "${member.group.name}". ${rejectedExpenses.length} racha(s) em aberto ficaram sinalizados com pendência.`
+              : `${rejectorName} recusou o convite para o grupo "${member.group.name}".`,
+          data: {
+            groupId,
+            ...(rejectedExpenses[0]?.expenseId ? { expenseId: rejectedExpenses[0].expenseId } : {}),
+          },
+        });
+      } catch {
+        // ignore
+      }
       notifySync(member.group.created_by, 'GROUP_INVITE_REJECTED');
     }
 
+    try {
+      const remainingAccepted = await prisma.groupMember.findMany({
+        where: { group_id: groupId, status: 'ACCEPTED', user_id: { not: null } },
+        select: { user_id: true },
+      });
+      const recipientIds = new Set<string>();
+      if (member.group?.created_by) recipientIds.add(member.group.created_by);
+      for (const m of remainingAccepted) {
+        if (m.user_id && m.user_id !== userId) {
+          recipientIds.add(m.user_id);
+        }
+      }
+
+      if (rejectedExpenses.length > 0) {
+        const allUsers = await prisma.user.findMany({ select: { id: true, phone: true } });
+        for (const re of rejectedExpenses) {
+          if (re.ownerId && re.ownerId !== userId && re.ownerId !== member.group?.created_by) {
+            await NotificationService.createNotification({
+              userId: re.ownerId,
+              type: 'EXPENSE_REJECTED',
+              title: 'Participante recusou racha do grupo',
+              message: `${rejectorName} recusou o grupo "${member.group?.name || ''}" e a parte no racha "${re.title}" ficou pendente.`,
+              data: { expenseId: re.expenseId, groupId, amount: re.amount },
+            });
+          }
+          const payerUser = re.paidByPhone
+            ? allUsers.find(
+                (u) =>
+                  u.id !== userId &&
+                  u.id !== re.ownerId &&
+                  u.id !== member.group?.created_by &&
+                  phonesMatch(u.phone, re.paidByPhone)
+              )
+            : null;
+          if (payerUser) {
+            await NotificationService.createNotification({
+              userId: payerUser.id,
+              type: 'EXPENSE_REJECTED',
+              title: 'Participante recusou racha do grupo',
+              message: `${rejectorName} recusou o grupo "${member.group?.name || ''}" e a parte no racha "${re.title}" ficou pendente.`,
+              data: { expenseId: re.expenseId, groupId, amount: re.amount },
+            });
+          }
+          for (const recId of recipientIds) {
+            await ExpenseService.emitRealtimeExpenseToUser(recId, re.expenseId);
+          }
+        }
+      }
+
+      for (const m of remainingAccepted) {
+        if (m.user_id && m.user_id !== member.group?.created_by && m.user_id !== userId) {
+          notifySync(m.user_id, 'GROUP_INVITE_REJECTED');
+        }
+      }
+    } catch {
+      // ignore
+    }
+
     return { message: 'Convite recusado com sucesso.' };
+  }
+
+  static async leaveGroup(userId: string, groupId: string) {
+    const group = await prisma.group.findUnique({
+      where: { id: groupId },
+      include: {
+        members: {
+          include: { user: true, friend: true },
+        },
+      },
+    });
+
+    if (!group) {
+      throw new Error('Grupo não encontrado.');
+    }
+
+    if (group.created_by === userId) {
+      throw new Error('O criador do grupo não pode sair do grupo; exclua o grupo se desejar.');
+    }
+
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    const targetFriendIds = new Set<string>();
+    const memberIdsToDelete: string[] = [];
+
+    for (const m of group.members) {
+      const isMeByUser = m.user_id === userId;
+      const isMeByPhone =
+        user?.phone &&
+        ((m.user?.phone && phonesMatch(m.user.phone, user.phone)) ||
+          (m.friend?.phone && phonesMatch(m.friend.phone, user.phone)));
+      if (isMeByUser || isMeByPhone) {
+        memberIdsToDelete.push(m.id);
+        if (m.friend_id) {
+          targetFriendIds.add(m.friend_id);
+        }
+      }
+    }
+
+    if (user?.phone) {
+      const allFriends = await prisma.friend.findMany({
+        where: { phone: { not: null } },
+      });
+      for (const f of allFriends) {
+        if (phonesMatch(f.phone, user.phone)) {
+          targetFriendIds.add(f.id);
+        }
+      }
+    }
+
+    const rejectedExpenses =
+      targetFriendIds.size > 0
+        ? await this.removeFriendsFromGroupExpenses(groupId, Array.from(targetFriendIds))
+        : [];
+
+    if (memberIdsToDelete.length > 0) {
+      await prisma.groupMember.deleteMany({
+        where: { id: { in: memberIdsToDelete } },
+      });
+    } else {
+      await prisma.groupMember.deleteMany({
+        where: {
+          group_id: groupId,
+          OR: [
+            { user_id: userId },
+            ...(targetFriendIds.size > 0 ? [{ friend_id: { in: Array.from(targetFriendIds) } }] : []),
+          ],
+        },
+      });
+    }
+
+    const leaverName = user?.name || 'Um participante';
+
+    if (group.created_by) {
+      try {
+        await NotificationService.createNotification({
+          userId: group.created_by,
+          type: 'GROUP_MEMBER_LEFT',
+          title: 'Participante saiu do grupo',
+          message:
+            rejectedExpenses.length > 0
+              ? `${leaverName} saiu do grupo "${group.name}". ${rejectedExpenses.length} racha(s) em aberto ficaram sinalizados com pendência.`
+              : `${leaverName} saiu do grupo "${group.name}".`,
+          data: {
+            groupId,
+            ...(rejectedExpenses[0]?.expenseId ? { expenseId: rejectedExpenses[0].expenseId } : {}),
+          },
+        });
+      } catch {
+        // ignore
+      }
+      notifySync(group.created_by, 'GROUP_MEMBER_LEFT');
+    }
+
+    try {
+      const recipientIds = new Set<string>();
+      if (group.created_by) recipientIds.add(group.created_by);
+      for (const m of group.members) {
+        if (m.user_id && m.user_id !== userId && m.status === 'ACCEPTED') {
+          recipientIds.add(m.user_id);
+        }
+      }
+
+      if (rejectedExpenses.length > 0) {
+        const allUsers = await prisma.user.findMany({ select: { id: true, phone: true } });
+        for (const re of rejectedExpenses) {
+          if (re.ownerId && re.ownerId !== userId && re.ownerId !== group.created_by) {
+            await NotificationService.createNotification({
+              userId: re.ownerId,
+              type: 'EXPENSE_REJECTED',
+              title: 'Participante saiu de racha do grupo',
+              message: `${leaverName} saiu do grupo "${group.name}" sem quitar "${re.title}". A parte ficou pendente.`,
+              data: { expenseId: re.expenseId, groupId, amount: re.amount },
+            });
+          }
+          const payerUser = re.paidByPhone
+            ? allUsers.find(
+                (u) =>
+                  u.id !== userId &&
+                  u.id !== re.ownerId &&
+                  u.id !== group.created_by &&
+                  phonesMatch(u.phone, re.paidByPhone)
+              )
+            : null;
+          if (payerUser) {
+            await NotificationService.createNotification({
+              userId: payerUser.id,
+              type: 'EXPENSE_REJECTED',
+              title: 'Participante saiu de racha do grupo',
+              message: `${leaverName} saiu do grupo "${group.name}" sem quitar "${re.title}". A parte ficou pendente.`,
+              data: { expenseId: re.expenseId, groupId, amount: re.amount },
+            });
+          }
+          for (const recId of recipientIds) {
+            await ExpenseService.emitRealtimeExpenseToUser(recId, re.expenseId);
+          }
+        }
+      }
+    } catch {
+      // ignore
+    }
+
+    for (const m of group.members) {
+      if (
+        m.user_id &&
+        m.user_id !== userId &&
+        m.user_id !== group.created_by &&
+        m.status === 'ACCEPTED'
+      ) {
+        notifySync(m.user_id, 'GROUP_MEMBER_LEFT');
+      }
+    }
+
+    return { message: 'Você saiu do grupo com sucesso.' };
   }
 
   static async updateGroup(

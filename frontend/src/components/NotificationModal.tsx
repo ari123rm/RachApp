@@ -12,6 +12,9 @@ import {
   Sparkles,
   FileCheck,
   ChevronRight,
+  AlertTriangle,
+  CheckCircle2,
+  LogOut,
 } from 'lucide-react';
 import { dbService } from '../services/database';
 import { useModalBackHandler } from '../utils/modalBackHandler';
@@ -121,6 +124,14 @@ export function NotificationModal({ isOpen, onClose, onDataChange, onOpenRide }:
         return <FileCheck size={18} strokeWidth={2} className="text-[#10B981]" />;
       case 'PAYMENT_RECEIVED':
         return <DollarSign size={18} strokeWidth={2} className="text-[#10B981]" />;
+      case 'EXPENSE_ACCEPTED':
+        return <CheckCircle2 size={18} strokeWidth={2} className="text-[#10B981]" />;
+      case 'EXPENSE_REJECTED':
+        return <AlertTriangle size={18} strokeWidth={2} className="text-[#F43F5E]" />;
+      case 'GROUP_INVITE_REJECTED':
+        return <AlertTriangle size={18} strokeWidth={2} className="text-[#F59E0B]" />;
+      case 'GROUP_MEMBER_LEFT':
+        return <LogOut size={18} strokeWidth={2} className="text-[#F59E0B]" />;
       case 'GROUP_INVITE':
         return <Users size={18} strokeWidth={2} className="text-[var(--primary)]" />;
       case 'EXPENSE_ADDED':
@@ -166,7 +177,7 @@ export function NotificationModal({ isOpen, onClose, onDataChange, onOpenRide }:
                 )}
               </h2>
               <p className="text-xs text-[var(--text-secondary)]">
-                Atividades e atualizações da sua conta
+                Atividades recentes • lidas somem após 7 dias
               </p>
             </div>
           </div>

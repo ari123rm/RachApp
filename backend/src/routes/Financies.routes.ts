@@ -16,6 +16,8 @@ router.post('/expenses', FinanciesController.createExpense);
 router.put('/expenses/:id', FinanciesController.updateExpense);
 router.delete('/expenses/:id', FinanciesController.deleteExpense);
 router.post('/expenses/:id/payment', FinanciesController.setParticipantPayment);
+router.post('/expenses/:id/accept', FinanciesController.acceptExpense);
+router.post('/expenses/:id/reject', FinanciesController.rejectExpense);
 
 // Rotas por grupo e pagamentos
 router.post('/groups/:groupId/expenses', FinanciesController.addExpense);

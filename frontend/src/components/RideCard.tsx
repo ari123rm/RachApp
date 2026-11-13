@@ -1,5 +1,6 @@
 // src/components/RideCard.tsx
 import {
+  AlertTriangle,
   Check,
   CheckCircle2,
   Clock,
@@ -17,6 +18,8 @@ interface RideProps {
   participantes: { id: number | string; nome: string; cor: string; avatar_url?: string | null }[];
   userStatus?: RideUserStatus;
   paidByName?: string | null;
+  selfStatus?: 'PENDING' | 'ACCEPTED' | 'REJECTED';
+  recusados?: Array<{ id: string; nome: string; valor: number }>;
   onClick?: () => void;
 }
 
@@ -160,6 +163,8 @@ export function RideCard({
   participantes,
   userStatus,
   paidByName,
+  selfStatus,
+  recusados,
   onClick,
 }: RideProps) {
   const cleanTag = (tag || '').trim() || 'Uber';
@@ -188,6 +193,11 @@ export function RideCard({
   const isPagante = userStatus?.status === 'pagante';
   const hasTeDevem = isPagante && (userStatus?.amountOwedToYou || 0) > 0.01;
   const isPendente = userStatus?.status === 'pendente' && (userStatus?.amountYouOwe || 0) > 0.01;
+  const isSelfRejected = selfStatus === 'REJECTED' && !isPagante;
+  const isInvitePending = selfStatus === 'PENDING' && !isPagante;
+  const recusadosList = recusados || [];
+  const hasRecusados = recusadosList.length > 0;
+  const totalRecusado = recusadosList.reduce((acc, r) => acc + Number(r.valor || 0), 0);
 
   const firstPayerName = paidByName ? paidByName.trim().split(/\s+/)[0] : '';
   const payerLabel = isPagante
@@ -199,90 +209,146 @@ export function RideCard({
   return (
     <div
       onClick={onClick}
-      className="ds-card !px-3 !py-2.5 sm:!px-3.5 sm:!py-3 flex items-center justify-between gap-2.5 sm:gap-3 transition-all cursor-pointer hover:border-[var(--primary)]/40 active:scale-[0.99]"
+      className="ds-card !px-3 !py-2.5 sm:!px-3.5 sm:!py-3 flex flex-col gap-2 transition-all cursor-pointer hover:border-[var(--primary)]/40 active:scale-[0.99]"
     >
-      {/* Esquerda: Ícone da categoria + Nome da tag embaixo */}
-      <div className="flex flex-col items-center justify-center gap-1 shrink-0 min-w-[46px] max-w-[72px] sm:max-w-[84px]">
-        <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-[var(--bg-subtle)] text-[var(--primary)] flex items-center justify-center shrink-0 border border-[var(--border-color)]">
-          <CategoryIcon size={18} strokeWidth={2} />
-        </div>
-        <span
-          className={`${tagFontSizeClass} font-semibold text-[var(--text-secondary)] leading-none whitespace-nowrap truncate max-w-full text-center`}
-          title={cleanTag}
-        >
-          {cleanTag}
-        </span>
-      </div>
-
-      {/* Meio: Título da despesa + Quem pagou + Pilha de avatares com Valor Total */}
-      <div className="min-w-0 flex-1">
-        <h4 className="font-display font-semibold text-[15px] sm:text-base text-[var(--text-primary)] tracking-tight truncate leading-snug">
-          {displayTitle}
-        </h4>
-        <p className="text-xs text-[var(--text-secondary)] mt-0.5 truncate">
-          {payerLabel}
-        </p>
-
-        {/* Pilha de Avatares + Valor Total */}
-        <div className="flex items-center gap-2 mt-1.5 min-w-0">
-          <div className="flex -space-x-1.5 shrink-0">
-            {visibleAvatars.map((p) => (
-              <div
-                key={p.id}
-                style={p.avatar_url ? undefined : { backgroundColor: getAvatarColor(p.cor) }}
-                className="w-5 h-5 sm:w-6 sm:h-6 rounded-full overflow-hidden flex items-center justify-center border-2 border-[var(--bg-surface)] text-[10px] font-semibold text-white shrink-0 shadow-sm"
-                title={p.nome}
-              >
-                {p.avatar_url ? (
-                  <img src={p.avatar_url} alt={p.nome} className="w-full h-full object-cover" />
-                ) : (
-                  p.nome?.[0]?.toUpperCase() || '?'
-                )}
-              </div>
-            ))}
-            {extraCount > 0 && (
-              <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-[var(--bg-subtle)] text-[var(--text-secondary)] font-semibold text-[10px] flex items-center justify-center border-2 border-[var(--bg-surface)] shrink-0">
-                +{extraCount}
-              </div>
-            )}
+      <div className="flex items-center justify-between gap-2.5 sm:gap-3">
+        {/* Esquerda: Ícone da categoria + Nome da tag embaixo */}
+        <div className="flex flex-col items-center justify-center gap-1 shrink-0 min-w-[46px] max-w-[72px] sm:max-w-[84px]">
+          <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-[var(--bg-subtle)] text-[var(--primary)] flex items-center justify-center shrink-0 border border-[var(--border-color)]">
+            <CategoryIcon size={18} strokeWidth={2} />
           </div>
-          <span className="text-[11px] sm:text-xs font-medium text-[var(--text-secondary)] whitespace-nowrap truncate tabular-nums">
-            Total R$ {valorTotal}
+          <span
+            className={`${tagFontSizeClass} font-semibold text-[var(--text-secondary)] leading-none whitespace-nowrap truncate max-w-full text-center`}
+            title={cleanTag}
+          >
+            {cleanTag}
           </span>
         </div>
+
+        {/* Meio: Título da despesa + Quem pagou + Pilha de avatares com Valor Total */}
+        <div className="min-w-0 flex-1">
+          <h4 className="font-display font-semibold text-[15px] sm:text-base text-[var(--text-primary)] tracking-tight truncate leading-snug">
+            {displayTitle}
+          </h4>
+          <p className="text-xs text-[var(--text-secondary)] mt-0.5 truncate">
+            {payerLabel}
+          </p>
+
+          {/* Pilha de Avatares + Valor Total */}
+          <div className="flex items-center gap-2 mt-1.5 min-w-0">
+            <div className="flex -space-x-1.5 shrink-0">
+              {visibleAvatars.map((p) => (
+                <div
+                  key={p.id}
+                  style={p.avatar_url ? undefined : { backgroundColor: getAvatarColor(p.cor) }}
+                  className="w-5 h-5 sm:w-6 sm:h-6 rounded-full overflow-hidden flex items-center justify-center border-2 border-[var(--bg-surface)] text-[10px] font-semibold text-white shrink-0 shadow-sm"
+                  title={p.nome}
+                >
+                  {p.avatar_url ? (
+                    <img src={p.avatar_url} alt={p.nome} className="w-full h-full object-cover" />
+                  ) : (
+                    p.nome?.[0]?.toUpperCase() || '?'
+                  )}
+                </div>
+              ))}
+              {extraCount > 0 && (
+                <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-[var(--bg-subtle)] text-[var(--text-secondary)] font-semibold text-[10px] flex items-center justify-center border-2 border-[var(--bg-surface)] shrink-0">
+                  +{extraCount}
+                </div>
+              )}
+            </div>
+            <span className="text-[11px] sm:text-xs font-medium text-[var(--text-secondary)] whitespace-nowrap truncate tabular-nums">
+              Total R$ {valorTotal}
+            </span>
+          </div>
+        </div>
+
+        {/* Direita: Valor monetário + Status Semântico */}
+        <div className="text-right flex flex-col items-end justify-center shrink-0">
+          {hasTeDevem ? (
+            <>
+              <span className="font-display font-bold text-sm sm:text-base text-[#10B981] tabular-nums whitespace-nowrap">
+                + R$ {moneyConverter(userStatus?.amountOwedToYou || 0)}
+              </span>
+              <span className="inline-flex items-center gap-1 mt-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-[var(--emerald-bg)] text-[#10B981] border border-[var(--emerald-border)] whitespace-nowrap">
+                <CheckCircle2 size={11} strokeWidth={2} /> A receber
+              </span>
+            </>
+          ) : isSelfRejected ? (
+            <>
+              <span className="font-display font-bold text-sm sm:text-base text-[#F43F5E] tabular-nums whitespace-nowrap">
+                R$ 0,00
+              </span>
+              <span className="inline-flex items-center gap-1 mt-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-[var(--rose-bg)] text-[#F43F5E] border border-[var(--rose-border)] whitespace-nowrap">
+                <AlertTriangle size={11} strokeWidth={2} /> Recusado
+              </span>
+            </>
+          ) : isInvitePending ? (
+            <>
+              <span className="font-display font-bold text-sm sm:text-base text-[#F59E0B] tabular-nums whitespace-nowrap">
+                {isPendente
+                  ? `- R$ ${moneyConverter(userStatus?.amountYouOwe || 0)}`
+                  : `R$ ${moneyConverter(userStatus?.myShare || 0)}`}
+              </span>
+              <span className="inline-flex items-center gap-1 mt-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-[var(--amber-bg)] text-[#F59E0B] border border-[var(--amber-border)] whitespace-nowrap">
+                <Clock size={11} strokeWidth={2} /> A aceitar
+              </span>
+            </>
+          ) : isPendente ? (
+            <>
+              <span className="font-display font-bold text-sm sm:text-base text-[#F43F5E] tabular-nums whitespace-nowrap">
+                - R$ {moneyConverter(userStatus?.amountYouOwe || 0)}
+              </span>
+              <span className="inline-flex items-center gap-1 mt-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-[var(--rose-bg)] text-[#F43F5E] border border-[var(--rose-border)] whitespace-nowrap">
+                <Clock size={11} strokeWidth={2} /> Você deve
+              </span>
+            </>
+          ) : hasRecusados ? (
+            <>
+              <span className="font-display font-bold text-sm sm:text-base text-[#F59E0B] tabular-nums whitespace-nowrap">
+                R$ {moneyConverter(totalRecusado)}
+              </span>
+              <span className="inline-flex items-center gap-1 mt-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-[var(--amber-bg)] text-[#F59E0B] border border-[var(--amber-border)] whitespace-nowrap">
+                <AlertTriangle size={11} strokeWidth={2} /> Pendência
+              </span>
+            </>
+          ) : (
+            <>
+              <span className="font-display font-bold text-sm sm:text-base text-[#10B981] tabular-nums whitespace-nowrap">
+                R$ {moneyConverter(userStatus?.myShare || 0)}
+              </span>
+              <span className="inline-flex items-center gap-1 mt-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-[var(--emerald-bg)] text-[#10B981] border border-[var(--emerald-border)] whitespace-nowrap">
+                <Check size={11} strokeWidth={2} /> Pago
+              </span>
+            </>
+          )}
+        </div>
       </div>
 
-      {/* Direita: Valor monetário + Status Semântico */}
-      <div className="text-right flex flex-col items-end justify-center shrink-0">
-        {hasTeDevem ? (
-          <>
-            <span className="font-display font-bold text-sm sm:text-base text-[#10B981] tabular-nums whitespace-nowrap">
-              + R$ {moneyConverter(userStatus?.amountOwedToYou || 0)}
-            </span>
-            <span className="inline-flex items-center gap-1 mt-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-[var(--emerald-bg)] text-[#10B981] border border-[var(--emerald-border)] whitespace-nowrap">
-              <CheckCircle2 size={11} strokeWidth={2} /> A receber
-            </span>
-          </>
-        ) : isPendente ? (
-          <>
-            <span className="font-display font-bold text-sm sm:text-base text-[#F43F5E] tabular-nums whitespace-nowrap">
-              - R$ {moneyConverter(userStatus?.amountYouOwe || 0)}
-            </span>
-            <span className="inline-flex items-center gap-1 mt-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-[var(--rose-bg)] text-[#F43F5E] border border-[var(--rose-border)] whitespace-nowrap">
-              <Clock size={11} strokeWidth={2} /> Você deve
-            </span>
-          </>
-        ) : (
-          <>
-            <span className="font-display font-bold text-sm sm:text-base text-[#10B981] tabular-nums whitespace-nowrap">
-              R$ {moneyConverter(userStatus?.myShare || 0)}
-            </span>
-            <span className="inline-flex items-center gap-1 mt-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-[var(--emerald-bg)] text-[#10B981] border border-[var(--emerald-border)] whitespace-nowrap">
-              <Check size={11} strokeWidth={2} /> Pago
-            </span>
-          </>
-        )}
-      </div>
+      {isInvitePending && (
+        <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-[var(--amber-bg)] border border-[var(--amber-border)] text-[#F59E0B] text-[11px] font-semibold leading-tight">
+          <Clock size={13} strokeWidth={2} className="shrink-0" />
+          <span className="truncate">Convite pendente • Toque para aceitar ou recusar</span>
+        </div>
+      )}
+
+      {isSelfRejected && (
+        <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-[var(--rose-bg)] border border-[var(--rose-border)] text-[#F43F5E] text-[11px] font-semibold leading-tight">
+          <AlertTriangle size={13} strokeWidth={2} className="shrink-0" />
+          <span className="truncate">Você recusou este racha (sem pendência no seu saldo)</span>
+        </div>
+      )}
+
+      {hasRecusados && (
+        <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-[var(--rose-bg)] border border-[var(--rose-border)] text-[#F43F5E] text-[11px] font-semibold leading-tight">
+          <AlertTriangle size={13} strokeWidth={2} className="shrink-0" />
+          <span className="truncate">
+            {recusadosList.length === 1
+              ? `${recusadosList[0].nome.split(' ')[0]} recusou • R$ ${moneyConverter(totalRecusado)} pendente (sem redistribuição)`
+              : `${recusadosList.length} recusaram • R$ ${moneyConverter(totalRecusado)} pendente (sem redistribuição)`}
+          </span>
+        </div>
+      )}
     </div>
   );
 }

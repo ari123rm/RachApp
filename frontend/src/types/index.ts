@@ -61,6 +61,9 @@ export interface Corrida {
   isCreator?: boolean;
   created_by_user_id?: string | null;
   original_owner_id?: string | null;
+  selfStatus?: 'PENDING' | 'ACCEPTED' | 'REJECTED';
+  statusParticipantes?: Record<string, 'PENDING' | 'ACCEPTED' | 'REJECTED'>;
+  recusados?: Array<{ id: string; nome: string; valor: number }>;
 }
 
 export interface Transferencia {
@@ -129,10 +132,20 @@ export interface SyncStatus {
 export interface AppNotification {
   id: string;
   user_id: string;
-  type: 'EXPENSE_ADDED' | 'PAYMENT_RECEIVED' | 'GROUP_INVITE' | string;
+  type:
+    | 'EXPENSE_ADDED'
+    | 'EXPENSE_ACCEPTED'
+    | 'EXPENSE_REJECTED'
+    | 'PAYMENT_RECEIVED'
+    | 'RECEIPT_UPLOADED'
+    | 'GROUP_INVITE'
+    | 'GROUP_INVITE_REJECTED'
+    | 'GROUP_MEMBER_LEFT'
+    | string;
   title: string;
   message: string;
   data?: Record<string, any> | null;
   read: boolean;
+  read_at?: string | null;
   created_at: string;
 }

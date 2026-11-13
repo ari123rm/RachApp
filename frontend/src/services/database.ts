@@ -120,6 +120,34 @@ function toIsoDateOnly(dateInput?: string | Date | null): string {
   return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
 }
 
+const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
+
+async function pruneExpiredReadNotifications(): Promise<void> {
+  try {
+    const cutoffMs = Date.now() - SEVEN_DAYS_MS;
+    const readRows = await queryAll<{ id: string; read_at?: string | null; created_at?: string | null }>(
+      `SELECT id, read_at, created_at FROM notifications WHERE read = 1`
+    );
+    const expiredIds = readRows
+      .filter((r) => {
+        const ref = r.read_at || r.created_at;
+        if (!ref) return false;
+        const ts = new Date(ref).getTime();
+        return !isNaN(ts) && ts <= cutoffMs;
+      })
+      .map((r) => r.id);
+
+    if (expiredIds.length > 0) {
+      for (const id of expiredIds) {
+        await runSQL('DELETE FROM notifications WHERE id = ?', [id], false);
+      }
+      await flushSQLite();
+    }
+  } catch (err) {
+    console.warn('Aviso ao limpar notificações antigas já lidas:', err);
+  }
+}
+
 const recentlyRealtimeUpsertedIds = new Map<string, number>();
 
 function isRecentlyRealtimeUpserted(id: string): boolean {
@@ -173,8 +201,8 @@ export async function applyRealtimeExpenseUpsert(payload: {
       recentlyRealtimeUpsertedIds.set(e.id, nowMs);
       db.run(
         `INSERT OR REPLACE INTO expenses (
-          id, user_id, created_by_user_id, group_id, paid_by_friend_id, title, tag, total_amount, self_amount_owed, self_amount_paid, self_receipt_url, expense_date, synced
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
+          id, user_id, created_by_user_id, group_id, paid_by_friend_id, title, tag, total_amount, self_amount_owed, self_amount_paid, self_receipt_url, self_status, expense_date, synced
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
         [
           e.id,
           e.user_id || currentUserId,
@@ -187,6 +215,7 @@ export async function applyRealtimeExpenseUpsert(payload: {
           Number(e.self_amount_owed || 0),
           Number(e.self_amount_paid || 0),
           e.self_receipt_url || null,
+          e.self_status || 'ACCEPTED',
           toIsoDateOnly(e.expense_date),
         ]
       );
@@ -195,14 +224,15 @@ export async function applyRealtimeExpenseUpsert(payload: {
         db.run('DELETE FROM expense_participants WHERE expense_id = ?', [e.id]);
         for (const p of e.participants) {
           db.run(
-            `INSERT OR REPLACE INTO expense_participants (expense_id, friend_id, amount_owed, amount_paid, receipt_url)
-             VALUES (?, ?, ?, ?, ?)`,
+            `INSERT OR REPLACE INTO expense_participants (expense_id, friend_id, amount_owed, amount_paid, receipt_url, status)
+             VALUES (?, ?, ?, ?, ?, ?)`,
             [
               e.id,
               p.friend_id,
               Number(p.amount_owed || 0),
               Number(p.amount_paid || 0),
               p.receipt_url || null,
+              p.status || 'ACCEPTED',
             ]
           );
         }
@@ -238,9 +268,10 @@ export async function applyRealtimeExpenseDelete(expenseId: string): Promise<voi
 export async function applyRealtimeNotificationUpsert(notif: AppNotification): Promise<void> {
   if (!notif?.id) return;
   try {
+    const readAt = notif.read_at || (notif.read ? notif.created_at || new Date().toISOString() : null);
     await runSQL(
-      `INSERT OR REPLACE INTO notifications (id, user_id, type, title, message, data, read, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT OR REPLACE INTO notifications (id, user_id, type, title, message, data, read, read_at, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         notif.id,
         notif.user_id || '',
@@ -249,6 +280,7 @@ export async function applyRealtimeNotificationUpsert(notif: AppNotification): P
         notif.message || '',
         notif.data ? (typeof notif.data === 'string' ? notif.data : JSON.stringify(notif.data)) : null,
         notif.read ? 1 : 0,
+        readAt,
         notif.created_at || new Date().toISOString(),
       ],
       true
@@ -425,8 +457,8 @@ async function saveRemoteSnapshotToSQLite(data: {
         if (pendingIds.has(e.id)) continue;
         db.run(
           `INSERT OR REPLACE INTO expenses (
-            id, user_id, created_by_user_id, group_id, paid_by_friend_id, title, tag, total_amount, self_amount_owed, self_amount_paid, self_receipt_url, expense_date, synced
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
+            id, user_id, created_by_user_id, group_id, paid_by_friend_id, title, tag, total_amount, self_amount_owed, self_amount_paid, self_receipt_url, self_status, expense_date, synced
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
           [
             e.id,
             e.user_id || data.user?.id || '',
@@ -439,6 +471,7 @@ async function saveRemoteSnapshotToSQLite(data: {
             Number(e.self_amount_owed || 0),
             Number(e.self_amount_paid || 0),
             e.self_receipt_url || null,
+            e.self_status || 'ACCEPTED',
             toIsoDateOnly(e.expense_date),
           ]
         );
@@ -447,9 +480,16 @@ async function saveRemoteSnapshotToSQLite(data: {
           db.run('DELETE FROM expense_participants WHERE expense_id = ?', [e.id]);
           for (const p of e.participants) {
             db.run(
-              `INSERT OR REPLACE INTO expense_participants (expense_id, friend_id, amount_owed, amount_paid, receipt_url)
-               VALUES (?, ?, ?, ?, ?)`,
-              [e.id, p.friend_id, Number(p.amount_owed || 0), Number(p.amount_paid || 0), p.receipt_url || null]
+              `INSERT OR REPLACE INTO expense_participants (expense_id, friend_id, amount_owed, amount_paid, receipt_url, status)
+               VALUES (?, ?, ?, ?, ?, ?)`,
+              [
+                e.id,
+                p.friend_id,
+                Number(p.amount_owed || 0),
+                Number(p.amount_paid || 0),
+                p.receipt_url || null,
+                p.status || 'ACCEPTED',
+              ]
             );
           }
         }
@@ -457,11 +497,19 @@ async function saveRemoteSnapshotToSQLite(data: {
     }
 
     if (Array.isArray(data.notifications)) {
+      const cutoffMs = Date.now() - SEVEN_DAYS_MS;
       db.run('DELETE FROM notifications');
       for (const n of data.notifications) {
+        const refDate = n.read ? n.read_at || n.created_at : null;
+        if (n.read && refDate) {
+          const refMs = new Date(refDate).getTime();
+          if (!isNaN(refMs) && refMs <= cutoffMs) {
+            continue;
+          }
+        }
         db.run(
-          `INSERT OR REPLACE INTO notifications (id, user_id, type, title, message, data, read, created_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+          `INSERT OR REPLACE INTO notifications (id, user_id, type, title, message, data, read, read_at, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             n.id,
             n.user_id,
@@ -470,6 +518,7 @@ async function saveRemoteSnapshotToSQLite(data: {
             n.message,
             n.data ? (typeof n.data === 'string' ? n.data : JSON.stringify(n.data)) : null,
             n.read ? 1 : 0,
+            n.read_at || (n.read ? n.created_at || new Date().toISOString() : null),
             n.created_at || new Date().toISOString(),
           ]
         );
@@ -715,6 +764,8 @@ async function pushPendingQueue(): Promise<boolean> {
                 await runSQL('UPDATE groups_table SET synced = 1 WHERE id = ?', [effectiveEntityId], false);
               } else if (item.action === 'delete') {
                 await api.delete(`/groups/${effectiveEntityId}`);
+              } else if (item.action === 'leave') {
+                await api.post(`/groups/${effectiveEntityId}/leave`);
               } else if (item.action === 'add_member') {
                 await api.post(`/groups/${effectiveEntityId}/members`, payload);
               } else if (item.action === 'remove_member') {
@@ -731,6 +782,12 @@ async function pushPendingQueue(): Promise<boolean> {
                 await runSQL('UPDATE expenses SET synced = 1 WHERE id = ?', [effectiveEntityId], false);
               } else if (item.action === 'update') {
                 await api.put(`/finances/expenses/${effectiveEntityId}`, { ...payload, friendsMeta });
+                await runSQL('UPDATE expenses SET synced = 1 WHERE id = ?', [effectiveEntityId], false);
+              } else if (item.action === 'accept') {
+                await api.post(`/finances/expenses/${effectiveEntityId}/accept`);
+                await runSQL('UPDATE expenses SET synced = 1 WHERE id = ?', [effectiveEntityId], false);
+              } else if (item.action === 'reject') {
+                await api.post(`/finances/expenses/${effectiveEntityId}/reject`);
                 await runSQL('UPDATE expenses SET synced = 1 WHERE id = ?', [effectiveEntityId], false);
               } else if (item.action === 'delete') {
                 await api.delete(`/finances/expenses/${effectiveEntityId}`);
@@ -1146,6 +1203,8 @@ export const dbService = {
              OR (? != '' AND f.phone = ?)
              OR LOWER(TRIM(f.name)) = LOWER(TRIM(?))
            )
+           AND COALESCE(ep.status, 'ACCEPTED') != 'REJECTED'
+           AND COALESCE(e.self_status, 'ACCEPTED') != 'REJECTED'
            AND (e.paid_by_friend_id IS NULL OR e.paid_by_friend_id = '')
            ${hasMonth ? 'AND substr(e.expense_date, 1, 7) = ?' : ''}`,
           hasMonth
@@ -1177,6 +1236,7 @@ export const dbService = {
            FROM expenses e
            LEFT JOIN friends f ON f.id = e.paid_by_friend_id
            WHERE e.paid_by_friend_id IS NOT NULL AND e.paid_by_friend_id != ''
+             AND COALESCE(e.self_status, 'ACCEPTED') != 'REJECTED'
              AND (
                e.paid_by_friend_id = ?
                OR (? != '' AND f.phone = ?)
@@ -1422,6 +1482,7 @@ export const dbService = {
          FROM expenses e
          LEFT JOIN groups_table g ON g.id = e.group_id
          LEFT JOIN friends f ON f.id = e.paid_by_friend_id
+         WHERE COALESCE(e.self_status, 'ACCEPTED') != 'REJECTED'
          ORDER BY e.expense_date DESC, e.rowid DESC`
       );
 
@@ -1432,12 +1493,23 @@ export const dbService = {
           amount_owed: number;
           amount_paid: number;
           receipt_url?: string | null;
-        }>('SELECT friend_id, amount_owed, amount_paid, receipt_url FROM expense_participants WHERE expense_id = ?', [e.id]);
+          status?: string | null;
+          friend_name?: string | null;
+        }>(
+          `SELECT ep.friend_id, ep.amount_owed, ep.amount_paid, ep.receipt_url,
+                  COALESCE(ep.status, 'ACCEPTED') as status, f.name as friend_name
+           FROM expense_participants ep
+           LEFT JOIN friends f ON f.id = ep.friend_id
+           WHERE ep.expense_id = ?`,
+          [e.id]
+        );
 
         const participantesIds = partRows.map((p) => p.friend_id);
         const pagamentos: Record<string, number> = {};
         const valoresDevidos: Record<string, number> = {};
         const comprovantes: Record<string, string> = {};
+        const statusParticipantes: Record<string, 'PENDING' | 'ACCEPTED' | 'REJECTED'> = {};
+        const recusados: Array<{ id: string; nome: string; valor: number }> = [];
         let allPaid = partRows.length > 0;
 
         for (const p of partRows) {
@@ -1446,7 +1518,16 @@ export const dbService = {
           if (p.receipt_url) {
             comprovantes[p.friend_id] = p.receipt_url;
           }
-          if (Number(p.amount_owed) - Number(p.amount_paid) > 0.01) {
+          const st = (p.status || 'ACCEPTED') as 'PENDING' | 'ACCEPTED' | 'REJECTED';
+          statusParticipantes[p.friend_id] = st;
+          if (st === 'REJECTED') {
+            recusados.push({
+              id: p.friend_id,
+              nome: p.friend_name || 'Participante',
+              valor: Number(p.amount_owed || 0),
+            });
+            allPaid = false;
+          } else if (Number(p.amount_owed) - Number(p.amount_paid) > 0.01) {
             allPaid = false;
           }
         }
@@ -1472,12 +1553,16 @@ export const dbService = {
           creatorId === currentUserId ||
           creatorId === 'me'
         );
+        const selfStatus = (e.self_status || 'ACCEPTED') as 'PENDING' | 'ACCEPTED' | 'REJECTED';
 
         corridas.push({
           id: e.id,
           isCreator,
           created_by_user_id: creatorId,
           original_owner_id: creatorId,
+          selfStatus,
+          statusParticipantes,
+          recusados,
           titulo: e.title,
           title: e.title,
           valorTotal: Number(e.total_amount),
@@ -1531,8 +1616,8 @@ export const dbService = {
 
       await runSQL(
         `INSERT INTO expenses (
-          id, user_id, created_by_user_id, group_id, paid_by_friend_id, title, tag, total_amount, self_amount_owed, self_amount_paid, expense_date, synced
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)`,
+          id, user_id, created_by_user_id, group_id, paid_by_friend_id, title, tag, total_amount, self_amount_owed, self_amount_paid, self_status, expense_date, synced
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'ACCEPTED', ?, 0)`,
         [
           id,
           session?.user_id || '',
@@ -1551,6 +1636,7 @@ export const dbService = {
 
       const pagamentos: Record<string, number> = {};
       const valoresDevidos: Record<string, number> = {};
+      const statusParticipantes: Record<string, 'PENDING' | 'ACCEPTED' | 'REJECTED'> = {};
 
       for (const friendId of uniqueParticipants) {
         const owedVal =
@@ -1567,10 +1653,21 @@ export const dbService = {
           : 0;
         pagamentos[friendId] = paidVal;
 
+        const friendRow = await queryOne<{ has_account?: number }>(
+          'SELECT has_account FROM friends WHERE id = ?',
+          [friendId]
+        );
+        const initialStatus: 'PENDING' | 'ACCEPTED' = isPayer
+          ? 'ACCEPTED'
+          : friendRow?.has_account
+          ? 'PENDING'
+          : 'ACCEPTED';
+        statusParticipantes[friendId] = initialStatus;
+
         await runSQL(
-          `INSERT OR REPLACE INTO expense_participants (expense_id, friend_id, amount_owed, amount_paid)
-           VALUES (?, ?, ?, ?)`,
-          [id, friendId, owedVal, paidVal],
+          `INSERT OR REPLACE INTO expense_participants (expense_id, friend_id, amount_owed, amount_paid, status)
+           VALUES (?, ?, ?, ?, ?)`,
+          [id, friendId, owedVal, paidVal, initialStatus],
           false
         );
       }
@@ -1598,6 +1695,9 @@ export const dbService = {
         valorTotal: Number(novaCorrida.valorTotal),
         selfAmountOwed: selfOwed,
         selfAmountPaid: paidByFriendId ? 0 : selfOwed,
+        selfStatus: 'ACCEPTED',
+        statusParticipantes,
+        recusados: [],
         data: dateStr,
         tag: (novaCorrida.tag || 'Uber').trim(),
         groupId: novaCorrida.groupId || null,
@@ -1638,15 +1738,18 @@ export const dbService = {
         friend_id: string;
         amount_paid: number;
         receipt_url?: string | null;
+        status?: string | null;
       }>(
-        'SELECT friend_id, amount_paid, receipt_url FROM expense_participants WHERE expense_id = ?',
+        "SELECT friend_id, amount_paid, receipt_url, COALESCE(status, 'ACCEPTED') as status FROM expense_participants WHERE expense_id = ?",
         [id]
       );
       const prevPaidMap = new Map<string, number>();
       const prevReceiptMap = new Map<string, string | null>();
+      const prevStatusMap = new Map<string, 'PENDING' | 'ACCEPTED' | 'REJECTED'>();
       existingParts.forEach((p) => {
         prevPaidMap.set(p.friend_id, Number(p.amount_paid || 0));
         prevReceiptMap.set(p.friend_id, p.receipt_url || null);
+        prevStatusMap.set(p.friend_id, (p.status || 'ACCEPTED') as 'PENDING' | 'ACCEPTED' | 'REJECTED');
       });
 
       const uniqueParticipants = Array.from(new Set(dados.participantesIds));
@@ -1681,6 +1784,8 @@ export const dbService = {
 
       const pagamentos: Record<string, number> = {};
       const valoresDevidos: Record<string, number> = {};
+      const statusParticipantes: Record<string, 'PENDING' | 'ACCEPTED' | 'REJECTED'> = {};
+      const recusados: Array<{ id: string; nome: string; valor: number }> = [];
 
       for (const friendId of uniqueParticipants) {
         const owedVal =
@@ -1697,10 +1802,33 @@ export const dbService = {
         const paidVal = isPayer ? owedVal : Math.min(owedVal, prevPaid);
         pagamentos[friendId] = paidVal;
 
+        const prevStatus = prevStatusMap.get(friendId);
+        const friendRow = !prevStatus
+          ? await queryOne<{ name?: string; has_account?: number }>(
+              'SELECT name, has_account FROM friends WHERE id = ?',
+              [friendId]
+            )
+          : await queryOne<{ name?: string }>('SELECT name FROM friends WHERE id = ?', [friendId]);
+        const nextStatus: 'PENDING' | 'ACCEPTED' | 'REJECTED' = isPayer
+          ? 'ACCEPTED'
+          : prevStatus
+          ? prevStatus
+          : (friendRow as any)?.has_account
+          ? 'PENDING'
+          : 'ACCEPTED';
+        statusParticipantes[friendId] = nextStatus;
+        if (nextStatus === 'REJECTED') {
+          recusados.push({
+            id: friendId,
+            nome: friendRow?.name || 'Participante',
+            valor: owedVal,
+          });
+        }
+
         await runSQL(
-          `INSERT INTO expense_participants (expense_id, friend_id, amount_owed, amount_paid, receipt_url)
-           VALUES (?, ?, ?, ?, ?)`,
-          [id, friendId, owedVal, paidVal, prevReceiptMap.get(friendId) || null],
+          `INSERT INTO expense_participants (expense_id, friend_id, amount_owed, amount_paid, receipt_url, status)
+           VALUES (?, ?, ?, ?, ?, ?)`,
+          [id, friendId, owedVal, paidVal, prevReceiptMap.get(friendId) || null, nextStatus],
           false
         );
       }
@@ -1727,6 +1855,9 @@ export const dbService = {
         valorTotal: Number(dados.valorTotal),
         selfAmountOwed: selfOwed,
         selfAmountPaid: Number(existing.self_amount_paid || 0),
+        selfStatus: (existing.self_status || 'ACCEPTED') as 'PENDING' | 'ACCEPTED' | 'REJECTED',
+        statusParticipantes,
+        recusados,
         data: dateStr,
         tag: (dados.tag || 'Uber').trim(),
         groupId: dados.groupId !== undefined ? dados.groupId || null : existing.group_id,
@@ -1739,7 +1870,7 @@ export const dbService = {
 
     setPaied: async (id: string, isPaied: boolean = true): Promise<void> => {
       const parts = await queryAll<{ friend_id: string; amount_owed: number }>(
-        'SELECT friend_id, amount_owed FROM expense_participants WHERE expense_id = ?',
+        "SELECT friend_id, amount_owed FROM expense_participants WHERE expense_id = ? AND COALESCE(status, 'ACCEPTED') != 'REJECTED'",
         [id]
       );
       for (const p of parts) {
@@ -1756,6 +1887,110 @@ export const dbService = {
       }
       await flushSQLite();
       syncWithBackend(true).catch(() => {});
+    },
+
+    accept: async (id: string): Promise<void> => {
+      const existing = await queryOne<any>('SELECT * FROM expenses WHERE id = ?', [id]);
+      if (!existing) throw new Error('Racha não encontrado.');
+
+      const prevStatus = existing.self_status || 'PENDING';
+      await runSQL("UPDATE expenses SET self_status = 'ACCEPTED', synced = 0 WHERE id = ?", [id], true);
+      await dbService.notifications.markAsReadByExpenseId(id);
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('rachapp:notifications-updated'));
+      }
+
+      try {
+        await api.post(`/finances/expenses/${id}/accept`);
+        await runSQL('UPDATE expenses SET synced = 1 WHERE id = ?', [id], true);
+        syncWithBackend(true).catch(() => {});
+      } catch (err: any) {
+        const status = err?.response?.status;
+        if (
+          !err?.response ||
+          status === 401 ||
+          status === 403 ||
+          status === 408 ||
+          status === 429 ||
+          (status && status >= 500)
+        ) {
+          await enqueueSync('expense', 'accept', id);
+        } else {
+          await runSQL('UPDATE expenses SET self_status = ? WHERE id = ?', [prevStatus, id], true);
+          throw new Error(err?.response?.data?.error || err?.message || 'Não foi possível aceitar o racha.');
+        }
+      }
+    },
+
+    reject: async (id: string): Promise<void> => {
+      const existing = await queryOne<any>('SELECT * FROM expenses WHERE id = ?', [id]);
+      if (!existing) throw new Error('Racha não encontrado.');
+
+      const session = await queryOne<any>('SELECT user_id FROM auth_session WHERE id = 1');
+      const currentUserId = session?.user_id || '';
+      const creatorId = existing.created_by_user_id || '';
+      const isCreator = Boolean(
+        !creatorId ||
+        !currentUserId ||
+        creatorId === currentUserId ||
+        creatorId === 'me'
+      );
+      if (isCreator) {
+        throw new Error('O criador do racha não pode recusá-lo; exclua ou edite o racha.');
+      }
+
+      if (!existing.paid_by_friend_id) {
+        throw new Error('Quem pagou o racha não possui parte pendente para recusar.');
+      }
+
+      const partSummary = await queryOne<{ cnt: number; owed_sum: number }>(
+        'SELECT COUNT(*) as cnt, COALESCE(SUM(amount_owed), 0) as owed_sum FROM expense_participants WHERE expense_id = ?',
+        [id]
+      );
+      const totalPeople = Number(partSummary?.cnt || 0) + 1;
+      const partSum = Number(partSummary?.owed_sum || 0);
+      const selfOwed =
+        existing.self_amount_owed !== null && existing.self_amount_owed !== undefined && Number(existing.self_amount_owed) > 0
+          ? Number(existing.self_amount_owed)
+          : Math.abs(partSum - Number(existing.total_amount || 0)) <= 0.1 || partSum >= Number(existing.total_amount || 0) - 0.1
+          ? 0
+          : Number(existing.total_amount || 0) / Math.max(1, totalPeople);
+      const selfPaid = Number(existing.self_amount_paid || 0);
+      if (selfPaid >= selfOwed - 0.01) {
+        throw new Error('Não é possível recusar um racha que já foi quitado por você.');
+      }
+
+      if (existing.self_status === 'REJECTED') {
+        return;
+      }
+
+      const prevStatus = existing.self_status || 'PENDING';
+      await runSQL("UPDATE expenses SET self_status = 'REJECTED', synced = 0 WHERE id = ?", [id], true);
+      await dbService.notifications.markAsReadByExpenseId(id);
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('rachapp:notifications-updated'));
+      }
+
+      try {
+        await api.post(`/finances/expenses/${id}/reject`);
+        await runSQL('UPDATE expenses SET synced = 1 WHERE id = ?', [id], true);
+        syncWithBackend(true).catch(() => {});
+      } catch (err: any) {
+        const status = err?.response?.status;
+        if (
+          !err?.response ||
+          status === 401 ||
+          status === 403 ||
+          status === 408 ||
+          status === 429 ||
+          (status && status >= 500)
+        ) {
+          await enqueueSync('expense', 'reject', id);
+        } else {
+          await runSQL('UPDATE expenses SET self_status = ? WHERE id = ?', [prevStatus, id], true);
+          throw new Error(err?.response?.data?.error || err?.message || 'Não foi possível recusar o racha.');
+        }
+      }
     },
 
     delete: async (id: string): Promise<void> => {
@@ -1900,6 +2135,36 @@ export const dbService = {
 
       if (Array.isArray(data.friendIds)) {
         const uniqueFriends = Array.from(new Set(data.friendIds));
+        const uniqueFriendSet = new Set(uniqueFriends);
+        const existingMemberRows = await queryAll<{ friend_id: string | null }>(
+          'SELECT friend_id FROM group_members WHERE group_id = ? AND friend_id IS NOT NULL',
+          [id]
+        );
+        const removedFriendIds = existingMemberRows
+          .map((m) => m.friend_id)
+          .filter(
+            (fId): fId is string =>
+              typeof fId === 'string' && fId.length > 0 && !uniqueFriendSet.has(fId)
+          );
+
+        for (const remFriendId of removedFriendIds) {
+          const groupExpRows = await queryAll<{ id: string }>(
+            'SELECT id FROM expenses WHERE group_id = ? AND (paid_by_friend_id IS NULL OR paid_by_friend_id != ?)',
+            [id, remFriendId]
+          );
+          for (const ge of groupExpRows) {
+            await runSQL(
+              `UPDATE expense_participants
+               SET status = 'REJECTED'
+               WHERE expense_id = ?
+                 AND friend_id = ?
+                 AND COALESCE(amount_paid, 0) < COALESCE(amount_owed, 0) - 0.01`,
+              [ge.id, remFriendId],
+              false
+            );
+          }
+        }
+
         await runSQL('DELETE FROM group_members WHERE group_id = ?', [id], false);
         await runSQL(
           `INSERT INTO group_members (id, group_id, user_id, friend_id, synced) VALUES (?, ?, ?, NULL, 0)`,
@@ -1986,6 +2251,21 @@ export const dbService = {
     },
 
     removeMember: async (groupId: string, friendId: string) => {
+      const groupExpRows = await queryAll<{ id: string }>(
+        'SELECT id FROM expenses WHERE group_id = ? AND (paid_by_friend_id IS NULL OR paid_by_friend_id != ?)',
+        [groupId, friendId]
+      );
+      for (const ge of groupExpRows) {
+        await runSQL(
+          `UPDATE expense_participants
+           SET status = 'REJECTED'
+           WHERE expense_id = ?
+             AND friend_id = ?
+             AND COALESCE(amount_paid, 0) < COALESCE(amount_owed, 0) - 0.01`,
+          [ge.id, friendId],
+          false
+        );
+      }
       await runSQL('DELETE FROM group_members WHERE group_id = ? AND friend_id = ?', [groupId, friendId], true);
       await enqueueSync('group', 'remove_member', groupId, { memberId: friendId });
       syncWithBackend(true).catch(() => {});
@@ -2101,7 +2381,7 @@ export const dbService = {
 
       for (const exp of expRows) {
         const parts = await queryAll<any>(
-          `SELECT ep.*, f.name as friend_name, f.color as friend_color, f.phone as friend_phone, f.pix_key as friend_pix, f.avatar_url as friend_avatar
+          `SELECT ep.*, COALESCE(ep.status, 'ACCEPTED') as status, f.name as friend_name, f.color as friend_color, f.phone as friend_phone, f.pix_key as friend_pix, f.avatar_url as friend_avatar
            FROM expense_participants ep
            LEFT JOIN friends f ON f.id = ep.friend_id
            WHERE ep.expense_id = ?`,
@@ -2109,6 +2389,7 @@ export const dbService = {
         );
 
         for (const p of parts) {
+          if ((p.status || 'ACCEPTED') === 'REJECTED') continue;
           if (!entityMeta[p.friend_id]) {
             entityMeta[p.friend_id] = {
               id: p.friend_id,
@@ -2127,6 +2408,7 @@ export const dbService = {
         const payerFriendId = exp.paid_by_friend_id;
         if (!payerFriendId) {
           for (const p of parts) {
+            if ((p.status || 'ACCEPTED') === 'REJECTED') continue;
             const pending = Number(p.amount_owed) - Number(p.amount_paid);
             if (pending > 0.005) {
               netBalances[ownerKey] = (netBalances[ownerKey] || 0) + pending;
@@ -2148,7 +2430,7 @@ export const dbService = {
           }
 
           for (const p of parts) {
-            if (p.friend_id === payerFriendId) continue;
+            if (p.friend_id === payerFriendId || (p.status || 'ACCEPTED') === 'REJECTED') continue;
             const pending = Number(p.amount_owed) - Number(p.amount_paid);
             if (pending > 0.005) {
               netBalances[payerFriendId] = (netBalances[payerFriendId] || 0) + pending;
@@ -2166,7 +2448,7 @@ export const dbService = {
               ? 0
               : Number(exp.total_amount) / (parts.length + 1);
           const selfPaid = Number(exp.self_amount_paid || 0);
-          const selfPending = selfOwed - selfPaid;
+          const selfPending = (exp.self_status || 'ACCEPTED') === 'REJECTED' ? 0 : selfOwed - selfPaid;
           if (selfPending > 0.005) {
             netBalances[payerFriendId] = (netBalances[payerFriendId] || 0) + selfPending;
             netBalances[ownerKey] = (netBalances[ownerKey] || 0) - selfPending;
@@ -2234,6 +2516,74 @@ export const dbService = {
       return data;
     },
 
+    leave: async (groupId: string): Promise<void> => {
+      const existing = await queryOne<any>('SELECT * FROM groups_table WHERE id = ?', [groupId]);
+      const session = await queryOne<any>('SELECT user_id FROM auth_session WHERE id = 1');
+      const currentUserId = session?.user_id || '';
+      if (
+        existing?.created_by &&
+        (existing.created_by === 'me' || (currentUserId && existing.created_by === currentUserId))
+      ) {
+        throw new Error('O criador do grupo não pode sair do grupo; exclua o grupo se desejar.');
+      }
+
+      // Apenas se o racha NÃO tiver sido quitado por você (e você não foi o pagador), marca como recusado/pendente sem apagar os já quitados
+      const unpaidCheckRows = await queryAll<{
+        id: string;
+        self_amount_owed: number;
+        self_amount_paid: number;
+        total_amount: number;
+        part_count: number;
+        part_sum: number;
+      }>(
+        `SELECT e.id, e.self_amount_owed, e.self_amount_paid, e.total_amount,
+                (SELECT COUNT(*) FROM expense_participants ep2 WHERE ep2.expense_id = e.id) as part_count,
+                (SELECT COALESCE(SUM(amount_owed), 0) FROM expense_participants ep3 WHERE ep3.expense_id = e.id) as part_sum
+         FROM expenses e
+         WHERE e.group_id = ?
+           AND e.paid_by_friend_id IS NOT NULL AND e.paid_by_friend_id != ''`,
+        [groupId]
+      );
+
+      for (const row of unpaidCheckRows) {
+        const totalPeople = Number(row.part_count || 0) + 1;
+        const partSum = Number(row.part_sum || 0);
+        const selfOwed =
+          row.self_amount_owed !== null && row.self_amount_owed !== undefined && Number(row.self_amount_owed) > 0
+            ? Number(row.self_amount_owed)
+            : Math.abs(partSum - Number(row.total_amount || 0)) <= 0.1 || partSum >= Number(row.total_amount || 0) - 0.1
+            ? 0
+            : Number(row.total_amount || 0) / Math.max(1, totalPeople);
+        const selfPaid = Number(row.self_amount_paid || 0);
+        if (selfPaid < selfOwed - 0.01) {
+          await runSQL("UPDATE expenses SET self_status = 'REJECTED' WHERE id = ?", [row.id], false);
+        }
+      }
+
+      await runSQL('DELETE FROM group_members WHERE group_id = ?', [groupId], false);
+      await runSQL('DELETE FROM groups_table WHERE id = ?', [groupId], true);
+
+      try {
+        await api.post(`/groups/${groupId}/leave`);
+        await syncWithBackend(true);
+      } catch (err: any) {
+        const status = err?.response?.status;
+        if (
+          !err?.response ||
+          status === 401 ||
+          status === 403 ||
+          status === 408 ||
+          status === 429 ||
+          (status && status >= 500)
+        ) {
+          await enqueueSync('group', 'leave', groupId);
+        } else {
+          await syncWithBackend(true).catch(() => {});
+          throw new Error(err?.response?.data?.error || err?.message || 'Não foi possível sair do grupo.');
+        }
+      }
+    },
+
     rejectInvitation: async (invitationId: string): Promise<any> => {
       const invRow = await queryOne<any>(
         'SELECT group_id FROM group_members WHERE id = ? OR group_id = ?',
@@ -2244,14 +2594,40 @@ export const dbService = {
       const { data } = await api.post(`/groups/invitations/${invitationId}/reject`);
 
       if (groupId) {
-        const session = await queryOne<any>('SELECT user_id FROM auth_session WHERE id = 1');
-        const myUserId = session?.user_id;
-        await runSQL(
-          'DELETE FROM expenses WHERE group_id = ? AND (created_by_user_id != ? OR created_by_user_id IS NULL)',
-          [groupId, myUserId || ''],
-          false
+        const unpaidCheckRows = await queryAll<{
+          id: string;
+          self_amount_owed: number;
+          self_amount_paid: number;
+          total_amount: number;
+          part_count: number;
+          part_sum: number;
+        }>(
+          `SELECT e.id, e.self_amount_owed, e.self_amount_paid, e.total_amount,
+                  (SELECT COUNT(*) FROM expense_participants ep2 WHERE ep2.expense_id = e.id) as part_count,
+                  (SELECT COALESCE(SUM(amount_owed), 0) FROM expense_participants ep3 WHERE ep3.expense_id = e.id) as part_sum
+           FROM expenses e
+           WHERE e.group_id = ?
+             AND e.paid_by_friend_id IS NOT NULL AND e.paid_by_friend_id != ''`,
+          [groupId]
         );
+
+        for (const row of unpaidCheckRows) {
+          const totalPeople = Number(row.part_count || 0) + 1;
+          const partSum = Number(row.part_sum || 0);
+          const selfOwed =
+            row.self_amount_owed !== null && row.self_amount_owed !== undefined && Number(row.self_amount_owed) > 0
+              ? Number(row.self_amount_owed)
+              : Math.abs(partSum - Number(row.total_amount || 0)) <= 0.1 || partSum >= Number(row.total_amount || 0) - 0.1
+              ? 0
+              : Number(row.total_amount || 0) / Math.max(1, totalPeople);
+          const selfPaid = Number(row.self_amount_paid || 0);
+          if (selfPaid < selfOwed - 0.01) {
+            await runSQL("UPDATE expenses SET self_status = 'REJECTED' WHERE id = ?", [row.id], false);
+          }
+        }
+
         await runSQL('DELETE FROM group_members WHERE group_id = ?', [groupId], false);
+        await runSQL('DELETE FROM groups_table WHERE id = ?', [groupId], true);
       }
 
       await syncWithBackend(true);
@@ -2273,6 +2649,7 @@ export const dbService = {
         `SELECT DISTINCT substr(expense_date, 1, 7) as ym
          FROM expenses
          WHERE expense_date IS NOT NULL AND length(expense_date) >= 7
+           AND COALESCE(self_status, 'ACCEPTED') != 'REJECTED'
          ORDER BY ym DESC`
       );
       const mesesSet = new Set<string>([ymPrefix]);
@@ -2289,9 +2666,11 @@ export const dbService = {
       const mesesDisponiveis = Array.from(mesesSet).sort((a, b) => b.localeCompare(a));
 
       const monthRow = isAllMonths
-        ? await queryOne<{ total: number }>(`SELECT SUM(total_amount) as total FROM expenses`)
+        ? await queryOne<{ total: number }>(
+            `SELECT SUM(total_amount) as total FROM expenses WHERE COALESCE(self_status, 'ACCEPTED') != 'REJECTED'`
+          )
         : await queryOne<{ total: number }>(
-            `SELECT SUM(total_amount) as total FROM expenses WHERE substr(expense_date, 1, 7) = ?`,
+            `SELECT SUM(total_amount) as total FROM expenses WHERE substr(expense_date, 1, 7) = ? AND COALESCE(self_status, 'ACCEPTED') != 'REJECTED'`,
             [effectiveMonth]
           );
       const totalGasto = Number((monthRow?.total || 0).toFixed(2));
@@ -2399,6 +2778,8 @@ export const dbService = {
            OR (? != '' AND f.phone = ?)
            OR (? != '' AND LOWER(TRIM(f.name)) = LOWER(TRIM(?)))
          )
+         AND COALESCE(ep.status, 'ACCEPTED') != 'REJECTED'
+         AND COALESCE(e.self_status, 'ACCEPTED') != 'REJECTED'
          AND (e.paid_by_friend_id IS NULL OR e.paid_by_friend_id = '')`,
         [amigoId, normPhone, normPhone, friendName, friendName]
       );
@@ -2556,6 +2937,7 @@ export const dbService = {
            FROM expenses e
            LEFT JOIN friends f ON f.id = e.paid_by_friend_id
            WHERE e.paid_by_friend_id IS NOT NULL AND e.paid_by_friend_id != ''
+             AND COALESCE(e.self_status, 'ACCEPTED') != 'REJECTED'
              AND (
                e.paid_by_friend_id = ?
                OR (? != '' AND f.phone = ?)
@@ -2673,6 +3055,8 @@ export const dbService = {
              OR (? != '' AND f.phone = ?)
              OR (? != '' AND LOWER(TRIM(f.name)) = LOWER(TRIM(?)))
            )
+             AND COALESCE(ep.status, 'ACCEPTED') != 'REJECTED'
+             AND COALESCE(e.self_status, 'ACCEPTED') != 'REJECTED'
              AND (e.paid_by_friend_id IS NULL OR e.paid_by_friend_id = '')
              ${groupId ? 'AND e.group_id = ?' : ''}
            ORDER BY e.expense_date ASC, e.rowid ASC`,
@@ -2840,6 +3224,7 @@ export const dbService = {
 
   notifications: {
     list: async (): Promise<AppNotification[]> => {
+      await pruneExpiredReadNotifications();
       const rows = await queryAll<any>('SELECT * FROM notifications ORDER BY created_at DESC LIMIT 50');
       return rows.map((r) => {
         let parsedData = null;
@@ -2856,16 +3241,23 @@ export const dbService = {
           message: r.message,
           data: parsedData,
           read: Boolean(r.read),
+          read_at: r.read_at || null,
           created_at: r.created_at,
         };
       });
     },
     getUnreadCount: async (): Promise<number> => {
+      await pruneExpiredReadNotifications();
       const row = await queryOne<{ cnt: number }>('SELECT COUNT(*) as cnt FROM notifications WHERE read = 0');
       return Number(row?.cnt || 0);
     },
     markAsRead: async (id: string): Promise<void> => {
-      await runSQL('UPDATE notifications SET read = 1 WHERE id = ?', [id], true);
+      const nowIso = new Date().toISOString();
+      await runSQL(
+        "UPDATE notifications SET read = 1, read_at = COALESCE(NULLIF(read_at, ''), ?) WHERE id = ?",
+        [nowIso, id],
+        true
+      );
       api.patch(`/notifications/${id}/read`).catch(() => {});
     },
     markAsReadByExpenseId: async (expenseId: string): Promise<string[]> => {
@@ -2886,9 +3278,15 @@ export const dbService = {
         }
 
         if (matchingIds.length > 0) {
+          const nowIso = new Date().toISOString();
           for (const id of matchingIds) {
-            await runSQL('UPDATE notifications SET read = 1 WHERE id = ?', [id], true);
+            await runSQL(
+              "UPDATE notifications SET read = 1, read_at = COALESCE(NULLIF(read_at, ''), ?) WHERE id = ?",
+              [nowIso, id],
+              false
+            );
           }
+          await flushSQLite();
           api.patch(`/notifications/read-expense/${expenseId}`).catch(() => {});
         }
         return matchingIds;
@@ -2898,7 +3296,12 @@ export const dbService = {
       }
     },
     markAllAsRead: async (): Promise<void> => {
-      await runSQL('UPDATE notifications SET read = 1 WHERE read = 0', [], true);
+      const nowIso = new Date().toISOString();
+      await runSQL(
+        "UPDATE notifications SET read = 1, read_at = COALESCE(NULLIF(read_at, ''), ?) WHERE read = 0",
+        [nowIso],
+        true
+      );
       api.patch('/notifications/read-all').catch(() => {});
     },
     delete: async (id: string): Promise<void> => {
