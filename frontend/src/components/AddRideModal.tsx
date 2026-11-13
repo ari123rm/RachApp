@@ -16,6 +16,8 @@ import {
   Trash2,
   RotateCcw,
   Sparkles,
+  Search,
+  Star,
 } from 'lucide-react';
 import { dbService } from '../services/database';
 import type { Amigo, Corrida, Grupo } from '../types';
@@ -89,6 +91,12 @@ export function AddRideModal({
     'todos' | TagIconPreset['category']
   >('todos');
 
+  // Busca e filtro rápido de participantes
+  const [buscaParticipante, setBuscaParticipante] = useState('');
+  const [filtroParticipante, setFiltroParticipante] = useState<
+    'todos' | 'favoritos' | 'selecionados'
+  >('todos');
+
   // Custom Split State
   const [splitMode, setSplitMode] = useState<SplitMode>('equal');
   const [hasCustomEdits, setHasCustomEdits] = useState(false);
@@ -131,6 +139,8 @@ export function AddRideModal({
       setIsManagingTitles(false);
       setIsManagingTags(false);
       setIsTagEditorOpen(false);
+      setBuscaParticipante('');
+      setFiltroParticipante('todos');
       return;
     }
 
@@ -631,6 +641,36 @@ export function AddRideModal({
       ? TAG_ICON_PRESETS
       : TAG_ICON_PRESETS.filter((p) => p.category === iconCategoryFilter);
 
+  const amigosOrdenados = [...amigosReais].sort((a, b) => {
+    const favA = Boolean(a.favorito || a.is_favorite);
+    const favB = Boolean(b.favorito || b.is_favorite);
+    if (favA !== favB) return favA ? -1 : 1;
+    const nomeA = a.nome || a.name || '';
+    const nomeB = b.nome || b.name || '';
+    return nomeA.localeCompare(nomeB, 'pt-BR', { sensitivity: 'base' });
+  });
+
+  const totalFavoritosCount = amigosOrdenados.filter((a) => a.favorito || a.is_favorite).length;
+  const amigosSelecionadosObjetos = amigosOrdenados.filter((a) => selecionados.includes(a.id));
+
+  const amigosParticipantesFiltrados = amigosOrdenados.filter((amigo) => {
+    if (buscaParticipante.trim()) {
+      const termo = buscaParticipante.trim().toLowerCase();
+      const nome = (amigo.nome || amigo.name || '').toLowerCase();
+      const fone = (amigo.telefone || amigo.phone || '').toLowerCase();
+      if (!nome.includes(termo) && !fone.includes(termo)) {
+        return false;
+      }
+    }
+    if (filtroParticipante === 'favoritos' && !(amigo.favorito || amigo.is_favorite)) {
+      return false;
+    }
+    if (filtroParticipante === 'selecionados' && !selecionados.includes(amigo.id)) {
+      return false;
+    }
+    return true;
+  });
+
   return createPortal(
     <div
       className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4 transition-opacity animate-fade-in"
@@ -1087,7 +1127,10 @@ export function AddRideModal({
                 </div>
 
                 {/* Grade de Presets de Ícones */}
-                <div className="grid grid-cols-4 sm:grid-cols-5 gap-1.5 max-h-52 overflow-y-auto p-1 mt-1 rounded-xl bg-[var(--bg-surface)] border border-[var(--border-color)]">
+                <div
+                  data-no-sheet-drag="true"
+                  className="grid grid-cols-4 sm:grid-cols-5 gap-1.5 max-h-52 overflow-y-auto p-1.5 mt-1 rounded-xl bg-[var(--bg-surface)] border border-[var(--border-color)]"
+                >
                   {filteredIconPresets.map((preset) => {
                     const PresetIcon = preset.icon;
                     const isSelectedIcon = tagEditorIconKey === preset.key;
@@ -1096,7 +1139,7 @@ export function AddRideModal({
                         key={preset.key}
                         type="button"
                         onClick={() => setTagEditorIconKey(preset.key)}
-                        className={`flex flex-col items-center justify-center gap-1 p-2 rounded-xl border text-center transition-all active:scale-95 ${
+                        className={`flex flex-col items-center justify-center gap-1 px-1 py-2 rounded-xl border text-center transition-all active:scale-95 ${
                           isSelectedIcon
                             ? 'bg-[var(--primary)] text-white border-[var(--primary)] shadow-sm'
                             : 'bg-[var(--bg-subtle)]/60 hover:bg-[var(--bg-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] border-transparent'
@@ -1108,7 +1151,7 @@ export function AddRideModal({
                           strokeWidth={2}
                           className={isSelectedIcon ? 'text-white' : 'text-[var(--primary)]'}
                         />
-                        <span className="text-[10px] font-medium leading-tight truncate w-full">
+                        <span className="text-[10px] font-medium leading-tight truncate w-full text-center">
                           {preset.label}
                         </span>
                       </button>
@@ -1178,28 +1221,44 @@ export function AddRideModal({
           </div>
         )}
 
-        {/* Campo: Quem estava com você */}
+        {/* Campo: Quem estava com você (Seletor compacto com busca, filtros e lista rolável) */}
         <div className="mb-5">
           <div className="flex justify-between items-center mb-2">
             <label className="text-[var(--text-secondary)] text-caption uppercase font-semibold">
-              Participantes ({selecionados.length} amigos + Você)
+              Participantes ({selecionados.length}{' '}
+              {selecionados.length === 1 ? 'amigo' : 'amigos'} + Você)
             </label>
             {amigosReais.length > 0 && (
-              <button
-                type="button"
-                onClick={() => {
-                  if (selecionados.length === amigosReais.length) {
-                    setSelecionados([]);
-                  } else {
-                    const todosIds = amigosReais.map((a) => a.id);
-                    setSelecionados(todosIds);
-                    inicializarDivisaoIgual(todosIds, valorNumerico);
-                  }
-                }}
-                className="text-caption text-[var(--primary)] font-semibold hover:underline"
-              >
-                {selecionados.length === amigosReais.length ? 'Limpar' : 'Selecionar todos'}
-              </button>
+              <div className="flex items-center gap-2">
+                {selecionados.length > 0 && selecionados.length < amigosReais.length && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelecionados([]);
+                      setPaidByFriendId('');
+                    }}
+                    className="text-caption text-[#F43F5E] font-semibold hover:underline"
+                  >
+                    Limpar
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (selecionados.length === amigosReais.length) {
+                      setSelecionados([]);
+                      setPaidByFriendId('');
+                    } else {
+                      const todosIds = amigosReais.map((a) => a.id);
+                      setSelecionados(todosIds);
+                      inicializarDivisaoIgual(todosIds, valorNumerico);
+                    }
+                  }}
+                  className="text-caption text-[var(--primary)] font-semibold hover:underline"
+                >
+                  {selecionados.length === amigosReais.length ? 'Limpar todos' : 'Selecionar todos'}
+                </button>
+              </div>
             )}
           </div>
 
@@ -1207,42 +1266,231 @@ export function AddRideModal({
             <div className="flex justify-center p-4">
               <LoaderCircle className="animate-spin text-[var(--primary)]" />
             </div>
+          ) : amigosReais.length === 0 ? (
+            <p className="text-caption text-[var(--text-secondary)] italic">
+              Cadastre amigos na aba "Amigos" primeiro!
+            </p>
           ) : (
-            <div className="flex flex-wrap gap-2">
-              {amigosReais.length === 0 ? (
-                <p className="text-caption text-[var(--text-secondary)] italic">
-                  Cadastre amigos na aba "Amigos" primeiro!
-                </p>
-              ) : (
-                amigosReais.map((amigo) => {
-                  const isSelected = selecionados.includes(amigo.id);
-                  const nomeAmigo = amigo.nome || amigo.name || 'Amigo';
-                  const corAmigo = amigo.cor || amigo.color || 'bg-sky-500';
-                  return (
+            <div className="space-y-2">
+              {/* Faixa rápida de amigos já selecionados no racha */}
+              {amigosSelecionadosObjetos.length > 0 && (
+                <div
+                  data-horizontal-scroll="true"
+                  className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-hide"
+                >
+                  {amigosSelecionadosObjetos.map((amigo) => {
+                    const nomeAmigo = amigo.nome || amigo.name || 'Amigo';
+                    const corAmigo = amigo.cor || amigo.color || 'bg-sky-500';
+                    return (
+                      <button
+                        key={`sel-${amigo.id}`}
+                        type="button"
+                        onClick={() => toggleAmigo(amigo.id)}
+                        className="inline-flex items-center gap-1.5 pl-1.5 pr-2 py-1 rounded-full bg-[var(--primary)]/12 border border-[var(--primary)]/40 text-[var(--text-primary)] text-caption font-semibold shrink-0 active:scale-95 transition-all"
+                        title={`Remover ${nomeAmigo} do racha`}
+                      >
+                        <div
+                          style={
+                            amigo.avatar_url
+                              ? undefined
+                              : { backgroundColor: getAvatarColor(corAmigo) }
+                          }
+                          className="w-5 h-5 rounded-full overflow-hidden flex items-center justify-center text-[10px] text-white font-bold shrink-0"
+                        >
+                          {amigo.avatar_url ? (
+                            <img
+                              src={amigo.avatar_url}
+                              alt={nomeAmigo}
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            nomeAmigo[0]?.toUpperCase()
+                          )}
+                        </div>
+                        <span className="truncate max-w-[96px]">{nomeAmigo.split(' ')[0]}</span>
+                        <X size={12} strokeWidth={2.5} className="text-[var(--primary)] shrink-0" />
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Busca + Filtros rápidos de amigos */}
+              <div className="flex flex-col gap-1.5">
+                <div className="h-9 bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-xl px-3 flex items-center gap-2 focus-within:border-[var(--primary)] transition-colors">
+                  <Search size={14} strokeWidth={2} className="text-[var(--text-secondary)] shrink-0" />
+                  <input
+                    type="text"
+                    placeholder="Buscar amigo pelo nome..."
+                    value={buscaParticipante}
+                    onChange={(e) => setBuscaParticipante(e.target.value)}
+                    className="bg-transparent w-full text-caption text-[var(--text-primary)] outline-none placeholder:text-[var(--text-secondary)]"
+                  />
+                  {buscaParticipante && (
                     <button
-                      key={amigo.id}
                       type="button"
-                      onClick={() => toggleAmigo(amigo.id)}
-                      className={`flex items-center gap-2 px-3 py-2 rounded-full border transition-all ${
-                        isSelected
-                          ? 'border-[var(--primary)] bg-[var(--primary)]/10 text-[var(--text-primary)] font-semibold'
-                          : 'border-[var(--border-color)] bg-[var(--bg-subtle)] text-[var(--text-secondary)]'
+                      onClick={() => setBuscaParticipante('')}
+                      className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] p-0.5 shrink-0"
+                    >
+                      <X size={14} strokeWidth={2} />
+                    </button>
+                  )}
+                </div>
+
+                {(totalFavoritosCount > 0 || selecionados.length > 0) && (
+                  <div
+                    data-horizontal-scroll="true"
+                    className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide"
+                  >
+                    <button
+                      type="button"
+                      onClick={() => setFiltroParticipante('todos')}
+                      className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition-colors shrink-0 ${
+                        filtroParticipante === 'todos'
+                          ? 'bg-[var(--primary)] text-white border-[var(--primary)]'
+                          : 'bg-[var(--bg-subtle)] text-[var(--text-secondary)] border-[var(--border-color)]'
                       }`}
                     >
-                      <div
-                        style={{ backgroundColor: getAvatarColor(corAmigo) }}
-                        className="w-6 h-6 rounded-full flex items-center justify-center text-caption text-white font-bold"
-                      >
-                        {nomeAmigo[0]?.toUpperCase()}
-                      </div>
-                      <span className="text-body2">{nomeAmigo}</span>
-                      {(amigo.has_account || amigo.is_registered) && (
-                        <BadgeCheck size={14} strokeWidth={2} className="text-[var(--primary)] shrink-0" />
-                      )}
+                      Todos ({amigosReais.length})
                     </button>
-                  );
-                })
-              )}
+                    {totalFavoritosCount > 0 && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setFiltroParticipante(
+                            filtroParticipante === 'favoritos' ? 'todos' : 'favoritos'
+                          )
+                        }
+                        className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition-colors inline-flex items-center gap-1 shrink-0 ${
+                          filtroParticipante === 'favoritos'
+                            ? 'bg-[var(--primary)] text-white border-[var(--primary)]'
+                            : 'bg-[var(--bg-subtle)] text-[var(--text-secondary)] border-[var(--border-color)]'
+                        }`}
+                      >
+                        <Star
+                          size={11}
+                          strokeWidth={2}
+                          className={
+                            filtroParticipante === 'favoritos'
+                              ? 'fill-white text-white'
+                              : 'fill-[#F59E0B] text-[#F59E0B]'
+                          }
+                        />
+                        <span>Favoritos ({totalFavoritosCount})</span>
+                      </button>
+                    )}
+                    {selecionados.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setFiltroParticipante(
+                            filtroParticipante === 'selecionados' ? 'todos' : 'selecionados'
+                          )
+                        }
+                        className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition-colors shrink-0 ${
+                          filtroParticipante === 'selecionados'
+                            ? 'bg-[var(--primary)] text-white border-[var(--primary)]'
+                            : 'bg-[var(--bg-subtle)] text-[var(--text-secondary)] border-[var(--border-color)]'
+                        }`}
+                      >
+                        No racha ({selecionados.length})
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Grade compacta rolável de amigos (2 colunas, altura controlada) */}
+              <div
+                data-no-sheet-drag="true"
+                className="max-h-48 overflow-y-auto p-1.5 rounded-2xl bg-[var(--bg-subtle)]/70 border border-[var(--border-color)]"
+              >
+                {amigosParticipantesFiltrados.length === 0 ? (
+                  <p className="text-caption text-[var(--text-secondary)] text-center py-4">
+                    Nenhum amigo encontrado para este filtro.
+                  </p>
+                ) : (
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {amigosParticipantesFiltrados.map((amigo) => {
+                      const isSelected = selecionados.includes(amigo.id);
+                      const nomeAmigo = amigo.nome || amigo.name || 'Amigo';
+                      const corAmigo = amigo.cor || amigo.color || 'bg-sky-500';
+                      const isFav = Boolean(amigo.favorito || amigo.is_favorite);
+                      const isVerified = Boolean(amigo.has_account || amigo.is_registered);
+
+                      return (
+                        <button
+                          key={amigo.id}
+                          type="button"
+                          onClick={() => toggleAmigo(amigo.id)}
+                          className={`flex items-center justify-between gap-1.5 px-2.5 py-2 rounded-xl border text-left transition-all active:scale-[0.98] ${
+                            isSelected
+                              ? 'border-[var(--primary)] bg-[var(--primary)]/12 text-[var(--text-primary)] shadow-sm'
+                              : 'border-[var(--border-color)] bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2 min-w-0 flex-1">
+                            <div className="relative shrink-0">
+                              <div
+                                style={
+                                  amigo.avatar_url
+                                    ? undefined
+                                    : { backgroundColor: getAvatarColor(corAmigo) }
+                                }
+                                className="w-7 h-7 rounded-full overflow-hidden flex items-center justify-center text-caption text-white font-bold"
+                              >
+                                {amigo.avatar_url ? (
+                                  <img
+                                    src={amigo.avatar_url}
+                                    alt={nomeAmigo}
+                                    className="w-full h-full object-cover"
+                                  />
+                                ) : (
+                                  nomeAmigo[0]?.toUpperCase()
+                                )}
+                              </div>
+                              {isFav && (
+                                <Star
+                                  size={10}
+                                  strokeWidth={2.2}
+                                  className="absolute -bottom-0.5 -right-0.5 text-[#F59E0B] fill-[#F59E0B] bg-[var(--bg-surface)] rounded-full p-[1px]"
+                                />
+                              )}
+                            </div>
+
+                            <div className="min-w-0 flex-1 flex items-center gap-1">
+                              <span
+                                className={`text-caption truncate ${
+                                  isSelected ? 'font-bold text-[var(--text-primary)]' : 'font-medium'
+                                }`}
+                              >
+                                {nomeAmigo}
+                              </span>
+                              {isVerified && (
+                                <BadgeCheck
+                                  size={13}
+                                  strokeWidth={2}
+                                  className="text-[var(--primary)] shrink-0"
+                                />
+                              )}
+                            </div>
+                          </div>
+
+                          <div
+                            className={`w-4 h-4 rounded-full flex items-center justify-center shrink-0 border transition-colors ${
+                              isSelected
+                                ? 'bg-[var(--primary)] border-[var(--primary)] text-white'
+                                : 'border-[var(--border-color)] bg-[var(--bg-subtle)]'
+                            }`}
+                          >
+                            {isSelected && <Check size={10} strokeWidth={3} />}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </div>

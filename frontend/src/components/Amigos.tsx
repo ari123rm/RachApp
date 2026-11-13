@@ -709,25 +709,28 @@ export function Amigos({
 
             {/* FAVORITOS (Avatares Circulares 64x64px) */}
             {buscaAmigos === '' && filtroAmigos === 'todos' && favoritos.length > 0 && (
-              <section>
+              <section className="min-w-0">
                 <div className="flex justify-between items-end mb-4">
                   <h2 className="text-h2 text-[var(--text-primary)]">Favoritos</h2>
                 </div>
-                <div className="flex gap-4 overflow-x-auto pb-3 scrollbar-hide">
+                <div
+                  data-horizontal-scroll="true"
+                  className="flex gap-4 overflow-x-auto pb-3 pt-1 px-0.5 scrollbar-hide w-full"
+                >
                   {favoritos.map((amigo) => (
                     <div
                       key={amigo.id}
                       onClick={() => setAmigoSelecionado(amigo)}
-                      className="flex flex-col items-center min-w-[72px] cursor-pointer active:scale-95 transition-transform"
+                      className="flex flex-col items-center shrink-0 w-[72px] min-w-[72px] cursor-pointer active:scale-95 transition-transform select-none"
                     >
-                      <div className="relative mb-2">
+                      <div className="relative mb-2 shrink-0">
                         <div
                           style={
                             amigo.avatar_url
                               ? undefined
                               : { backgroundColor: getAvatarColor(amigo.cor || amigo.color) }
                           }
-                          className="w-16 h-16 rounded-full overflow-hidden flex items-center justify-center shadow-sm border-2 border-[var(--bg-surface)]"
+                          className="w-16 h-16 shrink-0 rounded-full overflow-hidden flex items-center justify-center shadow-sm border-2 border-[var(--bg-surface)]"
                         >
                           {amigo.avatar_url ? (
                             <img

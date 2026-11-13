@@ -315,9 +315,11 @@ h4,
 }
 
 /* Global Text Overflow Prevention */
-* {
-  min-width: 0;
-  box-sizing: border-box;
+@layer base {
+  * {
+    min-width: 0;
+    box-sizing: border-box;
+  }
 }
 
 /* Hide Scrollbars while preserving smooth scroll */
