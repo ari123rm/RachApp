@@ -9,6 +9,7 @@ router.use(authMiddleware);
 
 router.post('/', GroupController.create);
 router.get('/', GroupController.list);
+router.post('/join-by-code', GroupController.joinByCode);
 
 // Convites de grupo (devem vir antes de /:id)
 router.get('/invitations', GroupController.listPendingInvitations);

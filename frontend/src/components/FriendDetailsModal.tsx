@@ -100,10 +100,12 @@ export function FriendDetailsModal({
 
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isPixModalOpen, setIsPixModalOpen] = useState(false);
-  const [myConfig, setMyConfig] = useState<{ nome: string; pix: string }>({
+  const [myConfig, setMyConfig] = useState<{ nome: string; pix: string; autoAccept: boolean }>({
     nome: 'Você',
     pix: '',
+    autoAccept: false,
   });
+  const [isUpdatingRule, setIsUpdatingRule] = useState(false);
 
   const sheetRef = useModalBackHandler(isOpen, onClose);
   const paymentSheetRef = useModalBackHandler(isPaymentModalOpen, () => setIsPaymentModalOpen(false));
@@ -134,6 +136,7 @@ export function FriendDetailsModal({
       setMyConfig({
         nome: config.nome || config.name || 'Você',
         pix: (config.pix_key || config.pix || '').trim(),
+        autoAccept: Boolean(config.auto_accept_expenses),
       });
 
       const targetPhone = stripCountryCode(targetAmigo.telefone || targetAmigo.phone || '');
@@ -493,6 +496,7 @@ export function FriendDetailsModal({
     const cfg = {
       nome: fresh.nome || fresh.name || myConfig.nome || 'Você',
       pix: (fresh.pix_key || fresh.pix || myConfig.pix || '').trim(),
+      autoAccept: Boolean(fresh.auto_accept_expenses),
     };
     setMyConfig(cfg);
 
@@ -505,9 +509,36 @@ export function FriendDetailsModal({
     const cfg = {
       nome: fresh.nome || fresh.name || myConfig.nome || 'Você',
       pix: (fresh.pix_key || fresh.pix || myConfig.pix || '').trim(),
+      autoAccept: Boolean(fresh.auto_accept_expenses),
     };
     setMyConfig(cfg);
     setIsPixModalOpen(true);
+  };
+
+  const currentRule: 'DEFAULT' | 'AUTO_ACCEPT' | 'MANUAL' =
+    baseAmigo.auto_accept_rule === 'AUTO_ACCEPT' || baseAmigo.auto_accept_rule === 'MANUAL'
+      ? baseAmigo.auto_accept_rule
+      : 'DEFAULT';
+
+  const effectiveAutoAccept =
+    currentRule === 'AUTO_ACCEPT'
+      ? true
+      : currentRule === 'MANUAL'
+      ? false
+      : myConfig.autoAccept;
+
+  const handleSelectRule = async (nextRule: 'DEFAULT' | 'AUTO_ACCEPT' | 'MANUAL') => {
+    if (isUpdatingRule || nextRule === currentRule || !baseAmigo?.id) return;
+    setIsUpdatingRule(true);
+    setAmigoAtual((prev: any) => ({ ...(prev || baseAmigo), auto_accept_rule: nextRule }));
+    try {
+      await dbService.amigos.update(baseAmigo.id, { auto_accept_rule: nextRule });
+      if (update) update();
+    } catch {
+      setAmigoAtual((prev: any) => ({ ...(prev || baseAmigo), auto_accept_rule: currentRule }));
+    } finally {
+      setIsUpdatingRule(false);
+    }
   };
 
   if (!isOpen || !baseAmigo) return null;
@@ -562,7 +593,7 @@ export function FriendDetailsModal({
 
         <div className="px-4 py-5 sm:px-6 overflow-y-auto flex-1">
           {/* Resumo do Perfil */}
-          <div className="ds-card flex flex-col items-center mb-6">
+          <div className="ds-card flex flex-col items-center mb-4">
             <div
               style={
                 baseAmigo.avatar_url ? undefined : { backgroundColor: getAvatarColor(cor) }
@@ -684,6 +715,68 @@ export function FriendDetailsModal({
                 </div>
               </div>
             )}
+          </div>
+
+          {/* Configuração de Aceite de Rachas por Amigo */}
+          <div className="ds-card p-4 mb-6 space-y-3">
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <h4 className="text-sm font-display font-bold text-[var(--text-primary)]">
+                  Rachas criados por {nome.split(' ')[0]}
+                </h4>
+                <p className="text-[11px] text-[var(--text-secondary)]">
+                  Quando {nome.split(' ')[0]} adicionar você em um racha
+                </p>
+              </div>
+              <span
+                className={`text-[11px] px-2.5 py-0.5 rounded-full font-semibold border shrink-0 ${
+                  effectiveAutoAccept
+                    ? 'bg-[var(--emerald-bg)] text-[#10B981] border-[var(--emerald-border)]'
+                    : 'bg-[var(--amber-bg)] text-[#F59E0B] border-[var(--amber-border)]'
+                }`}
+              >
+                {effectiveAutoAccept ? 'Aceitar auto' : 'Analisar'}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-3 gap-1.5 bg-[var(--bg-subtle)] p-1 rounded-xl border border-[var(--border-color)]">
+              <button
+                type="button"
+                disabled={isUpdatingRule}
+                onClick={() => handleSelectRule('DEFAULT')}
+                className={`py-2 px-2 rounded-lg text-xs font-semibold transition-all text-center ${
+                  currentRule === 'DEFAULT'
+                    ? 'bg-[var(--primary)] text-white shadow-xs'
+                    : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+                }`}
+              >
+                Padrão ({myConfig.autoAccept ? 'Auto' : 'Analisar'})
+              </button>
+              <button
+                type="button"
+                disabled={isUpdatingRule}
+                onClick={() => handleSelectRule('AUTO_ACCEPT')}
+                className={`py-2 px-2 rounded-lg text-xs font-semibold transition-all text-center ${
+                  currentRule === 'AUTO_ACCEPT'
+                    ? 'bg-[var(--primary)] text-white shadow-xs'
+                    : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+                }`}
+              >
+                Aceitar Auto
+              </button>
+              <button
+                type="button"
+                disabled={isUpdatingRule}
+                onClick={() => handleSelectRule('MANUAL')}
+                className={`py-2 px-2 rounded-lg text-xs font-semibold transition-all text-center ${
+                  currentRule === 'MANUAL'
+                    ? 'bg-[var(--primary)] text-white shadow-xs'
+                    : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+                }`}
+              >
+                Analisar
+              </button>
+            </div>
           </div>
 
           <div className="flex justify-between items-center mb-3">

@@ -13,6 +13,8 @@ import {
   Palette,
   Sun,
   Moon,
+  CheckCircle2,
+  Clock,
 } from 'lucide-react';
 import { Capacitor } from '@capacitor/core';
 import { dbService } from '../services/database';
@@ -37,6 +39,7 @@ interface SettingsModalProps {
   onOpenUpdateModal?: () => void;
   onUpdateDetected?: (info: AppReleaseInfo) => void;
   onOpenPasswordScreen: () => void;
+  onSettingsChanged?: () => void;
 }
 
 export function SettingsModal({
@@ -47,6 +50,7 @@ export function SettingsModal({
   onOpenUpdateModal,
   onUpdateDetected,
   onOpenPasswordScreen,
+  onSettingsChanged,
 }: SettingsModalProps) {
   const { preset: currentPreset } = useTheme();
   const [isThemeModalOpen, setIsThemeModalOpen] = useState(false);
@@ -62,6 +66,8 @@ export function SettingsModal({
     text: string;
   } | null>(null);
   const [isManualSyncing, setIsManualSyncing] = useState(false);
+  const [autoAcceptExpenses, setAutoAcceptExpenses] = useState(false);
+  const [isSavingAutoAccept, setIsSavingAutoAccept] = useState(false);
 
   useModalBackHandler(isOpen && !isThemeModalOpen, onClose);
 
@@ -76,6 +82,10 @@ export function SettingsModal({
       getCurrentAppVersion()
         .then((v) => setCurrentVersion(v))
         .catch(() => {});
+      dbService.settings
+        .get()
+        .then((u) => setAutoAcceptExpenses(Boolean(u.auto_accept_expenses)))
+        .catch(() => {});
     }
   }, [isOpen]);
 
@@ -86,6 +96,20 @@ export function SettingsModal({
     : updateInfo?.isNewer
     ? updateInfo
     : null;
+
+  const handleToggleAutoAccept = async (nextVal: boolean) => {
+    if (isSavingAutoAccept || nextVal === autoAcceptExpenses) return;
+    setAutoAcceptExpenses(nextVal);
+    setIsSavingAutoAccept(true);
+    try {
+      await dbService.settings.updateProfile({ auto_accept_expenses: nextVal });
+      onSettingsChanged?.();
+    } catch {
+      setAutoAcceptExpenses(!nextVal);
+    } finally {
+      setIsSavingAutoAccept(false);
+    }
+  };
 
   const handleManualSync = async () => {
     setIsManualSyncing(true);
@@ -176,7 +200,7 @@ export function SettingsModal({
                 Configurações
               </h1>
               <p className="text-xs text-[var(--text-secondary)] truncate">
-                Temas, sincronização, segurança e atualizações
+                Rachas automáticos, temas, sincronização e segurança
               </p>
             </div>
           </div>
@@ -184,7 +208,104 @@ export function SettingsModal({
 
         {/* Conteúdo Rolável */}
         <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-5 pb-[calc(2.5rem+env(safe-area-inset-bottom,0px))] max-w-lg md:max-w-xl lg:max-w-2xl w-full mx-auto space-y-4 scrollbar-hide">
-          {/* 1. Temas & Aparência (Abre tela dedicada de Temas) */}
+          {/* 1. Configuração Geral de Aceite de Rachas de Amigos */}
+          <section className="ds-card p-4 sm:p-5 space-y-3.5">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-10 h-10 rounded-full bg-[var(--primary-light)] text-[var(--primary)] flex items-center justify-center shrink-0">
+                  {autoAcceptExpenses ? (
+                    <CheckCircle2 size={19} strokeWidth={2} />
+                  ) : (
+                    <Clock size={19} strokeWidth={2} />
+                  )}
+                </div>
+                <div className="min-w-0">
+                  <h2 className="text-base font-display font-semibold text-[var(--text-primary)] truncate">
+                    Rachas de Amigos (Config Geral)
+                  </h2>
+                  <p className="text-xs text-[var(--text-secondary)] truncate mt-0.5">
+                    Quando um amigo adicionar você num racha
+                  </p>
+                </div>
+              </div>
+
+              <span
+                className={`text-xs px-2.5 py-1 rounded-full font-semibold border shrink-0 whitespace-nowrap ${
+                  autoAcceptExpenses
+                    ? 'bg-[var(--emerald-bg)] text-[#10B981] border-[var(--emerald-border)]'
+                    : 'bg-[var(--amber-bg)] text-[#F59E0B] border-[var(--amber-border)]'
+                }`}
+              >
+                {autoAcceptExpenses ? 'Aceitar auto' : 'Em análise'}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              <button
+                type="button"
+                disabled={isSavingAutoAccept}
+                onClick={() => handleToggleAutoAccept(false)}
+                className={`p-3.5 rounded-xl border text-left transition-all flex items-start gap-3 ${
+                  !autoAcceptExpenses
+                    ? 'bg-[var(--primary-light)]/50 border-[var(--primary)] ring-1 ring-[var(--primary)]/30'
+                    : 'bg-[var(--bg-subtle)] border-[var(--border-color)] hover:border-[var(--primary)]/40'
+                }`}
+              >
+                <div
+                  className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${
+                    !autoAcceptExpenses
+                      ? 'bg-[var(--primary)] text-white'
+                      : 'border-2 border-[var(--border-color)]'
+                  }`}
+                >
+                  {!autoAcceptExpenses && <Check size={12} strokeWidth={2.5} />}
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs font-display font-bold text-[var(--text-primary)]">
+                    Analisar rachas (Padrão)
+                  </p>
+                  <p className="text-[11px] text-[var(--text-secondary)] mt-0.5 leading-snug">
+                    Nem aceita e nem recusa automaticamente; fica pendente para você analisar.
+                  </p>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                disabled={isSavingAutoAccept}
+                onClick={() => handleToggleAutoAccept(true)}
+                className={`p-3.5 rounded-xl border text-left transition-all flex items-start gap-3 ${
+                  autoAcceptExpenses
+                    ? 'bg-[var(--primary-light)]/50 border-[var(--primary)] ring-1 ring-[var(--primary)]/30'
+                    : 'bg-[var(--bg-subtle)] border-[var(--border-color)] hover:border-[var(--primary)]/40'
+                }`}
+              >
+                <div
+                  className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${
+                    autoAcceptExpenses
+                      ? 'bg-[var(--primary)] text-white'
+                      : 'border-2 border-[var(--border-color)]'
+                  }`}
+                >
+                  {autoAcceptExpenses && <Check size={12} strokeWidth={2.5} />}
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs font-display font-bold text-[var(--text-primary)]">
+                    Aceitar automaticamente
+                  </p>
+                  <p className="text-[11px] text-[var(--text-secondary)] mt-0.5 leading-snug">
+                    Aceita automaticamente todos os rachas em que seus amigos te colocarem.
+                  </p>
+                </div>
+              </button>
+            </div>
+
+            <p className="text-[11px] text-[var(--text-secondary)] leading-relaxed bg-[var(--bg-subtle)] p-2.5 rounded-xl border border-[var(--border-color)]">
+              💡 <strong>Configuração por amigo:</strong> Você pode personalizar individualmente cada amigo nos detalhes dele (ex: deixar a config geral para <em>Analisar</em> e configurar um amigo específico para <em>Aceitar automaticamente</em>, ou o contrário).
+            </p>
+          </section>
+
+          {/* 2. Temas & Aparência (Abre tela dedicada de Temas) */}
           <section className="ds-card p-4 sm:p-5">
             <button
               type="button"
@@ -235,7 +356,7 @@ export function SettingsModal({
             </button>
           </section>
 
-        {/* 2. Sincronização na Nuvem */}
+        {/* 3. Sincronização na Nuvem */}
         <section className="ds-card p-4 sm:p-5 space-y-3.5">
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-3 min-w-0">

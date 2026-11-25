@@ -13,6 +13,8 @@ import {
   Pencil,
   Camera,
   Trash2,
+  Hash,
+  LogIn,
 } from 'lucide-react';
 import { dbService } from '../services/database';
 import { AddFriendModal } from './AddFriendModal';
@@ -38,6 +40,9 @@ export function AddGroupModal({ isOpen, onClose, onSuccess, groupToEdit }: AddGr
   const [amigos, setAmigos] = useState<Amigo[]>([]);
   const [selecionados, setSelecionados] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [groupCodeInput, setGroupCodeInput] = useState('');
+  const [isJoiningByCode, setIsJoiningByCode] = useState(false);
+  const [joinError, setJoinError] = useState('');
   const [isAvatarModalOpen, setIsAvatarModalOpen] = useState(false);
   const [isAddFriendOpen, setIsAddFriendOpen] = useState(false);
 
@@ -66,6 +71,8 @@ export function AddGroupModal({ isOpen, onClose, onSuccess, groupToEdit }: AddGr
   useEffect(() => {
     if (isOpen) {
       carregarAmigos();
+      setGroupCodeInput('');
+      setJoinError('');
       if (groupToEdit) {
         setNome(groupToEdit.name || '');
         setAvatarUrl(groupToEdit.avatar_url || null);
@@ -89,6 +96,25 @@ export function AddGroupModal({ isOpen, onClose, onSuccess, groupToEdit }: AddGr
       setSelecionados(selecionados.filter((i) => i !== id));
     } else {
       setSelecionados([...selecionados, id]);
+    }
+  };
+
+  const handleJoinByCode = async () => {
+    const clean = groupCodeInput.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+    if (!clean) {
+      setJoinError('Digite o código do grupo.');
+      return;
+    }
+    setJoinError('');
+    setIsJoiningByCode(true);
+    try {
+      await dbService.grupos.joinByCode(clean);
+      if (onSuccess) onSuccess();
+      onClose();
+    } catch (err: any) {
+      setJoinError(err?.response?.data?.error || err?.message || 'Não foi possível entrar no grupo.');
+    } finally {
+      setIsJoiningByCode(false);
     }
   };
 
@@ -154,10 +180,64 @@ export function AddGroupModal({ isOpen, onClose, onSuccess, groupToEdit }: AddGr
 
         <h2
           data-sheet-handle="true"
-          className="text-h1 text-[var(--text-primary)] mb-5 pr-8 select-none"
+          className="text-h1 text-[var(--text-primary)] mb-4 pr-8 select-none"
         >
-          {isEditing ? 'Editar Grupo' : 'Criar Grupo'}
+          {isEditing ? 'Editar Grupo' : 'Criar ou Entrar em Grupo'}
         </h2>
+
+        {!isEditing && (
+          <div className="mb-5 space-y-3">
+            <div className="bg-[var(--bg-subtle)] p-3.5 rounded-2xl border border-[var(--border-color)] space-y-2">
+              <label className="block text-[var(--text-primary)] text-xs font-display font-bold uppercase tracking-wider">
+                Entrar em Grupo com Código
+              </label>
+              <div className="flex items-center gap-2">
+                <div className="h-11 bg-[var(--bg-surface)] rounded-xl px-3.5 flex items-center border border-[var(--border-color)] focus-within:border-[var(--primary)] flex-1">
+                  <Hash size={16} strokeWidth={2} className="text-[var(--primary)] mr-2 shrink-0" />
+                  <input
+                    type="text"
+                    placeholder="Ex: G4P8X2"
+                    value={groupCodeInput}
+                    onChange={(e) => {
+                      setJoinError('');
+                      setGroupCodeInput(e.target.value.toUpperCase());
+                    }}
+                    maxLength={10}
+                    className="bg-transparent w-full outline-none text-[var(--text-primary)] placeholder:text-[var(--text-secondary)] text-sm font-mono uppercase tracking-wider"
+                  />
+                </div>
+                <button
+                  type="button"
+                  disabled={isJoiningByCode || !groupCodeInput.trim()}
+                  onClick={handleJoinByCode}
+                  className="h-11 px-4 rounded-xl bg-[var(--primary)] hover:bg-[var(--primary-dark)] text-white text-xs font-semibold inline-flex items-center gap-1.5 transition-all active:scale-95 disabled:opacity-50 shrink-0"
+                >
+                  {isJoiningByCode ? (
+                    <LoaderCircle size={15} strokeWidth={2} className="animate-spin" />
+                  ) : (
+                    <LogIn size={15} strokeWidth={2} />
+                  )}
+                  <span>Entrar</span>
+                </button>
+              </div>
+              {joinError ? (
+                <p className="text-xs text-[#F43F5E] font-medium">{joinError}</p>
+              ) : (
+                <p className="text-[11px] text-[var(--text-secondary)]">
+                  Tem o código de um grupo? Digite acima para entrar direto.
+                </p>
+              )}
+            </div>
+
+            <div className="flex items-center gap-3 pt-1">
+              <div className="h-px flex-1 bg-[var(--border-color)]" />
+              <span className="text-[10px] uppercase tracking-wider font-semibold text-[var(--text-secondary)]">
+                Ou criar novo grupo
+              </span>
+              <div className="h-px flex-1 bg-[var(--border-color)]" />
+            </div>
+          </div>
+        )}
 
         {/* Ícone do Grupo (Circular 50% conforme Design System) */}
         <div className="flex flex-col items-center mb-5">

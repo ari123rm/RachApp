@@ -17,6 +17,7 @@ export function FriendCard({ amigo, onClick, onToggleFavorito }: FriendCardProps
   const pixKey = amigo.pix_key || amigo.pix || '';
   const telefone = amigo.telefone || amigo.phone || '';
   const isRegistered = Boolean(amigo.has_account || amigo.is_registered);
+  const autoAcceptRule = amigo.auto_accept_rule || 'DEFAULT';
 
   const dividaNum = Number(amigo.dividaNumerica ?? 0);
   const voceDeveNum = Number(amigo.voceDeveNumerico ?? 0);
@@ -44,7 +45,7 @@ export function FriendCard({ amigo, onClick, onToggleFavorito }: FriendCardProps
           )}
         </div>
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-1.5 min-w-0">
+          <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
             <span className="font-display font-semibold text-[var(--text-primary)] text-base sm:text-[18px] truncate">
               {nome}
             </span>
@@ -54,6 +55,16 @@ export function FriendCard({ amigo, onClick, onToggleFavorito }: FriendCardProps
                 strokeWidth={2}
                 className="text-[var(--primary)] fill-[var(--primary-light)] shrink-0"
               />
+            )}
+            {autoAcceptRule === 'AUTO_ACCEPT' && (
+              <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-[var(--emerald-bg)] text-[#10B981] border border-[var(--emerald-border)] shrink-0">
+                Aceite Auto
+              </span>
+            )}
+            {autoAcceptRule === 'MANUAL' && (
+              <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-[var(--amber-bg)] text-[#F59E0B] border border-[var(--amber-border)] shrink-0">
+                Analisar
+              </span>
             )}
           </div>
           <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-0.5 min-w-0">

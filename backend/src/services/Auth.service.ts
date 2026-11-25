@@ -33,7 +33,46 @@ export function phonesMatch(rawA?: string | null, rawB?: string | null): boolean
   return false;
 }
 
+export function generateRandomCode(length = 6): string {
+  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let code = '';
+  for (let i = 0; i < length; i++) {
+    code += alphabet[Math.floor(Math.random() * alphabet.length)];
+  }
+  return code;
+}
+
+export function normalizeShortCode(raw?: string | null): string {
+  if (!raw) return '';
+  return String(raw).trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+}
+
 export class AuthService {
+  static async generateUniqueFriendCode(): Promise<string> {
+    for (let attempt = 0; attempt < 20; attempt++) {
+      const candidate = generateRandomCode(6);
+      const existing = await prisma.user.findFirst({
+        where: { friend_code: candidate },
+        select: { id: true },
+      });
+      if (!existing) return candidate;
+    }
+    return generateRandomCode(8);
+  }
+
+  static async ensureUserFriendCode<T extends { id: string; friend_code?: string | null }>(user: T): Promise<T> {
+    if (!user || user.friend_code) return user;
+    try {
+      const code = await this.generateUniqueFriendCode();
+      return (await prisma.user.update({
+        where: { id: user.id },
+        data: { friend_code: code },
+      })) as unknown as T;
+    } catch {
+      return user;
+    }
+  }
+
   static async register(data: { name: string; email: string; password_hash: string; phone: string; pix_key?: string }) {
     if (!data.name || !data.email || !data.password_hash) {
       throw new Error('Nome, email e senha são obrigatórios.');
@@ -55,6 +94,7 @@ export class AuthService {
 
     const hashedPassword = await bcrypt.hash(data.password_hash, 10);
     const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
+    const friendCode = await this.generateUniqueFriendCode();
 
     const user = await prisma.user.create({
       data: {
@@ -63,6 +103,8 @@ export class AuthService {
         phone: cleanPhone,
         password_hash: hashedPassword,
         pix_key: data.pix_key ? data.pix_key.trim() : null,
+        friend_code: friendCode,
+        auto_accept_expenses: false,
         verification_code: verificationCode,
         phone_verified: false,
       },
@@ -153,7 +195,10 @@ export class AuthService {
       });
     }
 
-    const updatedUser = await prisma.user.findUnique({ where: { id: user.id } });
+    let updatedUser = await prisma.user.findUnique({ where: { id: user.id } });
+    if (updatedUser) {
+      updatedUser = await this.ensureUserFriendCode(updatedUser);
+    }
     const token = jwt.sign(
       { userId: user.id, name: user.name },
       JWT_SECRET,
@@ -200,6 +245,8 @@ export class AuthService {
       throw new Error('Credenciais inválidas.');
     }
 
+    user = await this.ensureUserFriendCode(user);
+
     const token = jwt.sign(
       { userId: user.id, name: user.name },
       JWT_SECRET,
@@ -215,26 +262,37 @@ export class AuthService {
   }
 
   static async getMe(userId: string) {
-    const user = await prisma.user.findUnique({ where: { id: userId } });
+    let user = await prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new Error('Usuário não encontrado.');
+    user = await this.ensureUserFriendCode(user);
     const { password_hash, verification_code, ...userWithoutPassword } = user;
     return userWithoutPassword;
   }
 
   static async updateProfile(
     userId: string,
-    data: { name?: string; phone?: string; pix_key?: string; avatar_url?: string | null }
+    data: {
+      name?: string;
+      phone?: string;
+      pix_key?: string;
+      avatar_url?: string | null;
+      auto_accept_expenses?: boolean;
+    }
   ) {
     const cleanPhone = data.phone ? normalizePhoneBackend(data.phone) || data.phone.trim() : undefined;
-    const updatedUser = await prisma.user.update({
+    let updatedUser = await prisma.user.update({
       where: { id: userId },
       data: {
         ...(data.name !== undefined && data.name.trim() !== '' && { name: data.name.trim() }),
         ...(cleanPhone !== undefined && cleanPhone !== '' && { phone: cleanPhone }),
         ...(data.pix_key !== undefined && { pix_key: data.pix_key.trim() || null }),
         ...(data.avatar_url !== undefined && { avatar_url: data.avatar_url || null }),
+        ...(data.auto_accept_expenses !== undefined && {
+          auto_accept_expenses: Boolean(data.auto_accept_expenses),
+        }),
       },
     });
+    updatedUser = await this.ensureUserFriendCode(updatedUser);
 
     // Se o usuário atualizou a chave Pix ou a foto de perfil dele, propaga automaticamente para os registros de amigos de outros usuários
     if (updatedUser.phone) {

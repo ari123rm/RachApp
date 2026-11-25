@@ -59,8 +59,14 @@ export class AuthController {
       if (!userId) {
         return res.status(401).json({ error: 'Utilizador não autenticado.' });
       }
-      const { name, phone, pix_key, avatar_url } = req.body;
-      const updatedUser = await AuthService.updateProfile(userId, { name, phone, pix_key, avatar_url });
+      const { name, phone, pix_key, avatar_url, auto_accept_expenses } = req.body;
+      const updatedUser = await AuthService.updateProfile(userId, {
+        name,
+        phone,
+        pix_key,
+        avatar_url,
+        auto_accept_expenses,
+      });
       res.status(200).json(updatedUser);
     } catch (error: any) {
       res.status(400).json({ error: 'Erro ao atualizar o perfil. ' + error.message });

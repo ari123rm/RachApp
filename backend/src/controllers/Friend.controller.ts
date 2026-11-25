@@ -13,6 +13,17 @@ export class FriendController {
     }
   }
 
+  static async addByCode(req: Request, res: Response) {
+    try {
+      const userId = req.user!.userId;
+      const { code } = req.body;
+      const friend = await FriendService.addByCode(userId, code);
+      res.status(200).json(friend);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  }
+
   static async list(req: Request, res: Response) {
     try {
       const friends = await FriendService.getAll(req.user!.userId);

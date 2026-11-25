@@ -179,8 +179,8 @@ export async function applyRealtimeExpenseUpsert(payload: {
           if (!f?.id) continue;
           recentlyRealtimeUpsertedIds.set(f.id, nowMs);
           db.run(
-            `INSERT OR REPLACE INTO friends (id, user_id, name, phone, pix_key, color, avatar_url, is_favorite, has_account, synced, updated_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)`,
+            `INSERT OR REPLACE INTO friends (id, user_id, name, phone, pix_key, color, avatar_url, is_favorite, has_account, auto_accept_rule, synced, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)`,
             [
               f.id,
               f.user_id || currentUserId,
@@ -191,6 +191,7 @@ export async function applyRealtimeExpenseUpsert(payload: {
               f.avatar_url || null,
               f.is_favorite || f.favorito ? 1 : 0,
               f.has_account || f.is_registered ? 1 : 0,
+              f.auto_accept_rule || 'DEFAULT',
               nowIso,
             ]
           );
@@ -339,14 +340,25 @@ async function saveRemoteSnapshotToSQLite(data: {
           data.user.avatar_url !== undefined
             ? data.user.avatar_url || null
             : currentSession?.avatar_url || null;
+        const nextFriendCode = data.user.friend_code || currentSession?.friend_code || null;
+        const nextAutoAccept =
+          data.user.auto_accept_expenses !== undefined
+            ? data.user.auto_accept_expenses
+              ? 1
+              : 0
+            : currentSession?.auto_accept_expenses
+            ? 1
+            : 0;
         db.run(
-          `UPDATE auth_session SET name = ?, email = ?, phone = ?, pix_key = ?, avatar_url = ?, phone_verified = ?, updated_at = ? WHERE id = 1`,
+          `UPDATE auth_session SET name = ?, email = ?, phone = ?, pix_key = ?, avatar_url = ?, friend_code = ?, auto_accept_expenses = ?, phone_verified = ?, updated_at = ? WHERE id = 1`,
           [
             data.user.name || currentSession?.name || '',
             data.user.email || currentSession?.email || '',
             stripCountryCode(data.user.phone || currentSession?.phone || ''),
             preservedPix,
             nextAvatar,
+            nextFriendCode,
+            nextAutoAccept,
             data.user.phone_verified ? 1 : 0,
             new Date().toISOString(),
           ]
@@ -389,8 +401,8 @@ async function saveRemoteSnapshotToSQLite(data: {
       for (const f of data.friends) {
         if (pendingIds.has(f.id)) continue;
         db.run(
-          `INSERT OR REPLACE INTO friends (id, user_id, name, phone, pix_key, color, avatar_url, is_favorite, has_account, synced, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)`,
+          `INSERT OR REPLACE INTO friends (id, user_id, name, phone, pix_key, color, avatar_url, is_favorite, has_account, auto_accept_rule, synced, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)`,
           [
             f.id,
             f.user_id || data.user?.id || '',
@@ -401,6 +413,7 @@ async function saveRemoteSnapshotToSQLite(data: {
             f.avatar_url || null,
             f.is_favorite || f.favorito ? 1 : 0,
             f.has_account || f.is_registered ? 1 : 0,
+            f.auto_accept_rule || 'DEFAULT',
             new Date().toISOString(),
           ]
         );
@@ -419,12 +432,13 @@ async function saveRemoteSnapshotToSQLite(data: {
       for (const g of data.groups) {
         if (pendingIds.has(g.id)) continue;
         db.run(
-          `INSERT OR REPLACE INTO groups_table (id, name, avatar_url, created_by, created_at, synced)
-           VALUES (?, ?, ?, ?, ?, 1)`,
+          `INSERT OR REPLACE INTO groups_table (id, name, avatar_url, invite_code, created_by, created_at, synced)
+           VALUES (?, ?, ?, ?, ?, ?, 1)`,
           [
             g.id,
             g.name,
             g.avatar_url || null,
+            g.invite_code || null,
             g.created_by || data.user?.id || '',
             g.created_at || new Date().toISOString(),
           ]
@@ -982,6 +996,8 @@ export const dbService = {
             pix_key: row.pix_key || '',
             pix: row.pix_key || '',
             avatar_url: row.avatar_url || null,
+            friend_code: row.friend_code || null,
+            auto_accept_expenses: Boolean(row.auto_accept_expenses),
             phone_verified: !!row.phone_verified,
           },
         };
@@ -1002,6 +1018,8 @@ export const dbService = {
           pix_key: row.pix_key || '',
           pix: row.pix_key || '',
           avatar_url: row.avatar_url || null,
+          friend_code: row.friend_code || null,
+          auto_accept_expenses: Boolean(row.auto_accept_expenses),
           phone_verified: !!row.phone_verified,
         };
       }
@@ -1023,8 +1041,8 @@ export const dbService = {
       }
 
       await runSQL(
-        `INSERT OR REPLACE INTO auth_session (id, token, user_id, name, email, phone, pix_key, avatar_url, phone_verified, updated_at)
-         VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT OR REPLACE INTO auth_session (id, token, user_id, name, email, phone, pix_key, avatar_url, friend_code, auto_accept_expenses, phone_verified, updated_at)
+         VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           data.token,
           data.user.id,
@@ -1033,6 +1051,8 @@ export const dbService = {
           stripCountryCode(data.user.phone || ''),
           data.user.pix_key || '',
           data.user.avatar_url || null,
+          data.user.friend_code || null,
+          data.user.auto_accept_expenses ? 1 : 0,
           data.user.phone_verified ? 1 : 0,
           new Date().toISOString(),
         ]
@@ -1051,8 +1071,8 @@ export const dbService = {
       if (data.token && data.user) {
         memoryToken = data.token;
         await runSQL(
-          `INSERT OR REPLACE INTO auth_session (id, token, user_id, name, email, phone, pix_key, avatar_url, phone_verified, updated_at)
-           VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          `INSERT OR REPLACE INTO auth_session (id, token, user_id, name, email, phone, pix_key, avatar_url, friend_code, auto_accept_expenses, phone_verified, updated_at)
+           VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             data.token,
             data.user.id,
@@ -1061,6 +1081,8 @@ export const dbService = {
             stripCountryCode(data.user.phone || ''),
             data.user.pix_key || userData.pix_key || '',
             data.user.avatar_url || null,
+            data.user.friend_code || null,
+            data.user.auto_accept_expenses ? 1 : 0,
             data.user.phone_verified ? 1 : 0,
             new Date().toISOString(),
           ]
@@ -1074,8 +1096,8 @@ export const dbService = {
       if (data.token && data.user) {
         memoryToken = data.token;
         await runSQL(
-          `INSERT OR REPLACE INTO auth_session (id, token, user_id, name, email, phone, pix_key, avatar_url, phone_verified, updated_at)
-           VALUES (1, ?, ?, ?, ?, ?, ?, ?, 1, ?)`,
+          `INSERT OR REPLACE INTO auth_session (id, token, user_id, name, email, phone, pix_key, avatar_url, friend_code, auto_accept_expenses, phone_verified, updated_at)
+           VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)`,
           [
             data.token,
             data.user.id,
@@ -1084,6 +1106,8 @@ export const dbService = {
             stripCountryCode(data.user.phone || ''),
             data.user.pix_key || '',
             data.user.avatar_url || null,
+            data.user.friend_code || null,
+            data.user.auto_accept_expenses ? 1 : 0,
             new Date().toISOString(),
           ]
         );
@@ -1115,7 +1139,13 @@ export const dbService = {
       await runSQL('DELETE FROM sync_queue', [], true);
     },
 
-    updateProfile: async (data: { name?: string; phone?: string; pix_key?: string; avatar_url?: string | null }) => {
+    updateProfile: async (data: {
+      name?: string;
+      phone?: string;
+      pix_key?: string;
+      avatar_url?: string | null;
+      auto_accept_expenses?: boolean;
+    }) => {
       const session = await queryOne<any>('SELECT * FROM auth_session WHERE id = 1');
       const newName = data.name !== undefined ? data.name.trim() : session?.name || '';
       const newPhone =
@@ -1127,11 +1157,15 @@ export const dbService = {
         data.avatar_url !== undefined
           ? data.avatar_url || null
           : session?.avatar_url || null;
+      const newAutoAccept =
+        data.auto_accept_expenses !== undefined
+          ? Boolean(data.auto_accept_expenses)
+          : Boolean(session?.auto_accept_expenses);
 
       // 1. Grava imediatamente na tabela auth_session
       await runSQL(
-        `INSERT OR REPLACE INTO auth_session (id, token, user_id, name, email, phone, pix_key, avatar_url, phone_verified, updated_at)
-         VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT OR REPLACE INTO auth_session (id, token, user_id, name, email, phone, pix_key, avatar_url, friend_code, auto_accept_expenses, phone_verified, updated_at)
+         VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           session?.token || memoryToken || '',
           session?.user_id || 'me',
@@ -1140,6 +1174,8 @@ export const dbService = {
           newPhone,
           newPix,
           newAvatar,
+          session?.friend_code || null,
+          newAutoAccept ? 1 : 0,
           session?.phone_verified ? 1 : 0,
           new Date().toISOString(),
         ]
@@ -1147,18 +1183,23 @@ export const dbService = {
 
       // 2. Sincroniza com o backend imediatamente (ou enfileira se offline)
       try {
-        await api.put('/auth/profile', {
+        const res = await api.put('/auth/profile', {
           name: newName,
           phone: newPhone,
           pix_key: newPix,
           avatar_url: newAvatar,
+          auto_accept_expenses: newAutoAccept,
         });
+        if (res.data?.friend_code) {
+          await runSQL('UPDATE auth_session SET friend_code = ? WHERE id = 1', [res.data.friend_code]);
+        }
       } catch {
         await enqueueSync('profile', 'update', session?.user_id || 'me', {
           name: newName,
           phone: newPhone,
           pix_key: newPix,
           avatar_url: newAvatar,
+          auto_accept_expenses: newAutoAccept,
         });
       }
 
@@ -1170,6 +1211,8 @@ export const dbService = {
         pix_key: newPix,
         pix: newPix,
         avatar_url: newAvatar,
+        friend_code: session?.friend_code || null,
+        auto_accept_expenses: newAutoAccept,
       };
     },
 
@@ -1283,6 +1326,9 @@ export const dbService = {
           avatar_url: r.avatar_url || null,
           favorito: !!r.is_favorite,
           is_favorite: !!r.is_favorite,
+          auto_accept_rule: (r.auto_accept_rule === 'AUTO_ACCEPT' || r.auto_accept_rule === 'MANUAL'
+            ? r.auto_accept_rule
+            : 'DEFAULT') as 'DEFAULT' | 'AUTO_ACCEPT' | 'MANUAL',
           has_account: !!r.has_account,
           is_registered: !!r.has_account,
           divida: dividaLiquida,
@@ -1308,6 +1354,7 @@ export const dbService = {
       color?: string;
       favorito?: boolean;
       is_favorite?: boolean;
+      auto_accept_rule?: 'DEFAULT' | 'AUTO_ACCEPT' | 'MANUAL';
     }): Promise<Amigo> => {
       const session = await queryOne<any>('SELECT user_id FROM auth_session WHERE id = 1');
       const name = (novoAmigo.nome || novoAmigo.name || '').trim();
@@ -1316,6 +1363,7 @@ export const dbService = {
       const pix_key = (novoAmigo.pix_key ?? novoAmigo.pix ?? '').trim();
       const color = novoAmigo.cor || novoAmigo.color || 'bg-sky-500';
       const is_favorite = novoAmigo.favorito ?? novoAmigo.is_favorite ?? false;
+      const auto_accept_rule = novoAmigo.auto_accept_rule || 'DEFAULT';
 
       // Se já existir amigo com mesmo telefone no banco local, atualiza e reutiliza o ID
       if (phone) {
@@ -1327,6 +1375,7 @@ export const dbService = {
             pix_key: pix_key || existingByPhone.pix_key,
             cor: color,
             favorito: is_favorite,
+            auto_accept_rule: novoAmigo.auto_accept_rule || existingByPhone.auto_accept_rule || 'DEFAULT',
           });
         }
       }
@@ -1334,12 +1383,22 @@ export const dbService = {
       const id = generateUUID();
 
       await runSQL(
-        `INSERT INTO friends (id, user_id, name, phone, pix_key, color, is_favorite, synced, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?)`,
-        [id, session?.user_id || '', name, phone, pix_key, color, is_favorite ? 1 : 0, new Date().toISOString()]
+        `INSERT INTO friends (id, user_id, name, phone, pix_key, color, is_favorite, auto_accept_rule, synced, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?)`,
+        [
+          id,
+          session?.user_id || '',
+          name,
+          phone,
+          pix_key,
+          color,
+          is_favorite ? 1 : 0,
+          auto_accept_rule,
+          new Date().toISOString(),
+        ]
       );
 
-      const payload = { id, name, phone, pix_key, color, is_favorite };
+      const payload = { id, name, phone, pix_key, color, is_favorite, auto_accept_rule };
       await enqueueSync('friend', 'create', id, payload);
       syncWithBackend(true).catch(() => {});
 
@@ -1355,6 +1414,49 @@ export const dbService = {
         color,
         favorito: is_favorite,
         is_favorite,
+        auto_accept_rule,
+      };
+    },
+
+    addByCode: async (code: string): Promise<Amigo> => {
+      const { data: f } = await api.post('/friends/add-by-code', { code });
+      const session = await queryOne<any>('SELECT user_id FROM auth_session WHERE id = 1');
+      if (f && f.id) {
+        await runSQL(
+          `INSERT OR REPLACE INTO friends (id, user_id, name, phone, pix_key, color, avatar_url, is_favorite, has_account, auto_accept_rule, synced, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)`,
+          [
+            f.id,
+            f.user_id || session?.user_id || '',
+            f.name || f.nome || 'Amigo',
+            stripCountryCode(f.phone || f.telefone || ''),
+            f.pix_key || f.pix || '',
+            f.color || f.cor || 'bg-teal-500',
+            f.avatar_url || null,
+            f.is_favorite || f.favorito ? 1 : 0,
+            1,
+            f.auto_accept_rule || 'DEFAULT',
+            new Date().toISOString(),
+          ]
+        );
+      }
+      await syncWithBackend(true).catch(() => {});
+      return {
+        id: f.id,
+        nome: f.name || f.nome || 'Amigo',
+        name: f.name || f.nome || 'Amigo',
+        telefone: stripCountryCode(f.phone || f.telefone || ''),
+        phone: stripCountryCode(f.phone || f.telefone || ''),
+        pix_key: f.pix_key || f.pix || '',
+        pix: f.pix_key || f.pix || '',
+        cor: f.color || f.cor || 'bg-teal-500',
+        color: f.color || f.cor || 'bg-teal-500',
+        avatar_url: f.avatar_url || null,
+        favorito: Boolean(f.is_favorite || f.favorito),
+        is_favorite: Boolean(f.is_favorite || f.favorito),
+        auto_accept_rule: f.auto_accept_rule || 'DEFAULT',
+        has_account: true,
+        is_registered: true,
       };
     },
 
@@ -1371,6 +1473,7 @@ export const dbService = {
         color?: string;
         favorito?: boolean;
         is_favorite?: boolean;
+        auto_accept_rule?: 'DEFAULT' | 'AUTO_ACCEPT' | 'MANUAL';
       }
     ): Promise<Amigo> => {
       const existing = await queryOne<any>('SELECT * FROM friends WHERE id = ?', [id]);
@@ -1387,15 +1490,19 @@ export const dbService = {
           : dados.is_favorite !== undefined
           ? dados.is_favorite
           : !!existing.is_favorite;
+      const auto_accept_rule = (dados.auto_accept_rule ?? existing.auto_accept_rule ?? 'DEFAULT') as
+        | 'DEFAULT'
+        | 'AUTO_ACCEPT'
+        | 'MANUAL';
 
       await runSQL(
         `UPDATE friends
-         SET name = ?, phone = ?, pix_key = ?, color = ?, is_favorite = ?, synced = 0, updated_at = ?
+         SET name = ?, phone = ?, pix_key = ?, color = ?, is_favorite = ?, auto_accept_rule = ?, synced = 0, updated_at = ?
          WHERE id = ?`,
-        [name, phone, pix_key, color, is_favorite ? 1 : 0, new Date().toISOString(), id]
+        [name, phone, pix_key, color, is_favorite ? 1 : 0, auto_accept_rule, new Date().toISOString(), id]
       );
 
-      const payload = { name, phone, pix_key, color, is_favorite };
+      const payload = { name, phone, pix_key, color, is_favorite, auto_accept_rule };
       await enqueueSync('friend', 'update', id, payload);
       syncWithBackend(true).catch(() => {});
 
@@ -1411,6 +1518,7 @@ export const dbService = {
         color,
         favorito: is_favorite,
         is_favorite,
+        auto_accept_rule,
       };
     },
 
@@ -2065,6 +2173,7 @@ export const dbService = {
           id: g.id,
           name: g.name,
           avatar_url: g.avatar_url || null,
+          invite_code: g.invite_code || null,
           created_by: g.created_by,
           created_at: g.created_at,
           members,
@@ -2076,6 +2185,19 @@ export const dbService = {
       }
 
       return result;
+    },
+
+    joinByCode: async (code: string): Promise<Grupo> => {
+      const { data: group } = await api.post('/groups/join-by-code', { code });
+      await syncWithBackend(true);
+      if (group?.id) {
+        try {
+          return await dbService.grupos.getById(group.id);
+        } catch {
+          return group;
+        }
+      }
+      return group;
     },
 
     create: async (nameOrPayload: string | { name: string; friendIds?: string[]; avatar_url?: string | null }): Promise<Grupo> => {
@@ -2490,6 +2612,7 @@ export const dbService = {
         id: g.id,
         name: g.name,
         avatar_url: g.avatar_url || null,
+        invite_code: g.invite_code || null,
         created_by: g.created_by,
         created_at: g.created_at,
         members,
@@ -3150,19 +3273,27 @@ export const dbService = {
     get: async () => {
       let row = await queryOne<any>('SELECT * FROM auth_session WHERE id = 1');
 
-      // Se o utilizador estiver autenticado mas ainda não tiver o pix_key carregado no cache local, busca do servidor
-      if (row && row.token && !row.pix_key) {
+      // Se o utilizador estiver autenticado mas ainda não tiver o pix_key ou friend_code carregado no cache local, busca do servidor
+      if (row && row.token && (!row.pix_key || !row.friend_code)) {
         try {
           const { data: me } = await api.get('/auth/me');
           if (me && me.id) {
             await runSQL(
-              `UPDATE auth_session SET name = ?, email = ?, phone = ?, pix_key = ?, avatar_url = ?, updated_at = ? WHERE id = 1`,
+              `UPDATE auth_session SET name = ?, email = ?, phone = ?, pix_key = ?, avatar_url = ?, friend_code = ?, auto_accept_expenses = ?, updated_at = ? WHERE id = 1`,
               [
                 me.name || row.name || '',
                 me.email || row.email || '',
                 stripCountryCode(me.phone || row.phone || ''),
                 me.pix_key || '',
                 me.avatar_url !== undefined ? me.avatar_url || null : row.avatar_url || null,
+                me.friend_code || row.friend_code || null,
+                me.auto_accept_expenses !== undefined
+                  ? me.auto_accept_expenses
+                    ? 1
+                    : 0
+                  : row.auto_accept_expenses
+                  ? 1
+                  : 0,
                 new Date().toISOString(),
               ]
             );
@@ -3184,6 +3315,8 @@ export const dbService = {
           pix_key: row.pix_key || '',
           pix: row.pix_key || '',
           avatar_url: row.avatar_url || null,
+          friend_code: row.friend_code || null,
+          auto_accept_expenses: Boolean(row.auto_accept_expenses),
           notificacoes: true,
         };
       }
@@ -3196,20 +3329,37 @@ export const dbService = {
         pix_key: '',
         pix: '',
         avatar_url: null,
+        friend_code: null,
+        auto_accept_expenses: false,
         notificacoes: true,
       };
     },
 
-    save: async (config: { nome?: string; name?: string; pix?: string; pix_key?: string; phone?: string; avatar_url?: string | null }) => {
+    save: async (config: {
+      nome?: string;
+      name?: string;
+      pix?: string;
+      pix_key?: string;
+      phone?: string;
+      avatar_url?: string | null;
+      auto_accept_expenses?: boolean;
+    }) => {
       return dbService.auth.updateProfile({
         name: config.name ?? config.nome,
         pix_key: config.pix_key ?? config.pix,
         phone: config.phone,
         avatar_url: config.avatar_url,
+        auto_accept_expenses: config.auto_accept_expenses,
       });
     },
 
-    updateProfile: async (data: { name?: string; phone?: string; pix_key?: string; avatar_url?: string | null }) => {
+    updateProfile: async (data: {
+      name?: string;
+      phone?: string;
+      pix_key?: string;
+      avatar_url?: string | null;
+      auto_accept_expenses?: boolean;
+    }) => {
       return dbService.auth.updateProfile(data);
     },
 

@@ -10,6 +10,8 @@ export interface UserProfile {
   pix?: string;
   avatar_url?: string | null;
   phone_verified?: boolean;
+  friend_code?: string | null;
+  auto_accept_expenses?: boolean;
 }
 
 export interface Amigo {
@@ -25,6 +27,7 @@ export interface Amigo {
   color?: string;
   favorito: boolean;
   is_favorite?: boolean;
+  auto_accept_rule?: 'DEFAULT' | 'AUTO_ACCEPT' | 'MANUAL';
   divida?: string | number;
   dividaNumerica?: number;
   voceDeve?: string | number;
@@ -97,6 +100,7 @@ export interface Grupo {
   id: string;
   name: string;
   avatar_url?: string | null;
+  invite_code?: string | null;
   created_by: string;
   created_at: string;
   members: {

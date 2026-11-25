@@ -36,6 +36,19 @@ export class GroupController {
     }
   }
 
+  static async joinByCode(req: Request, res: Response) {
+    try {
+      const userId = req.user?.userId;
+      if (!userId) return res.status(401).json({ error: 'Não autorizado.' });
+
+      const { code } = req.body;
+      const group = await GroupService.joinByCode(userId, code);
+      res.status(200).json(group);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  }
+
   static async listPendingInvitations(req: Request, res: Response) {
     try {
       const userId = req.user?.userId;

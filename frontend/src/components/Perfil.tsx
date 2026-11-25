@@ -13,6 +13,9 @@ import {
   X,
   Settings,
   Palette,
+  Copy,
+  Check,
+  Hash,
 } from 'lucide-react';
 import { dbService } from '../services/database';
 import { PixModal } from './PixModal';
@@ -51,6 +54,9 @@ export function Perfil({
   const [email, setEmail] = useState('');
   const [pix, setPix] = useState('');
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [friendCode, setFriendCode] = useState<string>('');
+  const [autoAcceptExpenses, setAutoAcceptExpenses] = useState(false);
+  const [copiedCode, setCopiedCode] = useState(false);
 
   const [savedDados, setSavedDados] = useState({ nome: '', telefone: '', pix: '' });
   const [isEditingDados, setIsEditingDados] = useState(false);
@@ -69,29 +75,43 @@ export function Perfil({
     lastSyncedAt: null,
   });
 
-  useEffect(() => {
-    const carregarPerfil = async () => {
-      try {
-        const user = await dbService.settings.get();
-        const loadedNome = user.name || user.nome || '';
-        const loadedTel = formatPhoneBR(user.phone || user.telefone || '');
-        const loadedPix = user.pix_key || user.pix || '';
+  const carregarPerfil = async () => {
+    try {
+      const user = await dbService.settings.get();
+      const loadedNome = user.name || user.nome || '';
+      const loadedTel = formatPhoneBR(user.phone || user.telefone || '');
+      const loadedPix = user.pix_key || user.pix || '';
 
-        setNome(loadedNome);
-        setTelefone(loadedTel);
-        setEmail(user.email || '');
-        setPix(loadedPix);
-        setAvatarUrl(user.avatar_url || null);
-        setSavedDados({ nome: loadedNome, telefone: loadedTel, pix: loadedPix });
-      } finally {
-        setIsLoading(false);
-      }
-    };
+      setNome(loadedNome);
+      setTelefone(loadedTel);
+      setEmail(user.email || '');
+      setPix(loadedPix);
+      setAvatarUrl(user.avatar_url || null);
+      setFriendCode(user.friend_code || '');
+      setAutoAcceptExpenses(Boolean(user.auto_accept_expenses));
+      setSavedDados({ nome: loadedNome, telefone: loadedTel, pix: loadedPix });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
     carregarPerfil();
 
     const unsub = dbService.sync.subscribe((st) => setSyncStatus(st));
     return () => unsub();
   }, [dataVersion]);
+
+  const handleCopyFriendCode = async () => {
+    if (!friendCode) return;
+    try {
+      await navigator.clipboard.writeText(friendCode);
+      setCopiedCode(true);
+      setTimeout(() => setCopiedCode(false), 2200);
+    } catch {
+      alert(`Seu código de amigo: ${friendCode}`);
+    }
+  };
 
   const handleSaveAvatar = async (croppedDataUrl: string) => {
     setIsSavingPhoto(true);
@@ -247,11 +267,44 @@ export function Perfil({
         </h2>
         {email && <p className="text-xs text-[var(--text-secondary)] mt-0.5">{email}</p>}
 
+        {/* Código de Amigo */}
+        {friendCode && (
+          <div className="mt-3.5 inline-flex items-center gap-2 bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-xl px-3.5 py-2">
+            <Hash size={14} strokeWidth={2.2} className="text-[var(--primary)] shrink-0" />
+            <div className="text-left">
+              <span className="text-[10px] uppercase tracking-wider font-semibold text-[var(--text-secondary)] block leading-none">
+                Código de Amigo
+              </span>
+              <span className="text-sm font-mono font-bold text-[var(--text-primary)] tracking-wider">
+                {friendCode}
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={handleCopyFriendCode}
+              className="ml-1.5 px-2.5 py-1.5 rounded-lg bg-[var(--primary-light)] text-[var(--primary)] hover:opacity-90 text-xs font-semibold inline-flex items-center gap-1 transition-all active:scale-95"
+              title="Copiar seu código de amigo"
+            >
+              {copiedCode ? (
+                <>
+                  <Check size={13} strokeWidth={2.5} />
+                  <span>Copiado!</span>
+                </>
+              ) : (
+                <>
+                  <Copy size={13} strokeWidth={2} />
+                  <span>Copiar</span>
+                </>
+              )}
+            </button>
+          </div>
+        )}
+
         {pix && (
           <button
             type="button"
             onClick={() => setIsPixPreviewOpen(true)}
-            className="mt-4 h-10 px-4 rounded-xl bg-[var(--primary-light)] text-[var(--primary)] hover:opacity-90 font-semibold text-xs inline-flex items-center gap-2 transition-all active:scale-95"
+            className="mt-3.5 h-10 px-4 rounded-xl bg-[var(--primary-light)] text-[var(--primary)] hover:opacity-90 font-semibold text-xs inline-flex items-center gap-2 transition-all active:scale-95"
           >
             <QrCode size={15} strokeWidth={2} />
             <span>Testar Meu QR Code Pix</span>
@@ -412,7 +465,9 @@ export function Perfil({
               </div>
               <p className="text-xs text-[var(--text-secondary)] mt-0.5 truncate flex items-center gap-1.5">
                 <Palette size={12} className="text-[var(--primary)] shrink-0" />
-                <span>Tema {currentPreset.name} • Sincronização, Senha e Versão</span>
+                <span>
+                  Rachas: {autoAcceptExpenses ? 'Aceitar auto' : 'Analisar'} • Tema {currentPreset.name}
+                </span>
               </p>
             </div>
           </div>
@@ -445,6 +500,10 @@ export function Perfil({
         onOpenUpdateModal={onOpenUpdateModal}
         onUpdateDetected={onUpdateDetected}
         onOpenPasswordScreen={() => setIsPasswordScreenOpen(true)}
+        onSettingsChanged={() => {
+          carregarPerfil();
+          onProfileChange?.();
+        }}
       />
 
       <PixModal

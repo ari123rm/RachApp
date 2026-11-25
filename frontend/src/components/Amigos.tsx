@@ -14,6 +14,9 @@ import {
   UserPlus,
   RefreshCw,
   Phone,
+  Hash,
+  Copy,
+  LogIn,
 } from 'lucide-react';
 import { formatPhoneBR, stripCountryCode, phonesMatchBR } from '../utils/phoneFormatter';
 import { getCachedPhoneContacts, requestDeviceContacts } from '../utils/phoneContacts';
@@ -52,6 +55,14 @@ export function Amigos({
   const [filtroGrupos, setFiltroGrupos] = useState<'todos' | 'meus' | 'convites'>('todos');
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [myAvatarUrl, setMyAvatarUrl] = useState<string | null>(null);
+  const [myFriendCode, setMyFriendCode] = useState<string>('');
+  const [copiedMyCode, setCopiedMyCode] = useState(false);
+
+  const [friendCodeInput, setFriendCodeInput] = useState('');
+  const [isAddingFriendByCode, setIsAddingFriendByCode] = useState(false);
+  const [groupCodeInput, setGroupCodeInput] = useState('');
+  const [isJoiningGroupByCode, setIsJoiningGroupByCode] = useState(false);
+  const [codeFeedback, setCodeFeedback] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   const [amigoSelecionado, setAmigoSelecionado] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -84,6 +95,7 @@ export function Amigos({
 
       const [
         sessionUser,
+        userSettings,
         dadosAmigos,
         dadosGrupos,
         dadosSolicitacoes,
@@ -91,6 +103,7 @@ export function Amigos({
         dadosUsuariosComConta,
       ] = await Promise.all([
         dbService.auth.getSessionUser(),
+        dbService.settings.get(),
         dbService.amigos.getAll(),
         dbService.grupos.getAll(),
         dbService.amigos.getPendingRequests(),
@@ -101,7 +114,8 @@ export function Amigos({
       if (sessionUser?.id) {
         setCurrentUserId(sessionUser.id);
       }
-      setMyAvatarUrl(sessionUser?.avatar_url || null);
+      setMyAvatarUrl(sessionUser?.avatar_url || userSettings?.avatar_url || null);
+      setMyFriendCode(userSettings?.friend_code || sessionUser?.friend_code || '');
 
       const amigosComValores = await Promise.all(
         dadosAmigos.map(async (amigo) => {
@@ -636,7 +650,100 @@ export function Amigos({
       <div className="w-full">
         {subTab === 'amigos' ? (
           /* PAINEL AMIGOS */
-          <div className="w-full space-y-6">
+          <div className="w-full space-y-5">
+            {/* CARD RÁPIDO: CÓDIGO DE AMIGO */}
+            <section className="ds-card p-3.5 space-y-2.5">
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <div className="flex items-center gap-2">
+                  <Hash size={16} strokeWidth={2.2} className="text-[var(--primary)] shrink-0" />
+                  <span className="text-xs font-display font-bold text-[var(--text-primary)] uppercase tracking-wider">
+                    Código de Amigo
+                  </span>
+                </div>
+                {myFriendCode && (
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      try {
+                        await navigator.clipboard.writeText(myFriendCode);
+                        setCopiedMyCode(true);
+                        setTimeout(() => setCopiedMyCode(false), 2000);
+                      } catch {
+                        alert(`Seu código: ${myFriendCode}`);
+                      }
+                    }}
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[var(--primary-light)] text-[var(--primary)] text-xs font-semibold hover:opacity-90 active:scale-95 transition-all"
+                    title="Copiar meu código de amigo"
+                  >
+                    <span className="text-[var(--text-secondary)] font-normal">Meu código:</span>
+                    <span className="font-mono font-bold tracking-wider">{myFriendCode}</span>
+                    {copiedMyCode ? <Check size={13} strokeWidth={2.5} /> : <Copy size={13} strokeWidth={2} />}
+                  </button>
+                )}
+              </div>
+
+              <div className="flex items-center gap-2">
+                <div className="h-10 bg-[var(--bg-subtle)] rounded-xl px-3 flex items-center border border-[var(--border-color)] focus-within:border-[var(--primary)] flex-1">
+                  <input
+                    type="text"
+                    placeholder="Digitar código de um amigo (ex: R7K9M2)..."
+                    value={friendCodeInput}
+                    onChange={(e) => {
+                      setCodeFeedback(null);
+                      setFriendCodeInput(e.target.value.toUpperCase());
+                    }}
+                    maxLength={10}
+                    className="bg-transparent w-full outline-none text-xs font-mono uppercase tracking-wider text-[var(--text-primary)] placeholder:text-[var(--text-secondary)] placeholder:font-sans placeholder:normal-case placeholder:tracking-normal"
+                  />
+                </div>
+                <button
+                  type="button"
+                  disabled={isAddingFriendByCode || !friendCodeInput.trim()}
+                  onClick={async () => {
+                    const clean = friendCodeInput.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+                    if (!clean) return;
+                    setIsAddingFriendByCode(true);
+                    setCodeFeedback(null);
+                    try {
+                      const added = await dbService.amigos.addByCode(clean);
+                      setFriendCodeInput('');
+                      setCodeFeedback({
+                        type: 'success',
+                        text: `${added.nome || 'Amigo'} adicionado com sucesso!`,
+                      });
+                      await carregarDados(false);
+                      onDataChange?.();
+                    } catch (err: any) {
+                      setCodeFeedback({
+                        type: 'error',
+                        text: err?.response?.data?.error || err?.message || 'Código inválido.',
+                      });
+                    } finally {
+                      setIsAddingFriendByCode(false);
+                    }
+                  }}
+                  className="h-10 px-3.5 rounded-xl bg-[var(--primary)] hover:bg-[var(--primary-dark)] text-white text-xs font-semibold inline-flex items-center gap-1.5 transition-all active:scale-95 disabled:opacity-50 shrink-0"
+                >
+                  {isAddingFriendByCode ? (
+                    <LoaderCircle size={14} strokeWidth={2} className="animate-spin" />
+                  ) : (
+                    <UserPlus size={14} strokeWidth={2} />
+                  )}
+                  <span>Adicionar</span>
+                </button>
+              </div>
+
+              {codeFeedback && subTab === 'amigos' && (
+                <p
+                  className={`text-xs font-medium ${
+                    codeFeedback.type === 'success' ? 'text-[#10B981]' : 'text-[#F43F5E]'
+                  }`}
+                >
+                  {codeFeedback.text}
+                </p>
+              )}
+            </section>
+
             {/* SOLICITAÇÕES DE AMIZADE PENDENTES */}
             {solicitacoesAmizade.length > 0 && (
               <section className="ds-card p-4 border-[#F59E0B]/40 space-y-3">
@@ -954,6 +1061,80 @@ export function Amigos({
         ) : (
           /* PAINEL GRUPOS */
           <div className="w-full space-y-4">
+            {/* CARD RÁPIDO: ENTRAR EM GRUPO COM CÓDIGO */}
+            <section className="ds-card p-3.5 space-y-2.5">
+              <div className="flex items-center gap-2">
+                <Hash size={16} strokeWidth={2.2} className="text-[var(--primary)] shrink-0" />
+                <span className="text-xs font-display font-bold text-[var(--text-primary)] uppercase tracking-wider">
+                  Entrar em Grupo com Código
+                </span>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <div className="h-10 bg-[var(--bg-subtle)] rounded-xl px-3 flex items-center border border-[var(--border-color)] focus-within:border-[var(--primary)] flex-1">
+                  <input
+                    type="text"
+                    placeholder="Digitar código do grupo (ex: G4P8X2)..."
+                    value={groupCodeInput}
+                    onChange={(e) => {
+                      setCodeFeedback(null);
+                      setGroupCodeInput(e.target.value.toUpperCase());
+                    }}
+                    maxLength={10}
+                    className="bg-transparent w-full outline-none text-xs font-mono uppercase tracking-wider text-[var(--text-primary)] placeholder:text-[var(--text-secondary)] placeholder:font-sans placeholder:normal-case placeholder:tracking-normal"
+                  />
+                </div>
+                <button
+                  type="button"
+                  disabled={isJoiningGroupByCode || !groupCodeInput.trim()}
+                  onClick={async () => {
+                    const clean = groupCodeInput.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+                    if (!clean) return;
+                    setIsJoiningGroupByCode(true);
+                    setCodeFeedback(null);
+                    try {
+                      const joined = await dbService.grupos.joinByCode(clean);
+                      setGroupCodeInput('');
+                      setCodeFeedback({
+                        type: 'success',
+                        text: `Você entrou no grupo "${joined.name || 'Grupo'}"!`,
+                      });
+                      await carregarDados(false);
+                      onDataChange?.();
+                      if (joined?.id) {
+                        setGrupoSelecionadoId(joined.id);
+                      }
+                    } catch (err: any) {
+                      setCodeFeedback({
+                        type: 'error',
+                        text: err?.response?.data?.error || err?.message || 'Código de grupo inválido.',
+                      });
+                    } finally {
+                      setIsJoiningGroupByCode(false);
+                    }
+                  }}
+                  className="h-10 px-3.5 rounded-xl bg-[var(--primary)] hover:bg-[var(--primary-dark)] text-white text-xs font-semibold inline-flex items-center gap-1.5 transition-all active:scale-95 disabled:opacity-50 shrink-0"
+                >
+                  {isJoiningGroupByCode ? (
+                    <LoaderCircle size={14} strokeWidth={2} className="animate-spin" />
+                  ) : (
+                    <LogIn size={14} strokeWidth={2} />
+                  )}
+                  <span>Entrar</span>
+                </button>
+              </div>
+
+              {codeFeedback && subTab === 'grupos' && (
+                <p
+                  className={`text-xs font-medium ${
+                    codeFeedback.type === 'success' ? 'text-[#10B981]' : 'text-[#F43F5E]'
+                  }`}
+                >
+                  {codeFeedback.text}
+                </p>
+              )}
+            </section>
+
             {/* CONVITES DE GRUPO PENDENTES */}
             {convitesGrupo.length > 0 && (
               <div className="ds-card p-4 border-[#F59E0B]/40 space-y-3">
@@ -1119,13 +1300,18 @@ export function Amigos({
                         </div>
 
                         <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 min-w-0">
+                          <div className="flex items-center gap-2 min-w-0 flex-wrap">
                             <h3 className="font-display font-semibold text-[var(--text-primary)] text-base sm:text-[18px] truncate">
                               {grupo.name}
                             </h3>
                             {currentUserId && grupo.created_by === currentUserId && (
                               <span className="text-xs font-semibold text-[var(--primary)] bg-[var(--primary-light)] px-2 py-0.5 rounded-full shrink-0">
                                 Criador
+                              </span>
+                            )}
+                            {grupo.invite_code && (
+                              <span className="text-[11px] font-mono font-bold text-[var(--text-secondary)] bg-[var(--bg-subtle)] border border-[var(--border-color)] px-2 py-0.5 rounded-full shrink-0">
+                                #{grupo.invite_code}
                               </span>
                             )}
                           </div>

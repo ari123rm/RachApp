@@ -2,16 +2,45 @@
 import { prisma } from '../config/db';
 import { ExpenseService } from './Expense.service';
 import { FriendService } from './Friend.service';
-import { normalizePhoneBackend, phonesMatch } from './Auth.service';
+import { generateRandomCode, normalizePhoneBackend, normalizeShortCode, phonesMatch } from './Auth.service';
 import { NotificationService } from './Notification.service';
 import { notifySync } from './socket.service';
 
 export class GroupService {
+  static async generateUniqueGroupCode(): Promise<string> {
+    for (let attempt = 0; attempt < 20; attempt++) {
+      const candidate = generateRandomCode(6);
+      const existing = await prisma.group.findFirst({
+        where: { invite_code: candidate },
+        select: { id: true },
+      });
+      if (!existing) return candidate;
+    }
+    return generateRandomCode(8);
+  }
+
+  static async ensureGroupInviteCode(group: any): Promise<any> {
+    if (!group || group.invite_code) return group;
+    try {
+      const code = await this.generateUniqueGroupCode();
+      const updated = await prisma.group.update({
+        where: { id: group.id },
+        data: { invite_code: code },
+        select: { invite_code: true },
+      });
+      group.invite_code = updated.invite_code;
+      return group;
+    } catch {
+      return group;
+    }
+  }
+
   static async transformGroupForUser(
     group: any,
     userId: string,
     reverseContext: Awaited<ReturnType<typeof FriendService.syncReverseLinks>>
   ) {
+    await this.ensureGroupInviteCode(group);
     const { currentUser, reverseFriendIds, ensureLocalFriendForOwner, myFriends } = reverseContext;
     const reverseSet = new Set(reverseFriendIds);
 
@@ -100,6 +129,7 @@ export class GroupService {
 
     return {
       ...group,
+      invite_code: group.invite_code || null,
       members: transformedMembers,
       ...(transformedExpenses !== undefined ? { expenses: transformedExpenses } : {}),
       _count: {
@@ -183,11 +213,14 @@ export class GroupService {
       }
     }
 
+    const inviteCode = await this.generateUniqueGroupCode();
+
     const group = await prisma.group.create({
       data: {
         ...(canUseProvidedId && data.id ? { id: data.id } : {}),
         name,
         avatar_url: data.avatar_url || null,
+        invite_code: inviteCode,
         created_by: userId,
         members: {
           create: memberCreates,
@@ -231,6 +264,157 @@ export class GroupService {
     }
 
     return group;
+  }
+
+  static async joinByCode(userId: string, rawCode: string) {
+    const cleanCode = normalizeShortCode(rawCode);
+    if (!cleanCode || cleanCode.length < 4) {
+      throw new Error('Informe um código de grupo válido.');
+    }
+
+    const group = await prisma.group.findFirst({
+      where: {
+        invite_code: { equals: cleanCode, mode: 'insensitive' },
+      },
+      include: {
+        owner: { select: { id: true, name: true, phone: true, pix_key: true, avatar_url: true } },
+        members: { include: { user: true, friend: true } },
+      },
+    });
+
+    if (!group) {
+      throw new Error('Nenhum grupo encontrado com este código.');
+    }
+
+    if (group.created_by === userId) {
+      return this.getGroupById(group.id, userId);
+    }
+
+    const joiningUser = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, name: true, phone: true, pix_key: true, avatar_url: true },
+    });
+    if (!joiningUser) {
+      throw new Error('Usuário não encontrado.');
+    }
+
+    // Garante vínculo de amizade ACCEPTED entre o criador do grupo e quem entrou via código
+    const existingReq = await prisma.friendshipRequest.findFirst({
+      where: {
+        OR: [
+          { sender_id: group.created_by, receiver_id: userId },
+          { sender_id: userId, receiver_id: group.created_by },
+        ],
+      },
+    });
+    if (existingReq) {
+      if (existingReq.status !== 'ACCEPTED') {
+        await prisma.friendshipRequest.update({
+          where: { id: existingReq.id },
+          data: { status: 'ACCEPTED' },
+        });
+      }
+    } else {
+      await prisma.friendshipRequest.create({
+        data: {
+          sender_id: group.created_by,
+          receiver_id: userId,
+          status: 'ACCEPTED',
+        },
+      });
+    }
+
+    // Garante que o dono do grupo tenha um registro Friend para o participante que entrou
+    const ownerFriends = await prisma.friend.findMany({ where: { user_id: group.created_by } });
+    const normJoinPhone = normalizePhoneBackend(joiningUser.phone);
+    let ownerFriendForJoiner = ownerFriends.find(
+      (f) => f.phone && normJoinPhone && phonesMatch(f.phone, normJoinPhone)
+    );
+    if (!ownerFriendForJoiner) {
+      ownerFriendForJoiner = await prisma.friend.create({
+        data: {
+          user_id: group.created_by,
+          name: joiningUser.name,
+          phone: normJoinPhone || null,
+          pix_key: joiningUser.pix_key || null,
+          avatar_url: joiningUser.avatar_url || null,
+          color: 'bg-teal-500',
+          is_favorite: false,
+          auto_accept_rule: 'DEFAULT',
+        },
+      });
+    }
+
+    // Garante que quem entrou também tenha o dono do grupo na sua lista de amigos
+    if (group.owner) {
+      const myFriends = await prisma.friend.findMany({ where: { user_id: userId } });
+      const normOwnerPhone = normalizePhoneBackend(group.owner.phone);
+      const hasOwner = myFriends.some(
+        (f) => f.phone && normOwnerPhone && phonesMatch(f.phone, normOwnerPhone)
+      );
+      if (!hasOwner) {
+        await prisma.friend.create({
+          data: {
+            user_id: userId,
+            name: group.owner.name,
+            phone: normOwnerPhone || null,
+            pix_key: group.owner.pix_key || null,
+            avatar_url: group.owner.avatar_url || null,
+            color: 'bg-emerald-500',
+            is_favorite: false,
+            auto_accept_rule: 'DEFAULT',
+          },
+        });
+      }
+    }
+
+    const existingMember = group.members.find(
+      (m) =>
+        m.user_id === userId ||
+        m.friend_id === ownerFriendForJoiner!.id ||
+        (normJoinPhone && m.friend?.phone && phonesMatch(m.friend.phone, normJoinPhone))
+    );
+
+    if (existingMember) {
+      await prisma.groupMember.update({
+        where: { id: existingMember.id },
+        data: {
+          user_id: userId,
+          friend_id: existingMember.friend_id || ownerFriendForJoiner.id,
+          status: 'ACCEPTED',
+        },
+      });
+    } else {
+      await prisma.groupMember.create({
+        data: {
+          group_id: group.id,
+          user_id: userId,
+          friend_id: ownerFriendForJoiner.id,
+          status: 'ACCEPTED',
+        },
+      });
+    }
+
+    try {
+      await NotificationService.createNotification({
+        userId: group.created_by,
+        type: 'GROUP_INVITE',
+        title: 'Novo participante no grupo',
+        message: `${joiningUser.name} entrou no grupo "${group.name}" usando o código de convite.`,
+        data: { groupId: group.id, groupName: group.name },
+      });
+    } catch {
+      // ignore
+    }
+
+    notifySync(group.created_by, 'GROUP_INVITE_ACCEPTED');
+    for (const m of group.members) {
+      if (m.user_id && m.user_id !== userId && m.user_id !== group.created_by) {
+        notifySync(m.user_id, 'GROUP_INVITE_ACCEPTED');
+      }
+    }
+
+    return this.getGroupById(group.id, userId);
   }
 
   static async getUserGroups(

@@ -9,6 +9,7 @@ router.use(authMiddleware);
 
 router.get('/', FriendController.list);
 router.post('/', FriendController.create);
+router.post('/add-by-code', FriendController.addByCode);
 
 // Solicitações de amizade e descoberta de contas (devem vir antes de /:id)
 router.get('/discover', FriendController.discoverRegisteredUsers);

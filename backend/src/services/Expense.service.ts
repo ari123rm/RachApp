@@ -462,9 +462,37 @@ export class ExpenseService {
         ? mappedPaidBy
         : null;
 
-    const allUsers = await prisma.user.findMany({
-      select: { id: true, name: true, phone: true },
-    });
+    const [allUsers, creator] = await Promise.all([
+      prisma.user.findMany({
+        select: { id: true, name: true, phone: true, auto_accept_expenses: true },
+      }),
+      prisma.user.findUnique({
+        where: { id: data.userId },
+        select: { id: true, name: true, phone: true, pix_key: true, avatar_url: true },
+      }),
+    ]);
+
+    const matchedTargetUserIds = Array.from(
+      new Set(
+        uniqueParticipantIds
+          .map((friendId) => {
+            const friendObj = userFriends.find((f) => f.id === friendId);
+            const target = friendObj?.phone
+              ? allUsers.find((u) => u.id !== data.userId && phonesMatch(u.phone, friendObj.phone))
+              : null;
+            return target?.id || null;
+          })
+          .filter((id): id is string => Boolean(id))
+      )
+    );
+
+    const reverseFriendsForAutoAccept =
+      matchedTargetUserIds.length > 0
+        ? await prisma.friend.findMany({
+            where: { user_id: { in: matchedTargetUserIds } },
+            select: { user_id: true, phone: true, name: true, auto_accept_rule: true },
+          })
+        : [];
 
     const expense = await prisma.expense.create({
       data: {
@@ -495,11 +523,17 @@ export class ExpenseService {
             const targetUser = friendObj?.phone
               ? allUsers.find((u) => u.id !== data.userId && phonesMatch(u.phone, friendObj.phone))
               : null;
+            const initialStatus = this.resolveInitialParticipantStatus(
+              isFriendPayer,
+              targetUser,
+              creator,
+              reverseFriendsForAutoAccept
+            );
             return {
               friend_id: friendId,
               amount_owed: owedForFriend,
               amount_paid: amountPaid,
-              status: isFriendPayer ? 'ACCEPTED' : targetUser ? 'PENDING' : 'ACCEPTED',
+              status: initialStatus,
             } as any;
           }),
         },
@@ -515,10 +549,6 @@ export class ExpenseService {
 
     // Vincula e notifica os participantes cadastrados no RachApp antes de retornar
     try {
-      const creator = await prisma.user.findUnique({
-        where: { id: data.userId },
-        select: { id: true, name: true, phone: true, pix_key: true, avatar_url: true },
-      });
       const creatorName = creator?.name || 'Um amigo';
 
       for (const p of expense.participants) {
@@ -535,14 +565,21 @@ export class ExpenseService {
           }
 
           const isTargetPayer = expense.paid_by_friend_id === p.friend_id;
+          const isAutoAccepted = !isTargetPayer && (p as any).status === 'ACCEPTED';
           const amountOwedNum = Number(p.amount_owed);
           const formatted = amountOwedNum.toFixed(2).replace('.', ',');
           await NotificationService.createNotification({
             userId: targetUser.id,
             type: 'EXPENSE_ADDED',
-            title: isTargetPayer ? 'Novo racha registrado' : 'Novo racha pendente de aceite',
+            title: isTargetPayer
+              ? 'Novo racha registrado'
+              : isAutoAccepted
+              ? 'Novo racha aceito automaticamente'
+              : 'Novo racha pendente de aceite',
             message: isTargetPayer
               ? `${creatorName} registrou o racha "${expense.title}" com você como pagador (sua parte: R$ ${formatted}).`
+              : isAutoAccepted
+              ? `${creatorName} adicionou você ao racha "${expense.title}" (sua parte: R$ ${formatted}). Aceito automaticamente conforme sua configuração.`
               : `${creatorName} adicionou você ao racha "${expense.title}" (sua parte: R$ ${formatted}). Toque para aceitar ou recusar.`,
             data: {
               expenseId: expense.id,
@@ -557,6 +594,56 @@ export class ExpenseService {
     }
 
     return expense;
+  }
+
+  /**
+   * Determina o status inicial de participação (ACCEPTED vs PENDING) para um usuário cadastrado (targetUser)
+   * quando o criador (creator) o adiciona em um racha, respeitando:
+   * 1. A configuração específica por amigo (auto_accept_rule no registro Friend de targetUser que aponta para creator):
+   *    - 'AUTO_ACCEPT' => ACCEPTED
+   *    - 'MANUAL' => PENDING
+   * 2. Caso seja 'DEFAULT' (ou ainda não exista o registro Friend reverso), usa a configuração geral de targetUser (targetUser.auto_accept_expenses):
+   *    - true => ACCEPTED
+   *    - false => PENDING
+   */
+  private static resolveInitialParticipantStatus(
+    isFriendPayer: boolean,
+    targetUser: { id: string; auto_accept_expenses?: boolean | null } | null | undefined,
+    creatorUser: { id: string; name?: string | null; phone?: string | null } | null | undefined,
+    targetUserFriendsOfCreator: Array<{
+      user_id: string;
+      phone?: string | null;
+      name?: string | null;
+      auto_accept_rule?: string | null;
+    }>
+  ): 'ACCEPTED' | 'PENDING' {
+    if (isFriendPayer || !targetUser) {
+      return 'ACCEPTED';
+    }
+
+    const creatorFriendRecord = targetUserFriendsOfCreator.find((f) => {
+      if (f.user_id !== targetUser.id) return false;
+      if (creatorUser?.phone && f.phone && phonesMatch(f.phone, creatorUser.phone)) return true;
+      if (
+        !creatorUser?.phone &&
+        creatorUser?.name &&
+        f.name &&
+        f.name.trim().toLowerCase() === creatorUser.name.trim().toLowerCase()
+      ) {
+        return true;
+      }
+      return false;
+    });
+
+    const perFriendRule = creatorFriendRecord?.auto_accept_rule || 'DEFAULT';
+    if (perFriendRule === 'AUTO_ACCEPT') {
+      return 'ACCEPTED';
+    }
+    if (perFriendRule === 'MANUAL') {
+      return 'PENDING';
+    }
+
+    return targetUser.auto_accept_expenses ? 'ACCEPTED' : 'PENDING';
   }
 
   // 3. Editar/Atualizar uma despesa existente (suporta divisão personalizada)
@@ -687,9 +774,37 @@ export class ExpenseService {
       existingStatusMap.set(p.friend_id, p.status || 'ACCEPTED');
     });
 
-    const allUsers = await prisma.user.findMany({
-      select: { id: true, name: true, phone: true },
-    });
+    const [allUsers, creator] = await Promise.all([
+      prisma.user.findMany({
+        select: { id: true, name: true, phone: true, auto_accept_expenses: true },
+      }),
+      prisma.user.findUnique({
+        where: { id: userId },
+        select: { id: true, name: true, phone: true, pix_key: true, avatar_url: true },
+      }),
+    ]);
+
+    const matchedTargetUserIds = Array.from(
+      new Set(
+        participantIds
+          .map((friendId) => {
+            const friendObj = userFriends.find((f) => f.id === friendId);
+            const target = friendObj?.phone
+              ? allUsers.find((u) => u.id !== userId && phonesMatch(u.phone, friendObj.phone))
+              : null;
+            return target?.id || null;
+          })
+          .filter((id): id is string => Boolean(id))
+      )
+    );
+
+    const reverseFriendsForAutoAccept =
+      matchedTargetUserIds.length > 0
+        ? await prisma.friend.findMany({
+            where: { user_id: { in: matchedTargetUserIds } },
+            select: { user_id: true, phone: true, name: true, auto_accept_rule: true },
+          })
+        : [];
 
     const parsedDate = data.expenseDate ? new Date(data.expenseDate) : existing.expense_date;
 
@@ -729,9 +844,12 @@ export class ExpenseService {
               ? 'ACCEPTED'
               : prevStatus
               ? prevStatus
-              : targetUser
-              ? 'PENDING'
-              : 'ACCEPTED';
+              : this.resolveInitialParticipantStatus(
+                  isFriendPayer,
+                  targetUser,
+                  creator,
+                  reverseFriendsForAutoAccept
+                );
             return {
               friend_id: friendId,
               amount_owed: owedForFriend,
@@ -752,10 +870,6 @@ export class ExpenseService {
     });
 
     try {
-      const creator = await prisma.user.findUnique({
-        where: { id: userId },
-        select: { id: true, name: true, phone: true, pix_key: true, avatar_url: true },
-      });
       const creatorName = creator?.name || 'Um amigo';
       for (const p of updated.participants) {
         const friendPhone = p.friend?.phone;
@@ -767,14 +881,23 @@ export class ExpenseService {
           if (creator) {
             await this.ensureParticipantLink(creator, targetUser, updated, p.friend_id);
           }
-          const isNewPending = !existingStatusMap.has(p.friend_id) && (p as any).status === 'PENDING';
-          if (isNewPending) {
+          const isNewParticipant = !existingStatusMap.has(p.friend_id);
+          const isNewPending = isNewParticipant && (p as any).status === 'PENDING';
+          const isNewAutoAccepted =
+            isNewParticipant &&
+            updated.paid_by_friend_id !== p.friend_id &&
+            (p as any).status === 'ACCEPTED';
+          if (isNewPending || isNewAutoAccepted) {
             const formatted = Number(p.amount_owed).toFixed(2).replace('.', ',');
             await NotificationService.createNotification({
               userId: targetUser.id,
               type: 'EXPENSE_ADDED',
-              title: 'Novo racha pendente de aceite',
-              message: `${creatorName} adicionou você ao racha "${updated.title}" (sua parte: R$ ${formatted}). Toque para aceitar ou recusar.`,
+              title: isNewAutoAccepted
+                ? 'Novo racha aceito automaticamente'
+                : 'Novo racha pendente de aceite',
+              message: isNewAutoAccepted
+                ? `${creatorName} adicionou você ao racha "${updated.title}" (sua parte: R$ ${formatted}). Aceito automaticamente conforme sua configuração.`
+                : `${creatorName} adicionou você ao racha "${updated.title}" (sua parte: R$ ${formatted}). Toque para aceitar ou recusar.`,
               data: {
                 expenseId: updated.id,
                 groupId: updated.group_id,

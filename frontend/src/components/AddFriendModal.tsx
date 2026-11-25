@@ -1,7 +1,7 @@
 // src/components/AddFriendModal.tsx
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { X, User, Phone, QrCode, Palette, Check, BookUser } from 'lucide-react';
+import { X, User, Phone, QrCode, Palette, Check, BookUser, Hash, UserPlus, LoaderCircle } from 'lucide-react';
 import { dbService } from '../services/database';
 import { formatPhoneBR, isValidPhoneBR, stripCountryCode } from '../utils/phoneFormatter';
 import { useModalBackHandler } from '../utils/modalBackHandler';
@@ -20,6 +20,10 @@ export function AddFriendModal({ isOpen, onClose, onSuccess, friendToEdit }: Add
   const [nome, setNome] = useState('');
   const [telefone, setTelefone] = useState('');
   const [pixKey, setPixKey] = useState('');
+  const [autoAcceptRule, setAutoAcceptRule] = useState<'DEFAULT' | 'AUTO_ACCEPT' | 'MANUAL'>('DEFAULT');
+  const [globalAutoAccept, setGlobalAutoAccept] = useState(false);
+  const [friendCodeInput, setFriendCodeInput] = useState('');
+  const [isAddingByCode, setIsAddingByCode] = useState(false);
   const [corSelecionada, setCorSelecionada] = useState(PRESET_AVATAR_COLORS[0]);
   const [isCustomMode, setIsCustomMode] = useState(false);
   const [hue, setHue] = useState(172);
@@ -36,10 +40,20 @@ export function AddFriendModal({ isOpen, onClose, onSuccess, friendToEdit }: Add
   useEffect(() => {
     if (isOpen) {
       setErro('');
+      setFriendCodeInput('');
+      dbService.settings
+        .get()
+        .then((u) => setGlobalAutoAccept(Boolean(u.auto_accept_expenses)))
+        .catch(() => {});
       if (friendToEdit) {
         setNome(friendToEdit.nome || friendToEdit.name || '');
         setTelefone(formatPhoneBR(friendToEdit.telefone || friendToEdit.phone || ''));
         setPixKey(friendToEdit.pix_key || friendToEdit.pix || '');
+        setAutoAcceptRule(
+          friendToEdit.auto_accept_rule === 'AUTO_ACCEPT' || friendToEdit.auto_accept_rule === 'MANUAL'
+            ? friendToEdit.auto_accept_rule
+            : 'DEFAULT'
+        );
         const initialCor = friendToEdit.cor || friendToEdit.color || PRESET_AVATAR_COLORS[0];
         const hex = getAvatarColor(initialCor);
         setCorSelecionada(initialCor);
@@ -53,6 +67,7 @@ export function AddFriendModal({ isOpen, onClose, onSuccess, friendToEdit }: Add
         setNome('');
         setTelefone('');
         setPixKey('');
+        setAutoAcceptRule('DEFAULT');
         setCorSelecionada(PRESET_AVATAR_COLORS[0]);
         setHexInput(PRESET_AVATAR_COLORS[0]);
         setHue(hexToHsl(PRESET_AVATAR_COLORS[0]).h);
@@ -68,6 +83,25 @@ export function AddFriendModal({ isOpen, onClose, onSuccess, friendToEdit }: Add
   const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setErro('');
     setTelefone(formatPhoneBR(e.target.value));
+  };
+
+  const handleAddByCode = async () => {
+    const clean = friendCodeInput.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+    if (!clean) {
+      setErro('Digite o código do amigo.');
+      return;
+    }
+    setErro('');
+    setIsAddingByCode(true);
+    try {
+      const added = await dbService.amigos.addByCode(clean);
+      if (onSuccess) onSuccess(added);
+      onClose();
+    } catch (err: any) {
+      setErro(err?.response?.data?.error || err?.message || 'Não foi possível adicionar pelo código.');
+    } finally {
+      setIsAddingByCode(false);
+    }
   };
 
   const handleSalvar = async () => {
@@ -93,6 +127,7 @@ export function AddFriendModal({ isOpen, onClose, onSuccess, friendToEdit }: Add
           pix_key: pixKey.trim(),
           cor: corSelecionada,
           favorito: friendToEdit.favorito ?? friendToEdit.is_favorite ?? false,
+          auto_accept_rule: autoAcceptRule,
         });
       } else {
         saved = await dbService.amigos.create({
@@ -101,6 +136,7 @@ export function AddFriendModal({ isOpen, onClose, onSuccess, friendToEdit }: Add
           pix_key: pixKey.trim(),
           cor: corSelecionada,
           favorito: false,
+          auto_accept_rule: autoAcceptRule,
         });
       }
 
@@ -146,7 +182,46 @@ export function AddFriendModal({ isOpen, onClose, onSuccess, friendToEdit }: Add
         </h2>
 
         {!isEditing && (
-          <div className="mb-5">
+          <div className="mb-5 space-y-3">
+            {/* Adicionar por Código de Amigo */}
+            <div className="bg-[var(--bg-subtle)] p-3.5 rounded-2xl border border-[var(--border-color)] space-y-2">
+              <label className="block text-[var(--text-primary)] text-xs font-display font-bold uppercase tracking-wider">
+                Adicionar por Código de Amigo
+              </label>
+              <div className="flex items-center gap-2">
+                <div className="h-11 bg-[var(--bg-surface)] rounded-xl px-3.5 flex items-center border border-[var(--border-color)] focus-within:border-[var(--primary)] flex-1">
+                  <Hash size={16} strokeWidth={2} className="text-[var(--primary)] mr-2 shrink-0" />
+                  <input
+                    type="text"
+                    placeholder="Ex: R7K9M2"
+                    value={friendCodeInput}
+                    onChange={(e) => {
+                      setErro('');
+                      setFriendCodeInput(e.target.value.toUpperCase());
+                    }}
+                    maxLength={10}
+                    className="bg-transparent w-full outline-none text-[var(--text-primary)] placeholder:text-[var(--text-secondary)] text-sm font-mono uppercase tracking-wider"
+                  />
+                </div>
+                <button
+                  type="button"
+                  disabled={isAddingByCode || !friendCodeInput.trim()}
+                  onClick={handleAddByCode}
+                  className="h-11 px-4 rounded-xl bg-[var(--primary)] hover:bg-[var(--primary-dark)] text-white text-xs font-semibold inline-flex items-center gap-1.5 transition-all active:scale-95 disabled:opacity-50 shrink-0"
+                >
+                  {isAddingByCode ? (
+                    <LoaderCircle size={15} strokeWidth={2} className="animate-spin" />
+                  ) : (
+                    <UserPlus size={15} strokeWidth={2} />
+                  )}
+                  <span>Conectar</span>
+                </button>
+              </div>
+              <p className="text-[11px] text-[var(--text-secondary)]">
+                Tem o código RachApp do seu amigo? Cole acima para puxar os dados automaticamente.
+              </p>
+            </div>
+
             <button
               type="button"
               onClick={() => setIsImportContactsOpen(true)}
@@ -155,6 +230,14 @@ export function AddFriendModal({ isOpen, onClose, onSuccess, friendToEdit }: Add
               <BookUser size={17} strokeWidth={2} />
               <span>Adicionar da Lista de Contatos do Celular</span>
             </button>
+
+            <div className="flex items-center gap-3 pt-1">
+              <div className="h-px flex-1 bg-[var(--border-color)]" />
+              <span className="text-[10px] uppercase tracking-wider font-semibold text-[var(--text-secondary)]">
+                Ou cadastrar manualmente
+              </span>
+              <div className="h-px flex-1 bg-[var(--border-color)]" />
+            </div>
           </div>
         )}
 
@@ -232,6 +315,48 @@ export function AddFriendModal({ isOpen, onClose, onSuccess, friendToEdit }: Add
               onChange={(e) => setPixKey(e.target.value)}
               className="bg-transparent w-full outline-none text-[var(--text-primary)] placeholder:text-[var(--text-secondary)] text-sm"
             />
+          </div>
+        </div>
+
+        {/* Configuração de Aceite de Rachas deste Amigo */}
+        <div className="mb-5">
+          <label className="block text-[var(--text-secondary)] text-xs uppercase font-semibold mb-2">
+            Rachas criados por este amigo
+          </label>
+          <div className="grid grid-cols-3 gap-1.5 bg-[var(--bg-subtle)] p-1 rounded-xl border border-[var(--border-color)]">
+            <button
+              type="button"
+              onClick={() => setAutoAcceptRule('DEFAULT')}
+              className={`py-2 px-2 rounded-lg text-xs font-semibold transition-all text-center ${
+                autoAcceptRule === 'DEFAULT'
+                  ? 'bg-[var(--primary)] text-white shadow-xs'
+                  : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+              }`}
+            >
+              Padrão ({globalAutoAccept ? 'Auto' : 'Analisar'})
+            </button>
+            <button
+              type="button"
+              onClick={() => setAutoAcceptRule('AUTO_ACCEPT')}
+              className={`py-2 px-2 rounded-lg text-xs font-semibold transition-all text-center ${
+                autoAcceptRule === 'AUTO_ACCEPT'
+                  ? 'bg-[var(--primary)] text-white shadow-xs'
+                  : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+              }`}
+            >
+              Aceitar Auto
+            </button>
+            <button
+              type="button"
+              onClick={() => setAutoAcceptRule('MANUAL')}
+              className={`py-2 px-2 rounded-lg text-xs font-semibold transition-all text-center ${
+                autoAcceptRule === 'MANUAL'
+                  ? 'bg-[var(--primary)] text-white shadow-xs'
+                  : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+              }`}
+            >
+              Analisar
+            </button>
           </div>
         </div>
 

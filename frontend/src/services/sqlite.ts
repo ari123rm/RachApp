@@ -132,6 +132,8 @@ function createSchema(db: Database) {
       phone TEXT,
       pix_key TEXT,
       avatar_url TEXT,
+      friend_code TEXT,
+      auto_accept_expenses INTEGER DEFAULT 0,
       phone_verified INTEGER DEFAULT 0,
       updated_at TEXT
     );
@@ -146,6 +148,7 @@ function createSchema(db: Database) {
       color TEXT NOT NULL,
       is_favorite INTEGER DEFAULT 0,
       has_account INTEGER DEFAULT 0,
+      auto_accept_rule TEXT DEFAULT 'DEFAULT',
       synced INTEGER DEFAULT 0,
       updated_at TEXT
     );
@@ -154,6 +157,7 @@ function createSchema(db: Database) {
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
       avatar_url TEXT,
+      invite_code TEXT,
       created_by TEXT,
       created_at TEXT,
       synced INTEGER DEFAULT 0
@@ -283,13 +287,37 @@ function createSchema(db: Database) {
   }
 
   try {
+    db.run('ALTER TABLE auth_session ADD COLUMN friend_code TEXT');
+  } catch {
+    // Coluna já existe
+  }
+
+  try {
+    db.run('ALTER TABLE auth_session ADD COLUMN auto_accept_expenses INTEGER DEFAULT 0');
+  } catch {
+    // Coluna já existe
+  }
+
+  try {
     db.run('ALTER TABLE friends ADD COLUMN avatar_url TEXT');
   } catch {
     // Coluna já existe
   }
 
   try {
+    db.run("ALTER TABLE friends ADD COLUMN auto_accept_rule TEXT DEFAULT 'DEFAULT'");
+  } catch {
+    // Coluna já existe
+  }
+
+  try {
     db.run('ALTER TABLE groups_table ADD COLUMN avatar_url TEXT');
+  } catch {
+    // Coluna já existe
+  }
+
+  try {
+    db.run('ALTER TABLE groups_table ADD COLUMN invite_code TEXT');
   } catch {
     // Coluna já existe
   }

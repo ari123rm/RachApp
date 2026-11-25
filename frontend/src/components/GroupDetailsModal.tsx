@@ -19,6 +19,9 @@ import {
   TrendingUp,
   Share2,
   LogOut,
+  Copy,
+  Check,
+  Hash,
 } from 'lucide-react';
 import { dbService } from '../services/database';
 import moneyConverter from '../utils/moneyConverter';
@@ -60,6 +63,7 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
   const [isLeavingGroup, setIsLeavingGroup] = useState(false);
   const [isAddingMemberId, setIsAddingMemberId] = useState<string | null>(null);
   const [showAddMemberSection, setShowAddMemberSection] = useState(false);
+  const [copiedGroupCode, setCopiedGroupCode] = useState(false);
 
   const [isAddRideOpen, setIsAddRideOpen] = useState(false);
   const [isEditGroupOpen, setIsEditGroupOpen] = useState(false);
@@ -1032,6 +1036,49 @@ export function GroupDetailsModal({ grupoId, isOpen, onClose, onChanged }: Group
                   • ATIVO
                 </span>
               </div>
+
+              {grupo.invite_code && (
+                <div className="mb-4 flex items-center justify-between gap-2 bg-[var(--bg-subtle)] border border-[var(--border-color)] rounded-xl px-3.5 py-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Hash size={15} strokeWidth={2.2} className="text-[var(--primary)] shrink-0" />
+                    <div className="min-w-0">
+                      <span className="text-[10px] uppercase tracking-wider font-semibold text-[var(--text-secondary)] block leading-none">
+                        Código de Convite do Grupo
+                      </span>
+                      <span className="text-sm font-mono font-bold text-[var(--text-primary)] tracking-wider">
+                        {grupo.invite_code}
+                      </span>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (!grupo.invite_code) return;
+                      try {
+                        await navigator.clipboard.writeText(grupo.invite_code);
+                        setCopiedGroupCode(true);
+                        setTimeout(() => setCopiedGroupCode(false), 2200);
+                      } catch {
+                        alert(`Código do grupo: ${grupo.invite_code}`);
+                      }
+                    }}
+                    className="px-3 py-1.5 rounded-lg bg-[var(--primary-light)] text-[var(--primary)] hover:opacity-90 text-xs font-semibold inline-flex items-center gap-1.5 transition-all active:scale-95 shrink-0"
+                    title="Copiar código do grupo"
+                  >
+                    {copiedGroupCode ? (
+                      <>
+                        <Check size={13} strokeWidth={2.5} />
+                        <span>Copiado!</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy size={13} strokeWidth={2} />
+                        <span>Copiar Código</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              )}
 
               <p className="text-caption text-[var(--text-secondary)] mb-1">
                 Seu saldo em <strong className="text-[var(--text-primary)]">{grupo.name}</strong>

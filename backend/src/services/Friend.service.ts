@@ -1,7 +1,15 @@
 // src/services/Friend.service.ts
 import { prisma } from '../config/db';
-import { normalizePhoneBackend, phonesMatch } from './Auth.service';
+import { normalizePhoneBackend, normalizeShortCode, phonesMatch } from './Auth.service';
+import { NotificationService } from './Notification.service';
 import { notifySync } from './socket.service';
+
+export function normalizeAutoAcceptRule(raw?: string | null): 'DEFAULT' | 'AUTO_ACCEPT' | 'MANUAL' {
+  if (raw === 'AUTO_ACCEPT' || raw === 'MANUAL' || raw === 'DEFAULT') {
+    return raw;
+  }
+  return 'DEFAULT';
+}
 
 type SyncReverseLinksResult = Awaited<ReturnType<typeof FriendService['_runSyncReverseLinks']>>;
 const syncReverseLinksLocks = new Map<string, Promise<SyncReverseLinksResult>>();
@@ -418,6 +426,7 @@ export class FriendService {
       is_favorite?: boolean;
       favorito?: boolean;
       avatar_url?: string | null;
+      auto_accept_rule?: string;
     }
   ) {
     const name = (data.name || data.nome || '').trim();
@@ -433,6 +442,8 @@ export class FriendService {
     let pix_key = (data.pix_key ?? data.pix ?? '').trim() || null;
     const color = data.color || data.cor || 'bg-sky-500';
     const is_favorite = data.is_favorite ?? data.favorito ?? false;
+    const auto_accept_rule =
+      data.auto_accept_rule !== undefined ? normalizeAutoAcceptRule(data.auto_accept_rule) : undefined;
 
     // Se o telefone pertencer a um usuário já cadastrado, prioriza a chave Pix que ele cadastrou para si
     let registeredUser: any = null;
@@ -489,7 +500,14 @@ export class FriendService {
         if (existing.user_id === userId) {
           const updatedById = await prisma.friend.update({
             where: { id: data.id },
-            data: { name, phone, pix_key, color, is_favorite },
+            data: {
+              name,
+              phone,
+              pix_key,
+              color,
+              is_favorite,
+              ...(auto_accept_rule !== undefined ? { auto_accept_rule } : {}),
+            },
           });
           if (registeredUser && registeredUser.id !== userId) {
             notifySync(registeredUser.id, 'FRIEND_UPDATED');
@@ -512,6 +530,7 @@ export class FriendService {
             phone,
             ...(pix_key ? { pix_key } : {}),
             color,
+            ...(auto_accept_rule !== undefined ? { auto_accept_rule } : {}),
           },
         });
         if (registeredUser && registeredUser.id !== userId) {
@@ -530,6 +549,7 @@ export class FriendService {
         pix_key,
         color,
         is_favorite,
+        auto_accept_rule: auto_accept_rule || 'DEFAULT',
       },
     });
 
@@ -538,6 +558,144 @@ export class FriendService {
     }
 
     return createdFriend;
+  }
+
+  static async addByCode(userId: string, rawCode: string) {
+    const cleanCode = normalizeShortCode(rawCode);
+    if (!cleanCode || cleanCode.length < 4) {
+      throw new Error('Informe um código de amigo válido.');
+    }
+
+    const targetUser = await prisma.user.findFirst({
+      where: {
+        friend_code: { equals: cleanCode, mode: 'insensitive' },
+      },
+      select: {
+        id: true,
+        name: true,
+        phone: true,
+        pix_key: true,
+        avatar_url: true,
+        friend_code: true,
+      },
+    });
+
+    if (!targetUser) {
+      throw new Error('Nenhum usuário encontrado com este código de amigo.');
+    }
+
+    if (targetUser.id === userId) {
+      throw new Error('Este é o seu próprio código de amigo!');
+    }
+
+    const currentUser = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, name: true, phone: true, pix_key: true, avatar_url: true },
+    });
+
+    // Garante vínculo de amizade aceito entre os dois usuários
+    const existingReq = await prisma.friendshipRequest.findFirst({
+      where: {
+        OR: [
+          { sender_id: userId, receiver_id: targetUser.id },
+          { sender_id: targetUser.id, receiver_id: userId },
+        ],
+      },
+    });
+
+    if (existingReq) {
+      if (existingReq.status !== 'ACCEPTED') {
+        await prisma.friendshipRequest.update({
+          where: { id: existingReq.id },
+          data: { status: 'ACCEPTED' },
+        });
+      }
+    } else {
+      await prisma.friendshipRequest.create({
+        data: {
+          sender_id: userId,
+          receiver_id: targetUser.id,
+          status: 'ACCEPTED',
+        },
+      });
+    }
+
+    // 1. Garante que userId tenha targetUser como amigo local
+    const myFriends = await prisma.friend.findMany({ where: { user_id: userId } });
+    const normTargetPhone = normalizePhoneBackend(targetUser.phone);
+    let myFriendRecord = myFriends.find(
+      (f) => f.phone && normTargetPhone && phonesMatch(f.phone, normTargetPhone)
+    );
+
+    if (myFriendRecord) {
+      myFriendRecord = await prisma.friend.update({
+        where: { id: myFriendRecord.id },
+        data: {
+          name: myFriendRecord.name || targetUser.name,
+          phone: normTargetPhone || myFriendRecord.phone,
+          pix_key: targetUser.pix_key || myFriendRecord.pix_key || null,
+          avatar_url: targetUser.avatar_url || myFriendRecord.avatar_url || null,
+        },
+      });
+    } else {
+      myFriendRecord = await prisma.friend.create({
+        data: {
+          user_id: userId,
+          name: targetUser.name,
+          phone: normTargetPhone || null,
+          pix_key: targetUser.pix_key || null,
+          avatar_url: targetUser.avatar_url || null,
+          color: 'bg-teal-500',
+          is_favorite: false,
+          auto_accept_rule: 'DEFAULT',
+        },
+      });
+    }
+
+    // 2. Garante que targetUser também tenha userId como amigo local
+    if (currentUser) {
+      const targetFriends = await prisma.friend.findMany({ where: { user_id: targetUser.id } });
+      const normMyPhone = normalizePhoneBackend(currentUser.phone);
+      const hasMe = targetFriends.some(
+        (f) => f.phone && normMyPhone && phonesMatch(f.phone, normMyPhone)
+      );
+      if (!hasMe) {
+        await prisma.friend.create({
+          data: {
+            user_id: targetUser.id,
+            name: currentUser.name,
+            phone: normMyPhone || null,
+            pix_key: currentUser.pix_key || null,
+            avatar_url: currentUser.avatar_url || null,
+            color: 'bg-emerald-500',
+            is_favorite: false,
+            auto_accept_rule: 'DEFAULT',
+          },
+        });
+      }
+
+      try {
+        await NotificationService.createNotification({
+          userId: targetUser.id,
+          type: 'FRIEND_ADDED',
+          title: 'Novo amigo conectado',
+          message: `${currentUser.name} adicionou você usando seu código de amigo!`,
+          data: { friendUserId: userId },
+        });
+      } catch {
+        // ignore
+      }
+    }
+
+    notifySync(targetUser.id, 'FRIEND_REQUEST_ACCEPTED');
+    notifySync(userId, 'FRIEND_REQUEST_ACCEPTED');
+
+    return {
+      ...myFriendRecord,
+      has_account: true,
+      is_registered: true,
+      registered_user_id: targetUser.id,
+    };
   }
 
   static async resolveFriendIdsForUser(
@@ -970,6 +1128,7 @@ export class FriendService {
         ...friendData,
         pix_key: effectivePixKey,
         avatar_url: effectiveAvatarUrl,
+        auto_accept_rule: normalizeAutoAcceptRule(friend.auto_accept_rule),
         registered_pix_key: effectivePixKey,
         has_account: hasAccount,
         is_registered: hasAccount,
@@ -995,6 +1154,7 @@ export class FriendService {
       cor?: string;
       is_favorite?: boolean;
       favorito?: boolean;
+      auto_accept_rule?: string;
     }
   ) {
     const friend = await prisma.friend.findFirst({
@@ -1021,6 +1181,8 @@ export class FriendService {
     let pix_key = data.pix_key !== undefined ? (data.pix_key ? data.pix_key.trim() : null) : (data.pix ? data.pix.trim() : undefined);
     const color = data.color ?? data.cor;
     const is_favorite = data.is_favorite !== undefined ? data.is_favorite : data.favorito;
+    const auto_accept_rule =
+      data.auto_accept_rule !== undefined ? normalizeAutoAcceptRule(data.auto_accept_rule) : undefined;
 
     // Se o amigo for um usuário registrado com chave Pix própria, prioriza a chave que ele cadastrou para si
     const targetPhone = phoneToSave !== undefined ? phoneToSave : friend.phone;
@@ -1068,6 +1230,7 @@ export class FriendService {
         ...(pix_key !== undefined ? { pix_key } : {}),
         ...(color ? { color } : {}),
         ...(is_favorite !== undefined ? { is_favorite } : {}),
+        ...(auto_accept_rule !== undefined ? { auto_accept_rule } : {}),
       },
     });
   }

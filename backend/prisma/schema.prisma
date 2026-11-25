@@ -17,6 +17,8 @@ model User {
   pix_key                String?
   avatar_url             String?
   fcm_token              String?
+  friend_code            String?             @unique
+  auto_accept_expenses   Boolean             @default(false)
   created_at             DateTime            @default(now())
   phone_verified         Boolean             @default(false)
   verification_code      String?
@@ -30,29 +32,31 @@ model User {
 }
 
 model Friend {
-  id           String               @id @default(uuid())
-  user_id      String
-  name         String
-  phone        String?
-  color        String
-  is_favorite  Boolean              @default(false)
-  pix_key      String?
-  avatar_url   String?
-  expensesPaid Expense[]            @relation("ExpensePayerFriend")
-  expenses     ExpenseParticipant[]
-  user         User                 @relation(fields: [user_id], references: [id], onDelete: Cascade)
-  groupMembers GroupMember[]
+  id               String               @id @default(uuid())
+  user_id          String
+  name             String
+  phone            String?
+  color            String
+  is_favorite      Boolean              @default(false)
+  pix_key          String?
+  avatar_url       String?
+  auto_accept_rule String               @default("DEFAULT") // DEFAULT, AUTO_ACCEPT, MANUAL
+  expensesPaid     Expense[]            @relation("ExpensePayerFriend")
+  expenses         ExpenseParticipant[]
+  user             User                 @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  groupMembers     GroupMember[]
 }
 
 model Group {
-  id         String        @id @default(uuid())
-  name       String
-  avatar_url String?
-  created_by String
-  created_at DateTime      @default(now())
-  expenses   Expense[]
-  owner      User          @relation("GroupOwner", fields: [created_by], references: [id], onDelete: Cascade)
-  members    GroupMember[]
+  id          String        @id @default(uuid())
+  name        String
+  avatar_url  String?
+  invite_code String?       @unique
+  created_by  String
+  created_at  DateTime      @default(now())
+  expenses    Expense[]
+  owner       User          @relation("GroupOwner", fields: [created_by], references: [id], onDelete: Cascade)
+  members     GroupMember[]
 }
 
 model GroupMember {
